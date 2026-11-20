@@ -2,7 +2,6 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   ArrowLeft,
   ArrowRight,
-  Briefcase,
   Calendar,
   Check,
   Copy,
@@ -21,7 +20,6 @@ import {
   RotateCw,
   ShieldCheck,
   Sun,
-  Type,
   Wifi,
   X,
   ZoomIn,
@@ -38,14 +36,13 @@ import { verifyDynamicPinOnServer } from '../utils/dynamicApi';
 import {
   buildReaderMediaBuckets,
   buildReaderThemeTokens,
-  computeReadingMetrics,
   getDefaultReaderColorMode,
   resolveMediaDownloadUrl,
   resolveReaderCategory,
   type ReaderColorMode,
-  type ReaderTextFont,
 } from '../utils/mediaReaderLogic';
 import { extractHostname } from '../utils/qrLogic';
+import { extractPrimaryFontName, resolveEncodedTextStyle } from '../utils/textStyle';
 import { CustomVideoPlayer } from './CustomVideoPlayer';
 
 interface KromaMediaReaderProps {
@@ -59,31 +56,6 @@ interface KromaMediaReaderProps {
   onPinUnlocked?: () => void;
   onClose?: () => void;
   onBackToStudio?: () => void;
-}
-
-const READER_FONT_OPTIONS: Array<{
-  id: ReaderTextFont;
-  label: string;
-  cssFamily: string;
-}> = [
-  { id: 'editorial', label: 'Éditorial', cssFamily: "'Fraunces', serif" },
-  { id: 'modern', label: 'Moderne', cssFamily: "'Plus Jakarta Sans', sans-serif" },
-  { id: 'script', label: 'Calligraphie', cssFamily: "'Dancing Script', cursive" },
-  { id: 'mono', label: 'Mono', cssFamily: "'JetBrains Mono', monospace" },
-];
-
-function mapConfigFontToReaderFont(fontId?: QrConfig['fontId']): ReaderTextFont {
-  if (
-    fontId === 'dancing' ||
-    fontId === 'greatvibes' ||
-    fontId === 'pacifico' ||
-    fontId === 'caveat'
-  ) {
-    return 'script';
-  }
-  if (fontId === 'fraunces' || fontId === 'playfair') return 'editorial';
-  if (fontId === 'mono') return 'mono';
-  return 'modern';
 }
 
 export const KromaMediaReader: React.FC<KromaMediaReaderProps> = ({
@@ -106,11 +78,6 @@ export const KromaMediaReader: React.FC<KromaMediaReaderProps> = ({
   const [imageZoom, setImageZoom] = useState(1);
   const [imageFullscreen, setImageFullscreen] = useState(false);
 
-  const [readerFont, setReaderFont] = useState<ReaderTextFont>(() =>
-    mapConfigFontToReaderFont(config.fontId)
-  );
-  const [textScale, setTextScale] = useState<'sm' | 'md' | 'lg'>('md');
-
   const [copiedPayload, setCopiedPayload] = useState(false);
   const [postcardFlipped, setPostcardFlipped] = useState(false);
   const [imageLoadError, setImageLoadError] = useState(false);
@@ -131,7 +98,7 @@ export const KromaMediaReader: React.FC<KromaMediaReaderProps> = ({
     setImageFullscreen(false);
     setImageLoadError(false);
     setPostcardFlipped(false);
-  }, [payload, dynamicHasPin]);
+  }, [payload, dynamicHasPin, config]);
 
   const tokens = useMemo(
     () => buildReaderThemeTokens(config, experience.accentMood || 'auto', colorMode),
@@ -147,6 +114,25 @@ export const KromaMediaReader: React.FC<KromaMediaReaderProps> = ({
     () => buildReaderMediaBuckets(source, experience),
     [source, experience]
   );
+
+  const exactTextStyle = useMemo(
+    () => resolveEncodedTextStyle(config, tokens.textPrimary),
+    [config, tokens.textPrimary]
+  );
+
+  // Preload exact Google Font so cursive/display fonts render crisply upon opening /m/:id or /d/:slug
+  useEffect(() => {
+    if (typeof document === 'undefined' || !('fonts' in document)) return;
+    const primaryFont = extractPrimaryFontName(exactTextStyle.fontFamily);
+    if (!primaryFont) return;
+    const descriptor = `${exactTextStyle.fontStyle === 'italic' ? 'italic ' : ''}${exactTextStyle.fontWeight} ${exactTextStyle.fontSizePx}px "${primaryFont}"`;
+    void document.fonts.load(descriptor).catch(() => {});
+  }, [
+    exactTextStyle.fontFamily,
+    exactTextStyle.fontStyle,
+    exactTextStyle.fontWeight,
+    exactTextStyle.fontSizePx,
+  ]);
 
   const safeImageIdx = Math.min(activeImageIdx, Math.max(0, buckets.images.length - 1));
   const safeVideoIdx = Math.min(activeVideoIdx, Math.max(0, buckets.videos.length - 1));
@@ -201,7 +187,7 @@ export const KromaMediaReader: React.FC<KromaMediaReaderProps> = ({
           enteredNativeFsRef.current = true;
         }
       } catch {
-        // Fallback immersive lightbox remains active even if Fullscreen API is restricted
+        // Fallback lightbox remains active even if Fullscreen API is restricted
       }
     } else {
       enteredNativeFsRef.current = false;
@@ -253,40 +239,47 @@ export const KromaMediaReader: React.FC<KromaMediaReaderProps> = ({
     FONT_CATALOG[config.fontId]?.cssFamily || FONT_CATALOG.bricolage.cssFamily;
   const subtitleFontCss =
     FONT_CATALOG[config.subtitleFontId]?.cssFamily || titleFontCss;
-  const activeReaderFontCss =
-    READER_FONT_OPTIONS.find((f) => f.id === readerFont)?.cssFamily || titleFontCss;
 
   const isWebLink = /^https?:\/\//i.test(payload);
   const hostname = isWebLink ? extractHostname(payload) : '';
   const tpl = experience.template || 'standard';
   const tplMeta = POST_SCAN_TEMPLATES.find((t) => t.id === tpl);
 
-  const headline =
+  const rawTitle =
     experience.headline.trim() ||
-    (config.titleUppercase
-      ? (config.titleText || source.imageName || source.videoName || 'Contenu KromaQR').toUpperCase()
-      : config.titleText || source.imageName || source.videoName || 'Contenu KromaQR');
+    (category === 'text-free' && config.titleText === 'Mon Code QR'
+      ? ''
+      : config.titleText.trim()) ||
+    source.imageName ||
+    source.videoName ||
+    '';
+
+  const headline = config.titleUppercase ? rawTitle.toUpperCase() : rawTitle;
+
+  const rawDescription =
+    experience.description.trim() ||
+    (config.subtitleText !== 'Scannez pour découvrir' ? config.subtitleText.trim() : '');
 
   const categoryLabel = (() => {
     switch (category) {
       case 'image-single':
-        return 'Lecteur d’image';
+        return 'Image';
       case 'image-gallery':
-        return `Galerie photo (${buckets.images.length})`;
+        return `Galerie (${buckets.images.length})`;
       case 'text-free':
-        return 'Lecteur de texte';
+        return 'Message';
       case 'video-single':
-        return 'Lecteur vidéo natif';
+        return 'Vidéo';
       case 'video-gallery':
-        return `Galerie vidéo (${buckets.videos.length})`;
+        return `Collection vidéo (${buckets.videos.length})`;
       case 'mixed-collection':
-        return 'Collection mixte multimédia';
+        return 'Collection multimédia';
       case 'wifi':
-        return 'Accès réseau Wi-Fi';
+        return 'Réseau Wi-Fi';
       case 'url':
-        return 'Destination web';
+        return 'Lien web';
       default:
-        return tplMeta?.label || 'Lecteur KromaQR';
+        return tplMeta?.label || 'KromaQR';
     }
   })();
 
@@ -307,20 +300,16 @@ export const KromaMediaReader: React.FC<KromaMediaReaderProps> = ({
     category === 'text-free' ||
     (category === 'mixed-collection' && Boolean(buckets.textBody.trim()));
 
-  const textMetrics = useMemo(
-    () => computeReadingMetrics(buckets.textBody || source.textValue),
-    [buckets.textBody, source.textValue]
-  );
-
-  const computedTextPx = useMemo(() => {
-    const base =
-      category === 'text-free' && config.messageFontSize
-        ? config.messageFontSize
-        : 17;
-    if (textScale === 'sm') return Math.max(14, base - 2);
-    if (textScale === 'lg') return Math.min(32, base + 4);
-    return base;
-  }, [category, config.messageFontSize, textScale]);
+  const displayedTextStyle: React.CSSProperties = {
+    fontFamily: exactTextStyle.fontFamily,
+    fontSize: `${exactTextStyle.fontSizePx}px`,
+    fontWeight: exactTextStyle.fontWeight,
+    fontStyle: exactTextStyle.fontStyle,
+    textAlign: exactTextStyle.textAlign,
+    color: exactTextStyle.color,
+    letterSpacing: exactTextStyle.letterSpacing,
+    textDecoration: exactTextStyle.textDecoration,
+  };
 
   return (
     <div
@@ -329,8 +318,8 @@ export const KromaMediaReader: React.FC<KromaMediaReaderProps> = ({
       data-reader-category={category}
       className={
         standalone
-          ? 'min-h-screen w-full flex flex-col justify-between p-4 sm:p-8 transition-colors duration-200'
-          : 'relative w-full rounded-3xl p-4 sm:p-7 border transition-colors duration-200'
+          ? 'min-h-screen w-full flex flex-col justify-center p-4 sm:p-8 transition-colors duration-200'
+          : 'relative w-full rounded-3xl p-3.5 sm:p-5 border transition-colors duration-200'
       }
       style={{
         background: tokens.outerBackground,
@@ -338,10 +327,16 @@ export const KromaMediaReader: React.FC<KromaMediaReaderProps> = ({
         color: tokens.textPrimary,
       }}
     >
-      <div className={standalone ? 'max-w-3xl w-full mx-auto space-y-5' : 'space-y-4'}>
-        {/* Unified KromaQR Studio Header Bar */}
-        <header className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-2.5 min-w-0">
+      <div
+        className={
+          standalone
+            ? `${category === 'text-free' ? 'max-w-4xl' : 'max-w-3xl'} w-full mx-auto space-y-4 my-auto`
+            : 'space-y-3.5'
+        }
+      >
+        {/* Minimalist Smartphone-First Header */}
+        <header className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 min-w-0">
             <div
               className="w-8 h-8 rounded-xl flex items-center justify-center border shrink-0"
               style={{
@@ -389,16 +384,16 @@ export const KromaMediaReader: React.FC<KromaMediaReaderProps> = ({
                 <rect x="19" y="19" width="3.5" height="3.5" rx="1" fill="currentColor" />
               </svg>
             </div>
-            <div className="min-w-0">
-              <div className="flex items-center gap-2 text-xs font-bold tracking-tight">
-                <span>KromaQR Studio</span>
-                <span aria-hidden="true" style={{ color: tokens.textMuted }}>
-                  ·
-                </span>
-                <span className="font-medium truncate" style={{ color: tokens.textMuted }}>
-                  {categoryLabel}
-                </span>
-              </div>
+            <div className="flex items-center gap-1.5 text-xs font-semibold tracking-tight min-w-0">
+              <span className="truncate">
+                KromaQR<span className="hidden sm:inline"> Studio</span>
+              </span>
+              <span aria-hidden="true" style={{ color: tokens.textMuted }}>
+                ·
+              </span>
+              <span className="font-medium truncate" style={{ color: tokens.textMuted }}>
+                {categoryLabel}
+              </span>
             </div>
           </div>
 
@@ -441,7 +436,7 @@ export const KromaMediaReader: React.FC<KromaMediaReaderProps> = ({
                   color: tokens.textPrimary,
                 }}
               >
-                Créer un QR
+                Studio
               </button>
             )}
 
@@ -463,49 +458,53 @@ export const KromaMediaReader: React.FC<KromaMediaReaderProps> = ({
           </div>
         </header>
 
-        {/* Main Reader Card */}
+        {/* Main Editorial Card */}
         <article
-          className="rounded-2xl p-5 sm:p-7 border shadow-[0_24px_64px_rgba(0,0,0,0.22)] space-y-5 animate-[fadeIn_180ms_ease-out]"
+          className="rounded-3xl p-5 sm:p-7 border shadow-[0_20px_56px_rgba(0,0,0,0.12)] space-y-5 animate-[fadeIn_180ms_ease-out]"
           style={{
             backgroundColor: tokens.surfaceBackground,
             borderColor: tokens.borderColor,
           }}
         >
-          {/* Editorial Title & Subtitle */}
-          <div className="space-y-1.5">
-            <h1
-              id="target-preview-title"
-              className="tracking-tight leading-tight"
-              style={{
-                fontFamily: titleFontCss,
-                fontSize: `${Math.max(22, (config.titleSize || 21) + 4)}px`,
-                fontWeight: config.titleWeight || 700,
-                fontStyle: config.titleItalic ? 'italic' : 'normal',
-                color: tokens.textPrimary,
-              }}
-            >
-              {headline}
-            </h1>
-            {(experience.description || config.subtitleText) && (
-              <p
-                className="leading-relaxed"
-                style={{
-                  fontFamily: subtitleFontCss,
-                  fontSize: `${Math.max(13, config.subtitleSize || 13)}px`,
-                  color: tokens.textMuted,
-                }}
-              >
-                {experience.description || config.subtitleText}
-              </p>
-            )}
-          </div>
+          {/* Editorial Title & Description (only shown when meaningful) */}
+          {(headline || rawDescription) && (
+            <div className="space-y-1.5">
+              {headline && (
+                <h1
+                  id="target-preview-title"
+                  className="tracking-tight leading-tight"
+                  style={{
+                    fontFamily: titleFontCss,
+                    fontSize: `${Math.max(22, (config.titleSize || 21) + 4)}px`,
+                    fontWeight: config.titleWeight || 700,
+                    fontStyle: config.titleItalic ? 'italic' : 'normal',
+                    color: tokens.textPrimary,
+                  }}
+                >
+                  {headline}
+                </h1>
+              )}
+              {rawDescription && (
+                <p
+                  className="leading-relaxed"
+                  style={{
+                    fontFamily: subtitleFontCss,
+                    fontSize: `${Math.max(13, config.subtitleSize || 13)}px`,
+                    color: tokens.textMuted,
+                  }}
+                >
+                  {rawDescription}
+                </p>
+              )}
+            </div>
+          )}
 
           {/* Server PIN Gate if dynamic QR has PIN */}
           {dynamicHasPin && !pinUnlocked ? (
             <form
               onSubmit={(e) => void handleServerPinCheck(e)}
               data-testid="modal-pin-gate"
-              className="rounded-2xl p-5 border space-y-3"
+              className="rounded-2xl p-6 border space-y-4"
               style={{
                 borderColor: tokens.borderColor,
                 backgroundColor: tokens.surfaceElevated,
@@ -516,10 +515,10 @@ export const KromaMediaReader: React.FC<KromaMediaReaderProps> = ({
                 style={{ color: tokens.accentColor }}
               >
                 <ShieldCheck className="w-4 h-4" aria-hidden="true" />
-                <span>Accès protégé par code PIN serveur</span>
+                <span>Accès protégé par code PIN</span>
               </div>
-              <p className="text-xs" style={{ color: tokens.textMuted }}>
-                Entrez le code PIN configuré pour déverrouiller ce contenu KromaQR.
+              <p className="text-xs leading-relaxed" style={{ color: tokens.textMuted }}>
+                Entrez le code PIN configuré pour afficher ce contenu confidentiel.
               </p>
               <div className="flex flex-wrap gap-2">
                 <input
@@ -528,13 +527,13 @@ export const KromaMediaReader: React.FC<KromaMediaReaderProps> = ({
                   onChange={(e) => setPinAttempt(e.target.value)}
                   placeholder="Code PIN"
                   required
-                  className="flex-1 min-w-[140px] px-3 py-2 text-sm rounded-xl border bg-transparent"
+                  className="flex-1 min-w-[140px] px-3.5 py-2.5 text-sm rounded-xl border bg-transparent focus:outline-none"
                   style={{ borderColor: tokens.borderColor, color: tokens.textPrimary }}
                 />
                 <button
                   type="submit"
                   disabled={verifyingPin}
-                  className="px-4 py-2 text-xs font-semibold rounded-xl cursor-pointer"
+                  className="px-4 py-2.5 text-xs font-semibold rounded-xl cursor-pointer transition-opacity disabled:opacity-60"
                   style={{
                     backgroundColor: tokens.accentColor,
                     color: tokens.accentContrastText,
@@ -551,22 +550,21 @@ export const KromaMediaReader: React.FC<KromaMediaReaderProps> = ({
             </form>
           ) : (
             <>
-              {/* 1. IMAGE READER (Single Image, Photo Gallery, or Mixed Images) */}
+              {/* 1. IMAGE READER (Original proportions preserved, zero distortion) */}
               {showImageSection && currentImage && (
                 <section
                   aria-label="Lecteur d’images"
                   data-testid="reader-image-section"
-                  className="space-y-3"
+                  className="space-y-3.5"
                 >
-                  {/* Image toolbar: zoom + fullscreen + counter */}
                   <div
-                    className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 rounded-xl border text-xs"
+                    className="flex flex-wrap items-center justify-between gap-2 px-3.5 py-2 rounded-2xl border text-xs"
                     style={{
                       backgroundColor: tokens.surfaceElevated,
                       borderColor: tokens.borderColor,
                     }}
                   >
-                    <div className="flex items-center gap-1.5">
+                    <div className="flex items-center gap-2 min-w-0">
                       <ImageIcon
                         className="w-3.5 h-3.5 shrink-0"
                         style={{ color: tokens.accentColor }}
@@ -590,7 +588,9 @@ export const KromaMediaReader: React.FC<KromaMediaReaderProps> = ({
                         type="button"
                         data-testid="reader-zoom-out"
                         aria-label="Dézoomer l’image"
-                        onClick={() => setImageZoom((z) => Math.max(1, Number((z - 0.25).toFixed(2))))}
+                        onClick={() =>
+                          setImageZoom((z) => Math.max(1, Number((z - 0.25).toFixed(2))))
+                        }
                         disabled={imageZoom <= 1}
                         style={{
                           backgroundColor: tokens.surfaceBackground,
@@ -618,7 +618,9 @@ export const KromaMediaReader: React.FC<KromaMediaReaderProps> = ({
                         type="button"
                         data-testid="reader-zoom-in"
                         aria-label="Zoomer sur l’image"
-                        onClick={() => setImageZoom((z) => Math.min(3, Number((z + 0.25).toFixed(2))))}
+                        onClick={() =>
+                          setImageZoom((z) => Math.min(3, Number((z + 0.25).toFixed(2))))
+                        }
                         disabled={imageZoom >= 3}
                         style={{
                           backgroundColor: tokens.surfaceBackground,
@@ -652,27 +654,28 @@ export const KromaMediaReader: React.FC<KromaMediaReaderProps> = ({
                     </div>
                   </div>
 
-                  {/* Responsive Image Stage */}
+                  {/* Editorial Gallery Mat (preserves aspect ratio strictly) */}
                   <div
-                    className="relative rounded-2xl overflow-hidden border flex items-center justify-center min-h-[240px]"
+                    className="relative rounded-2xl overflow-hidden border flex items-center justify-center min-h-[260px]"
                     style={{
-                      backgroundColor: tokens.mediaStageBg,
+                      backgroundColor:
+                        colorMode === 'dark' ? '#0B0D12' : '#F4F2EC',
                       borderColor: tokens.borderColor,
                     }}
                   >
-                    <div className="w-full max-h-[60vh] overflow-auto flex items-center justify-center p-3">
+                    <div className="w-full max-h-[65vh] overflow-auto flex items-center justify-center p-3 sm:p-5">
                       {imageLoadError ? (
-                        <div className="p-6 text-center space-y-1.5 text-white/85">
+                        <div className="p-6 text-center space-y-1.5" style={{ color: tokens.textPrimary }}>
                           <p className="text-sm font-semibold">Impossible de charger cette image</p>
-                          <p className="text-xs text-white/60">
-                            Vérifiez que l’image est bien hébergée ou accessible publiquement en HTTPS.
+                          <p className="text-xs" style={{ color: tokens.textMuted }}>
+                            Vérifiez que l’image est bien accessible publiquement.
                           </p>
                         </div>
                       ) : (
                         <img
                           data-testid="reader-active-image"
                           src={currentImage.url}
-                          alt={currentImage.caption || headline}
+                          alt={currentImage.caption || headline || 'Image KromaQR'}
                           referrerPolicy="no-referrer"
                           onLoad={() => setImageLoadError(false)}
                           onError={() => setImageLoadError(true)}
@@ -682,7 +685,7 @@ export const KromaMediaReader: React.FC<KromaMediaReaderProps> = ({
                             transformOrigin: 'center center',
                             transition: 'transform 160ms ease',
                           }}
-                          className="max-w-full max-h-[54vh] w-auto h-auto object-contain rounded-lg select-none"
+                          className="max-w-full max-h-[58vh] w-auto h-auto object-contain rounded-xl shadow-[0_8px_28px_rgba(0,0,0,0.12)] select-none"
                         />
                       )}
                     </div>
@@ -694,7 +697,7 @@ export const KromaMediaReader: React.FC<KromaMediaReaderProps> = ({
                           data-testid="reader-img-prev"
                           aria-label="Image précédente"
                           onClick={handlePrevImage}
-                          className="absolute left-3 top-1/2 -translate-y-1/2 p-2 rounded-full bg-black/65 text-white hover:bg-black/85 transition-colors cursor-pointer"
+                          className="absolute left-3 top-1/2 -translate-y-1/2 p-2.5 rounded-full bg-black/60 text-white hover:bg-black/80 transition-colors cursor-pointer"
                         >
                           <ArrowLeft className="w-4 h-4" />
                         </button>
@@ -703,7 +706,7 @@ export const KromaMediaReader: React.FC<KromaMediaReaderProps> = ({
                           data-testid="reader-img-next"
                           aria-label="Image suivante"
                           onClick={handleNextImage}
-                          className="absolute right-3 top-1/2 -translate-y-1/2 p-2 rounded-full bg-black/65 text-white hover:bg-black/85 transition-colors cursor-pointer"
+                          className="absolute right-3 top-1/2 -translate-y-1/2 p-2.5 rounded-full bg-black/60 text-white hover:bg-black/80 transition-colors cursor-pointer"
                         >
                           <ArrowRight className="w-4 h-4" />
                         </button>
@@ -711,7 +714,6 @@ export const KromaMediaReader: React.FC<KromaMediaReaderProps> = ({
                     )}
                   </div>
 
-                  {/* Immersive Thumbnail Strip for Galleries */}
                   {buckets.images.length > 1 && (
                     <div className="flex items-center gap-2 overflow-x-auto pb-1">
                       {buckets.images.map((img, idx) => {
@@ -724,10 +726,10 @@ export const KromaMediaReader: React.FC<KromaMediaReaderProps> = ({
                               setImageZoom(1);
                               setActiveImageIdx(idx);
                             }}
-                            className="relative w-16 h-16 rounded-xl overflow-hidden border-2 shrink-0 transition-transform cursor-pointer"
+                            className="relative w-16 h-16 rounded-xl overflow-hidden border-2 shrink-0 transition-opacity cursor-pointer"
                             style={{
                               borderColor: active ? tokens.accentColor : tokens.borderColor,
-                              opacity: active ? 1 : 0.65,
+                              opacity: active ? 1 : 0.6,
                             }}
                           >
                             <img
@@ -743,7 +745,7 @@ export const KromaMediaReader: React.FC<KromaMediaReaderProps> = ({
                 </section>
               )}
 
-              {/* 2. NATIVE HTML5 VIDEO READER (Single Video, Video Gallery, or Mixed Videos) */}
+              {/* 2. NATIVE HTML5 VIDEO READER */}
               {showVideoSection && currentVideo && (
                 <section
                   aria-label="Lecteur vidéo natif"
@@ -772,7 +774,7 @@ export const KromaMediaReader: React.FC<KromaMediaReaderProps> = ({
                   <CustomVideoPlayer
                     src={currentVideo.url}
                     poster={currentVideo.posterUrl || source.videoPosterUrl}
-                    title={currentVideo.caption || headline}
+                    title={currentVideo.caption || headline || 'Vidéo KromaQR'}
                     accentColor={tokens.accentColor}
                     borderColor={tokens.borderColor}
                   />
@@ -825,117 +827,29 @@ export const KromaMediaReader: React.FC<KromaMediaReaderProps> = ({
                 </section>
               )}
 
-              {/* 3. PREMIUM TEXT READER (Free Text or Mixed Text Block) */}
+              {/* 3. EXACT TYPOGRAPHIC TEXT READER (NO OVERRIDES, NO BULKY NESTED BOX) */}
               {showTextSection && (
                 <section
                   aria-label="Lecteur de texte"
                   data-testid="reader-text-section"
-                  className="rounded-2xl p-4 sm:p-6 border space-y-4"
-                  style={{
-                    borderColor: tokens.borderColor,
-                    backgroundColor: tokens.surfaceElevated,
-                  }}
+                  className={
+                    category === 'text-free'
+                      ? 'w-full py-2 sm:py-3 min-h-[130px] flex items-center'
+                      : 'w-full pt-4 border-t'
+                  }
+                  style={
+                    category === 'text-free'
+                      ? undefined
+                      : { borderColor: tokens.borderColor }
+                  }
                 >
-                  {/* Typography & Size Toolbar */}
-                  <div
-                    className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b"
-                    style={{ borderColor: tokens.borderColor }}
+                  <p
+                    data-testid="reader-text-body"
+                    className="w-full leading-relaxed whitespace-pre-wrap break-words"
+                    style={displayedTextStyle}
                   >
-                    <div className="flex flex-wrap items-center gap-1">
-                      <Type
-                        className="w-3.5 h-3.5 mr-1 shrink-0"
-                        style={{ color: tokens.accentColor }}
-                        aria-hidden="true"
-                      />
-                      {READER_FONT_OPTIONS.map((fontOpt) => {
-                        const active = readerFont === fontOpt.id;
-                        return (
-                          <button
-                            key={fontOpt.id}
-                            type="button"
-                            data-testid={`reader-font-${fontOpt.id}`}
-                            onClick={() => setReaderFont(fontOpt.id)}
-                            className="px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-colors cursor-pointer"
-                            style={{
-                              backgroundColor: active
-                                ? tokens.accentColor
-                                : 'transparent',
-                              color: active
-                                ? tokens.accentContrastText
-                                : tokens.textMuted,
-                            }}
-                          >
-                            {fontOpt.label}
-                          </button>
-                        );
-                      })}
-                    </div>
-
-                    <div className="flex items-center gap-1">
-                      {(['sm', 'md', 'lg'] as const).map((sz) => (
-                        <button
-                          key={sz}
-                          type="button"
-                          data-testid={`reader-text-size-${sz}`}
-                          onClick={() => setTextScale(sz)}
-                          className="px-2 py-1 rounded-lg text-[11px] font-bold uppercase cursor-pointer"
-                          style={{
-                            backgroundColor:
-                              textScale === sz ? tokens.accentColor : 'transparent',
-                            color:
-                              textScale === sz
-                                ? tokens.accentContrastText
-                                : tokens.textMuted,
-                          }}
-                        >
-                          {sz === 'sm' ? 'A-' : sz === 'md' ? 'A' : 'A+'}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Reading Body preserving line breaks, UTF-8 & emojis */}
-                  <div
-                    className={
-                      textMetrics.isLongText
-                        ? 'max-w-[65ch] mx-auto text-left'
-                        : 'mx-auto'
-                    }
-                  >
-                    <p
-                      data-testid="reader-text-body"
-                      className="leading-relaxed whitespace-pre-wrap break-words"
-                      style={{
-                        fontFamily: activeReaderFontCss,
-                        fontSize: `${computedTextPx}px`,
-                        fontWeight: config.titleWeight || 500,
-                        fontStyle: config.titleItalic ? 'italic' : 'normal',
-                        textAlign: textMetrics.isLongText
-                          ? 'left'
-                          : config.textAlign || 'center',
-                        color: tokens.textPrimary,
-                      }}
-                    >
-                      {buckets.textBody || source.textValue}
-                    </p>
-                  </div>
-
-                  {/* Clean Reading Metrics */}
-                  <div
-                    className="pt-3 border-t flex flex-wrap items-center justify-between gap-2 text-[11px] tabular-nums"
-                    style={{
-                      borderColor: tokens.borderColor,
-                      color: tokens.textMuted,
-                    }}
-                  >
-                    <span>
-                      {textMetrics.words} mots · {textMetrics.characters} caractères ·{' '}
-                      {textMetrics.lines} ligne{textMetrics.lines > 1 ? 's' : ''}
-                    </span>
-                    {textMetrics.estimatedMinutes > 0 && (
-                      <span>Lecture ~{textMetrics.estimatedMinutes} min</span>
-                    )}
-                  </div>
+                    {buckets.textBody || source.textValue}
+                  </p>
                 </section>
               )}
 
@@ -943,7 +857,7 @@ export const KromaMediaReader: React.FC<KromaMediaReaderProps> = ({
               {category === 'postcard' && (
                 <div
                   data-testid="exp-postcard-view"
-                  className="rounded-2xl p-5 border space-y-4"
+                  className="rounded-2xl p-5 sm:p-6 border space-y-4"
                   style={{
                     borderColor: tokens.borderColor,
                     backgroundColor: tokens.surfaceElevated,
@@ -976,8 +890,8 @@ export const KromaMediaReader: React.FC<KromaMediaReaderProps> = ({
                       {source.imageUrl && (
                         <img
                           src={source.imageUrl}
-                          alt={headline}
-                          className="w-full max-h-[280px] object-contain rounded-xl bg-black/20"
+                          alt={headline || 'Carte postale'}
+                          className="w-full max-h-[300px] object-contain rounded-xl bg-black/15"
                         />
                       )}
                       <p
@@ -1268,9 +1182,9 @@ export const KromaMediaReader: React.FC<KromaMediaReaderProps> = ({
             </>
           )}
 
-          {/* Unified Footer Actions */}
+          {/* Clean Footer Actions */}
           <footer
-            className="pt-3 border-t flex flex-wrap items-center justify-between gap-3"
+            className="pt-4 border-t flex flex-wrap items-center justify-between gap-3"
             style={{ borderColor: tokens.borderColor }}
           >
             <button
@@ -1313,7 +1227,7 @@ export const KromaMediaReader: React.FC<KromaMediaReaderProps> = ({
                   }}
                 >
                   <Download className="w-3.5 h-3.5" aria-hidden="true" />
-                  <span>Télécharger l’image</span>
+                  <span>Télécharger</span>
                 </a>
               )}
 
@@ -1328,7 +1242,7 @@ export const KromaMediaReader: React.FC<KromaMediaReaderProps> = ({
                   }}
                 >
                   <Download className="w-3.5 h-3.5" aria-hidden="true" />
-                  <span>Télécharger la vidéo</span>
+                  <span>Télécharger</span>
                 </a>
               )}
 
@@ -1354,7 +1268,7 @@ export const KromaMediaReader: React.FC<KromaMediaReaderProps> = ({
                     }}
                   >
                     <ExternalLink className="w-3.5 h-3.5" aria-hidden="true" />
-                    <span>Ouvrir la vue dédiée</span>
+                    <span>Ouvrir la page</span>
                   </a>
                 );
               })()}
@@ -1378,7 +1292,7 @@ export const KromaMediaReader: React.FC<KromaMediaReaderProps> = ({
             onClick={(e) => e.stopPropagation()}
           >
             <div className="text-xs font-semibold truncate">
-              {currentImage.caption || headline}
+              {currentImage.caption || headline || 'KromaQR Studio'}
               {buckets.images.length > 1 && ` · ${safeImageIdx + 1} / ${buckets.images.length}`}
             </div>
             <div className="flex items-center gap-2">
@@ -1419,12 +1333,12 @@ export const KromaMediaReader: React.FC<KromaMediaReaderProps> = ({
           >
             <img
               src={currentImage.url}
-              alt={currentImage.caption || headline}
+              alt={currentImage.caption || headline || 'Image plein écran'}
               style={{
                 transform: `scale(${imageZoom})`,
                 transition: 'transform 160ms ease',
               }}
-              className="max-w-full max-h-[82vh] object-contain rounded-lg"
+              className="max-w-full max-h-[82vh] w-auto h-auto object-contain rounded-lg"
             />
           </div>
 

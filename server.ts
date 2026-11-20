@@ -68,6 +68,7 @@ interface ServerDynamicRecord {
       eyeColor: string;
       fontId: string;
     };
+    config?: Record<string, unknown>;
   };
   stats: {
     totalScans: number;
@@ -374,16 +375,16 @@ function renderStatusHtml(title: string, message: string, codeLabel: string): st
       body {
         margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center;
         padding: 24px; font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
-        background: linear-gradient(155deg, #090b10 0%, #121622 60%, #07080c 100%); color: #f8fafc;
+        background: linear-gradient(160deg, #FAF9F5 0%, #F1EFE8 100%); color: #111214;
       }
       .card {
-        max-width: 460px; width: 100%; background: rgba(18,21,30,0.94); border: 1px solid rgba(255,255,255,0.12);
-        border-radius: 24px; padding: 32px; text-align: center; box-shadow: 0 24px 70px rgba(0,0,0,0.5);
+        max-width: 460px; width: 100%; background: #FFFFFF; border: 1px solid #E6E4DC;
+        border-radius: 24px; padding: 32px; text-align: center; box-shadow: 0 20px 56px rgba(17,18,20,0.07);
       }
-      .kicker { font-size: 12px; color: #94a3b8; letter-spacing: 0.04em; margin-bottom: 8px; }
-      h1 { font-family: 'Bricolage Grotesque', sans-serif; font-size: 22px; margin: 0 0 10px; }
-      p { font-size: 14px; color: #cbd5e1; line-height: 1.6; margin: 0 0 22px; }
-      a { display: inline-block; padding: 10px 20px; border-radius: 12px; background: #1d4ed8; color: #fff; text-decoration: none; font-size: 13px; font-weight: 600; }
+      .kicker { font-size: 11px; font-weight: 600; color: #1D4ED8; letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 8px; }
+      h1 { font-family: 'Bricolage Grotesque', sans-serif; font-size: 22px; margin: 0 0 10px; color: #111214; }
+      p { font-size: 14px; color: #5C5E66; line-height: 1.6; margin: 0 0 22px; }
+      a { display: inline-block; padding: 10px 20px; border-radius: 12px; background: #1D4ED8; color: #FFFFFF; text-decoration: none; font-size: 13px; font-weight: 600; }
     </style>
   </head>
   <body>
@@ -410,38 +411,40 @@ function renderPinGateHtml(slug: string, title: string, errorMsg?: string): stri
       body {
         margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center;
         padding: 24px; font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
-        background: radial-gradient(circle at 20% 15%, rgba(245,208,97,0.16), transparent 55%), linear-gradient(155deg, #090b10 0%, #121622 60%, #07080c 100%);
-        color: #f8fafc;
+        background: linear-gradient(160deg, #FAF9F5 0%, #F1EFE8 100%);
+        color: #111214;
       }
       .card {
-        max-width: 420px; width: 100%; background: rgba(18,21,30,0.95);
-        border: 1px solid rgba(255,255,255,0.14); border-radius: 24px; padding: 30px;
-        box-shadow: 0 28px 80px rgba(0,0,0,0.55);
+        max-width: 420px; width: 100%; background: #FFFFFF;
+        border: 1px solid #E6E4DC; border-radius: 24px; padding: 32px;
+        box-shadow: 0 20px 56px rgba(17,18,20,0.07);
       }
-      h1 { font-family: 'Bricolage Grotesque', sans-serif; font-size: 20px; margin: 0 0 6px; }
-      p { font-size: 13px; color: #94a3b8; line-height: 1.55; margin: 0 0 20px; }
-      label { display: block; font-size: 12px; font-weight: 600; color: #e2e8f0; margin-bottom: 8px; }
+      .kicker { font-size: 11px; font-weight: 600; color: #1D4ED8; letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 6px; }
+      h1 { font-family: 'Bricolage Grotesque', sans-serif; font-size: 20px; margin: 0 0 8px; color: #111214; }
+      p { font-size: 13px; color: #5C5E66; line-height: 1.55; margin: 0 0 20px; }
+      label { display: block; font-size: 12px; font-weight: 600; color: #2C2E33; margin-bottom: 8px; }
       input {
-        width: 100%; padding: 12px 14px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.18);
-        background: rgba(255,255,255,0.06); color: #fff; font-size: 16px; letter-spacing: 0.14em;
+        width: 100%; padding: 12px 14px; border-radius: 12px; border: 1px solid #DFDDD4;
+        background: #FAF9F5; color: #111214; font-size: 16px; letter-spacing: 0.14em;
         margin-bottom: 14px; outline: none;
       }
-      input:focus { border-color: #3b82f6; }
+      input:focus { border-color: #1D4ED8; background: #FFFFFF; }
       button {
         width: 100%; padding: 12px 18px; border-radius: 12px; border: 0;
-        background: #1d4ed8; color: #fff; font-size: 14px; font-weight: 600; cursor: pointer;
+        background: #1D4ED8; color: #FFFFFF; font-size: 14px; font-weight: 600; cursor: pointer;
       }
-      button:hover { background: #1e40af; }
+      button:hover { background: #1E40AF; }
       .error {
-        background: rgba(220,38,38,0.16); border: 1px solid rgba(248,113,113,0.4);
-        color: #fecaca; padding: 10px 12px; border-radius: 10px; font-size: 12px; margin-bottom: 14px;
+        background: #FEF2F2; border: 1px solid #FECACA;
+        color: #B91C1C; padding: 10px 12px; border-radius: 10px; font-size: 12px; margin-bottom: 14px;
       }
     </style>
   </head>
   <body>
-    <main class="card">
+    <main class="card" data-testid="server-pin-gate">
+      <div class="kicker">KromaQR Studio · Accès privé</div>
       <h1>Accès protégé</h1>
-      <p>Ce code QR (« ${escapeHtml(title)} ») nécessite un code PIN ou mot de passe vérifié par le serveur pour afficher sa destination.</p>
+      <p>Ce code QR (« ${escapeHtml(title)} ») nécessite un code PIN ou mot de passe vérifié par le serveur pour afficher son contenu.</p>
       ${errorMsg ? `<div class="error" role="alert">${escapeHtml(errorMsg)}</div>` : ''}
       <form method="POST" action="/d/${escapeHtml(slug)}/unlock">
         <label for="pin">Code PIN / Mot de passe</label>
@@ -1249,6 +1252,7 @@ async function startServer() {
           description: 'Entrez votre code PIN pour accéder au lecteur KromaQR.',
         },
         cardTheme: rec.destination.cardTheme,
+        config: rec.destination.config || null,
       });
       return;
     }
@@ -1274,6 +1278,7 @@ async function startServer() {
       source: rec.destination.sourceSnapshot || {},
       experience: rec.destination.experience || {},
       cardTheme: rec.destination.cardTheme,
+      config: rec.destination.config || null,
     });
   });
 

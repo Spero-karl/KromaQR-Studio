@@ -229,7 +229,7 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
               'Le flux vidéo n’a pas pu être lu (format non supporté ou ressource inaccessible).'
             )
           }
-          className="w-full max-h-[62vh] object-contain bg-black"
+          className="w-full max-h-[65vh] h-auto object-contain bg-black"
         />
 
         {/* Custom Miniature Poster Overlay before first play */}
@@ -237,7 +237,7 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
           <img
             src={poster}
             alt={`Miniature — ${title}`}
-            className="absolute inset-0 w-full h-full object-cover pointer-events-none"
+            className="absolute inset-0 w-full h-full object-contain bg-black pointer-events-none"
           />
         )}
 
@@ -251,10 +251,10 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
               e.stopPropagation();
               void togglePlay();
             }}
-            className="absolute inset-0 flex items-center justify-center bg-black/25 group-hover:bg-black/35 transition-colors cursor-pointer"
+            className="absolute inset-0 flex items-center justify-center bg-black/20 group-hover:bg-black/30 transition-colors cursor-pointer"
           >
             <span
-              className="w-14 h-14 rounded-full flex items-center justify-center shadow-lg transition-transform group-hover:scale-105"
+              className="w-14 h-14 rounded-full flex items-center justify-center shadow-[0_12px_32px_rgba(0,0,0,0.35)] transition-transform group-hover:scale-105"
               style={{
                 backgroundColor: accentColor,
                 color: '#FFFFFF',
@@ -268,7 +268,7 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
 
       {/* Custom HTML5 Control Bar */}
       <div
-        className="px-3.5 py-2.5 bg-[#0B0D12]/95 border-t border-white/10 text-white space-y-2"
+        className="px-4 py-3 bg-[#090B10]/95 backdrop-blur-xs border-t border-white/10 text-white space-y-2"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Scrubbable Progress Track */}

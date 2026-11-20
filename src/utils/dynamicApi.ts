@@ -48,6 +48,7 @@ export async function saveDynamicQr(input: {
           eyeColor: input.config.eyeColor,
           fontId: input.config.fontId,
         },
+        config: input.config,
       },
     }),
   });

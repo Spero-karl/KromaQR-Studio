@@ -45,12 +45,12 @@ export const TargetPreviewModal: React.FC<TargetPreviewModalProps> = ({
       role="dialog"
       aria-modal="true"
       aria-labelledby="target-preview-title"
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-3 sm:p-6"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-[#111214]/70 backdrop-blur-xs p-3 sm:p-6"
       onClick={onClose}
     >
       <div
         data-testid="scan-showcase-backdrop"
-        className="relative w-full max-w-3xl max-h-[93vh] overflow-y-auto rounded-3xl shadow-[0_30px_80px_rgba(0,0,0,0.45)]"
+        className="relative w-full max-w-4xl max-h-[93vh] overflow-y-auto rounded-3xl shadow-[0_32px_90px_rgba(0,0,0,0.42)]"
         onClick={(e) => e.stopPropagation()}
       >
         <KromaMediaReader

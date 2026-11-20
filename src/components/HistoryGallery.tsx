@@ -211,18 +211,24 @@ export const HistoryGallery: React.FC<HistoryGalleryProps> = ({
         <div className="flex items-start gap-2.5 min-w-0">
           <Database className="w-4 h-4 shrink-0 mt-0.5" aria-hidden="true" />
           <div className="min-w-0 space-y-0.5">
-            <div className="flex flex-wrap items-center gap-2 font-semibold">
+            <div className="flex flex-wrap items-center gap-2.5 font-semibold">
               <span>Stockage objet Dosya.dev S3</span>
               <span
-                className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                  storageStatus.configured
-                    ? 'bg-[#DCFCE7] text-[#15803D]'
-                    : 'bg-[#FEF3C7] text-[#B45309]'
+                className={`inline-flex items-center gap-1.5 text-[11px] font-medium ${
+                  storageStatus.configured ? 'text-[#15803D]' : 'text-[#B45309]'
                 }`}
               >
-                {storageStatus.configured
-                  ? 'Configuré'
-                  : 'Identifiants S3 serveur à définir'}
+                <span
+                  aria-hidden="true"
+                  className={`w-1.5 h-1.5 rounded-full ${
+                    storageStatus.configured ? 'bg-[#15803D]' : 'bg-[#B45309]'
+                  }`}
+                />
+                <span>
+                  {storageStatus.configured
+                    ? 'Configuré'
+                    : 'Identifiants S3 serveur à définir'}
+                </span>
               </span>
             </div>
             <p className="text-[11px] font-mono opacity-85 truncate">

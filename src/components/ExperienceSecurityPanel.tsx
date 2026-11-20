@@ -106,24 +106,24 @@ export const ExperienceSecurityPanel: React.FC<ExperienceSecurityPanelProps> = (
     <section
       aria-labelledby="exp-sec-heading"
       data-testid="experience-security-panel"
-      className="bg-white border border-[#E2E0D8] rounded-2xl overflow-hidden"
+      className="bg-white border border-[#E6E4DC] rounded-2xl overflow-hidden shadow-[0_1px_2px_rgba(17,18,20,0.03)]"
     >
-      <div className="px-4 sm:px-5 py-3.5 bg-[#FAF9F5] border-b border-[#EFECE4] flex flex-wrap items-center justify-between gap-3">
+      <div className="px-5 sm:px-6 py-4 bg-[#FAF9F5] border-b border-[#F1EFE9] flex flex-wrap items-center justify-between gap-3">
         <div className="min-w-0">
           <h2
             id="exp-sec-heading"
             className="font-display text-sm sm:text-base font-bold tracking-tight text-[#111214]"
           >
-            Destination après scan &amp; Sécurité dynamique
+            Options avancées · Destination après scan &amp; Sécurité
           </h2>
-          <p className="text-[11px] text-[#6E7078] truncate">
+          <p className="text-xs text-[#6E7078] truncate mt-0.5">
             {activeTemplateMeta?.label || 'Aperçu direct'}
             {' · '}
             {dynamicSecurity.enabled
-              ? `QR dynamique actif${dynamicSecurity.pinCode || dynamicSecurity.hasPin ? ' · PIN serveur' : ''}`
-              : 'QR statique direct'}
+              ? `QR dynamique${dynamicSecurity.pinCode || dynamicSecurity.hasPin ? ' · Code PIN' : ''}`
+              : 'QR statique'}
             {' · '}
-            Catégorie {projectCategory}
+            {projectCategory}
           </p>
         </div>
 
@@ -133,10 +133,10 @@ export const ExperienceSecurityPanel: React.FC<ExperienceSecurityPanelProps> = (
             data-testid="toggle-exp-sec-btn"
             aria-expanded={expanded}
             onClick={() => setExpanded((v) => !v)}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-[#111214] bg-white hover:bg-[#F2F1EB] border border-[#E2E0D8] rounded-xl transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-[#111214] bg-white hover:bg-[#F4F2EC] border border-[#E6E4DC] rounded-xl transition-colors whitespace-nowrap shrink-0 cursor-pointer"
           >
             <Shield className="w-3.5 h-3.5 text-[#1D4ED8]" aria-hidden="true" />
-            <span>{expanded ? 'Réduire' : 'Configurer'}</span>
+            <span>{expanded ? 'Masquer' : 'Configurer'}</span>
             {expanded ? (
               <ChevronUp className="w-3.5 h-3.5" aria-hidden="true" />
             ) : (

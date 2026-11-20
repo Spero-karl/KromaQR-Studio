@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { CustomizePanel } from './components/CustomizePanel';
+import { CustomizePanel, type CustomizeCategoryTab } from './components/CustomizePanel';
 import { ExperienceSecurityPanel } from './components/ExperienceSecurityPanel';
 import { ExportModal } from './components/ExportModal';
 import { HistoryGallery } from './components/HistoryGallery';
@@ -154,6 +154,7 @@ export default function App() {
   const [previewModalOpen, setPreviewModalOpen] = useState(false);
   const [exportModalOpen, setExportModalOpen] = useState(false);
   const [justSaved, setJustSaved] = useState(false);
+  const [customizeTab, setCustomizeTab] = useState<CustomizeCategoryTab>('models');
 
   const [publicConfig, setPublicConfig] = useState<PublicAppConfigResponse | null>(null);
   const [publicUrlDraft, setPublicUrlDraft] = useState('');
@@ -165,6 +166,7 @@ export default function App() {
   const [hostedMedia, setHostedMedia] = useState<UploadedMediaInfo[]>([]);
 
   const qrSvgRef = useRef<SVGSVGElement | null>(null);
+  const customizeSectionRef = useRef<HTMLDivElement | null>(null);
 
   const scannabilityReport = useMemo(
     () => evaluateScannability(config, generatedSnapshot?.source ?? source),
@@ -553,7 +555,7 @@ export default function App() {
 
     if (hasLegacyUnsafePayload) {
       setValidationError(
-        'Ce projet enregistré utilisait une ancienne URL privée. Cliquez sur « Générer le code QR » pour actualiser le lien avec PUBLIC_APP_URL.'
+        'Ce projet enregistré utilisait une ancienne URL privée. Cliquez sur « Générer mon QR code » pour actualiser le lien avec PUBLIC_APP_URL.'
       );
       setGeneratedSnapshot(null);
     } else {
@@ -588,6 +590,11 @@ export default function App() {
     setConfig(DEFAULT_CONFIG);
   };
 
+  const handleJumpToTypography = () => {
+    setCustomizeTab('typography');
+    customizeSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
   if (viewerRoute) {
     return (
       <StandaloneReaderPage
@@ -602,10 +609,10 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col bg-[#F3F2EE] text-[#111214]">
+    <div className="min-h-screen flex flex-col bg-[#FAF9F5] text-[#111214]">
       {/* Top Bar: strict 3-zone contract */}
-      <header className="bg-[#FAF9F5] border-b border-[#E2E0D8]">
-        <div className="max-w-[1360px] mx-auto px-4 sm:px-6 h-14 sm:h-15 flex items-center justify-between gap-3 sm:gap-8">
+      <header className="bg-white/95 backdrop-blur-xs border-b border-[#E6E4DC]">
+        <div className="max-w-[1400px] mx-auto px-4 sm:px-6 h-15 flex items-center justify-between gap-3 sm:gap-8">
           <a
             href="#studio"
             onClick={(e) => {
@@ -681,7 +688,7 @@ export default function App() {
               disabled={!isGenerated}
               onClick={() => isGenerated && setExportModalOpen(true)}
               aria-label="Exporter Pro"
-              className="px-3 sm:px-4 py-1.5 sm:py-2 text-xs font-semibold text-white bg-[#1D4ED8] hover:bg-[#1E40AF] rounded-xl transition-colors whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+              className="px-3.5 sm:px-4 py-2 text-xs font-semibold text-white bg-[#1D4ED8] hover:bg-[#1E40AF] rounded-xl transition-colors whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
             >
               <span className="hidden sm:inline">Exporter Pro</span>
               <span className="sm:hidden">Export</span>
@@ -690,28 +697,28 @@ export default function App() {
         </div>
       </header>
 
-      <main className="flex-1 max-w-[1360px] w-full mx-auto px-4 sm:px-6 py-4 sm:py-6">
+      <main className="flex-1 max-w-[1400px] w-full mx-auto px-4 sm:px-6 py-5 sm:py-7">
         <h1 className="sr-only">
           KromaQR Studio — Studio professionnel de codes QR graphiques et dynamiques
         </h1>
 
         {view === 'studio' ? (
-          <div className="space-y-4 sm:space-y-5">
-            {/* PUBLIC_APP_URL Configuration Bar */}
+          <div className="space-y-5">
+            {/* PUBLIC_APP_URL Quiet Configuration Bar */}
             {publicConfig && (
               <section
                 aria-label="Configuration du domaine public des QR codes"
                 data-testid="public-url-config-bar"
-                className={`rounded-2xl border px-4 py-3 transition-colors ${
+                className={`rounded-2xl border px-4 py-2.5 transition-colors ${
                   publicConfig.valid
-                    ? 'bg-[#FAF9F5] border-[#E2E0D8]'
+                    ? 'bg-white border-[#E6E4DC]'
                     : 'bg-[#FFFBEB] border-[#FDE68A]'
                 }`}
               >
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-2 text-xs font-semibold text-[#111214]">
-                      <span>Domaine public des QR codes (PUBLIC_APP_URL)</span>
+                    <div className="flex flex-wrap items-center gap-2 text-xs font-medium text-[#111214]">
+                      <span>Domaine public (PUBLIC_APP_URL)</span>
                       <span
                         className={`text-[11px] font-mono ${
                           publicConfig.valid ? 'text-[#15803D]' : 'text-[#B45309]'
@@ -737,12 +744,12 @@ export default function App() {
                         setPublicUrlFeedback(null);
                         setShowPublicUrlEditor((v) => !v);
                       }}
-                      className="px-3 py-1.5 text-xs font-semibold text-[#111214] bg-white hover:bg-[#F2F1EB] border border-[#DBD8CE] rounded-xl transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+                      className="px-3 py-1.5 text-xs font-semibold text-[#111214] bg-[#FAF9F5] hover:bg-[#F2F1EB] border border-[#E6E4DC] rounded-xl transition-colors whitespace-nowrap shrink-0 cursor-pointer"
                     >
                       {showPublicUrlEditor
                         ? 'Fermer'
                         : publicConfig.valid
-                        ? 'Modifier le domaine'
+                        ? 'Modifier'
                         : 'Configurer HTTPS'}
                     </button>
                   )}
@@ -766,7 +773,7 @@ export default function App() {
                         setPublicUrlDraft(e.target.value);
                       }}
                       placeholder="https://qr.votre-domaine.com"
-                      className="flex-1 px-3 py-2 text-xs bg-white border border-[#DBD8CE] rounded-xl focus:outline-none focus:border-[#1D4ED8]"
+                      className="flex-1 px-3 py-2 text-xs bg-[#FAF9F5] border border-[#DFDDD4] rounded-xl focus:outline-none focus:border-[#1D4ED8]"
                     />
                     <button
                       type="submit"
@@ -792,7 +799,7 @@ export default function App() {
                             })
                             .catch(() => {});
                         }}
-                        className="px-3 py-2 text-xs font-semibold text-[#5C5E66] bg-white border border-[#DBD8CE] hover:text-[#111214] rounded-xl transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+                        className="px-3 py-2 text-xs font-semibold text-[#5C5E66] bg-[#FAF9F5] border border-[#DFDDD4] hover:text-[#111214] rounded-xl transition-colors whitespace-nowrap shrink-0 cursor-pointer"
                       >
                         Effacer
                       </button>
@@ -808,60 +815,68 @@ export default function App() {
               </section>
             )}
 
-            <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_420px] xl:grid-cols-[minmax(0,1fr)_450px] gap-5 sm:gap-6 items-start">
-              <div className="space-y-4 sm:space-y-5 min-w-0">
-              <SourcePanel
-                selectedIntent={selectedIntent}
-                onSelectIntent={handleSelectIntent}
-                source={source}
-                onChange={handleSourceChange}
-                onGenerate={() => void handleGenerate()}
+            <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_480px] xl:grid-cols-[minmax(0,1fr)_520px] gap-6 xl:gap-8 items-start">
+              <div className="space-y-5 min-w-0">
+                <SourcePanel
+                  selectedIntent={selectedIntent}
+                  onSelectIntent={handleSelectIntent}
+                  source={source}
+                  onChange={handleSourceChange}
+                  onGenerate={() => void handleGenerate()}
+                  isGenerated={isGenerated}
+                  isGenerating={isGenerating}
+                  config={config}
+                  validationError={validationError}
+                  onMediaUploaded={() => void refreshStorageAndMedia()}
+                  onJumpToTypography={handleJumpToTypography}
+                />
+
+                <div ref={customizeSectionRef}>
+                  <CustomizePanel
+                    config={config}
+                    onChange={setConfig}
+                    onReset={handleResetStyle}
+                    canUndo={configHistory.past.length > 0}
+                    canRedo={configHistory.future.length > 0}
+                    onUndo={handleUndo}
+                    onRedo={handleRedo}
+                    activeTab={customizeTab}
+                    onTabChange={setCustomizeTab}
+                  />
+                </div>
+
+                <ExperienceSecurityPanel
+                  experience={experience}
+                  onChangeExperience={handleExperienceChange}
+                  dynamicSecurity={dynamicSecurity}
+                  onChangeSecurity={handleSecurityChange}
+                  projectCategory={projectCategory}
+                  onChangeCategory={setProjectCategory}
+                  onMediaUploaded={() => void refreshStorageAndMedia()}
+                />
+              </div>
+
+              <PreviewStage
                 isGenerated={isGenerated}
+                canGenerate={selectedIntent !== null}
                 isGenerating={isGenerating}
+                payload={activePayload}
                 config={config}
-                validationError={validationError}
-                onMediaUploaded={() => void refreshStorageAndMedia()}
+                source={activeSource}
+                report={scannabilityReport}
+                svgRef={qrSvgRef}
+                onGenerate={() => void handleGenerate()}
+                onDownloadPng={handleDownloadPng}
+                onDownloadSvg={handleDownloadSvg}
+                onCopyPng={handleCopyPng}
+                onOpenTargetPreview={() => isGenerated && setPreviewModalOpen(true)}
+                onSaveToHistory={handleSaveToHistory}
+                onClearGenerated={() => setGeneratedSnapshot(null)}
+                justSaved={justSaved}
+                dynamicSlug={generatedSnapshot?.dynamicSlug ?? null}
+                dynamicHasPin={generatedSnapshot?.dynamicHasPin ?? false}
+                onOpenProExport={() => isGenerated && setExportModalOpen(true)}
               />
-
-              <ExperienceSecurityPanel
-                experience={experience}
-                onChangeExperience={handleExperienceChange}
-                dynamicSecurity={dynamicSecurity}
-                onChangeSecurity={handleSecurityChange}
-                projectCategory={projectCategory}
-                onChangeCategory={setProjectCategory}
-                onMediaUploaded={() => void refreshStorageAndMedia()}
-              />
-
-              <CustomizePanel
-                config={config}
-                onChange={setConfig}
-                onReset={handleResetStyle}
-                canUndo={configHistory.past.length > 0}
-                canRedo={configHistory.future.length > 0}
-                onUndo={handleUndo}
-                onRedo={handleRedo}
-              />
-            </div>
-
-            <PreviewStage
-              isGenerated={isGenerated}
-              payload={activePayload}
-              config={config}
-              source={activeSource}
-              report={scannabilityReport}
-              svgRef={qrSvgRef}
-              onDownloadPng={handleDownloadPng}
-              onDownloadSvg={handleDownloadSvg}
-              onCopyPng={handleCopyPng}
-              onOpenTargetPreview={() => isGenerated && setPreviewModalOpen(true)}
-              onSaveToHistory={handleSaveToHistory}
-              onClearGenerated={() => setGeneratedSnapshot(null)}
-              justSaved={justSaved}
-              dynamicSlug={generatedSnapshot?.dynamicSlug ?? null}
-              dynamicHasPin={generatedSnapshot?.dynamicHasPin ?? false}
-              onOpenProExport={() => isGenerated && setExportModalOpen(true)}
-            />
             </div>
           </div>
         ) : (
@@ -881,10 +896,10 @@ export default function App() {
         )}
       </main>
 
-      <footer className="border-t border-[#E2E0D8] bg-[#FAF9F5] mt-8">
-        <div className="max-w-[1360px] mx-auto px-4 sm:px-6 py-4 flex flex-wrap items-center justify-between gap-4 text-xs text-[#6E7078]">
+      <footer className="border-t border-[#E6E4DC] bg-white mt-10">
+        <div className="max-w-[1400px] mx-auto px-4 sm:px-6 py-4 flex flex-wrap items-center justify-between gap-4 text-xs text-[#6E7078]">
           <span>KromaQR Studio · Studio vectoriel SVG, PNG HD, PDF A4 &amp; QR dynamiques</span>
-          <span>Collections Studio &amp; Atelier Prestige · Sécurité serveur</span>
+          <span>Collections Studio &amp; Atelier Prestige</span>
         </div>
       </footer>
 

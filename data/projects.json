@@ -1,1 +1,146 @@
-[]
+[
+  {
+    "id": "1794904233228-h4773",
+    "name": "KDO",
+    "createdAt": "2026-11-17T08:30:33.228Z",
+    "source": {
+      "type": "image",
+      "textMode": "text",
+      "urlValue": "",
+      "textValue": "Bonjour mon amour, comment vas tu ?\nJe t'aime ❤️",
+      "wifiSsid": "",
+      "wifiPassword": "",
+      "wifiSecurity": "WPA",
+      "imageUrl": "/uploads/1794904110447-9y2kacm.jpg",
+      "imageName": "cute chibi avatar slayed.jpg",
+      "imagePageUrl": "/m/9p8i659",
+      "useSourceImageAsLogo": false,
+      "videoUrl": "",
+      "videoName": "",
+      "videoPageUrl": ""
+    },
+    "config": {
+      "themeId": "custom",
+      "foregroundColor": "#22D3EE",
+      "foregroundSecondaryColor": "#818CF8",
+      "gradientType": "linear",
+      "gradientAngle": 120,
+      "useCustomEyeColor": true,
+      "eyeColor": "#38BDF8",
+      "qrBackgroundColor": "#101218",
+      "cardBackgroundColor": "#151923",
+      "cardTextColor": "#F8FAFC",
+      "moduleShape": "starburst",
+      "eyeShape": "frame",
+      "filter": "brut",
+      "filterIntensity": 60,
+      "frameStyle": "glass",
+      "cardTexture": "none",
+      "metallicSheen": false,
+      "borderWidth": 0,
+      "borderColor": "#D4AF37",
+      "editionLabel": "ÉDITION LIMITÉE · N° 01",
+      "fontId": "greatvibes",
+      "subtitleFontId": "syne",
+      "titleSize": 24,
+      "subtitleSize": 15,
+      "messageFontSize": 20,
+      "titleWeight": 700,
+      "titleItalic": false,
+      "titleUppercase": false,
+      "textAlign": "center",
+      "messageWeight": 400,
+      "messageItalic": false,
+      "messageAlign": "center",
+      "messageColor": "",
+      "messageLetterSpacing": 0,
+      "messageTextDecoration": "none",
+      "titleText": "KDO",
+      "subtitleText": "Scan moi choupette ",
+      "titleOffsetY": 0,
+      "logoId": "monogram",
+      "centerEmoji": null,
+      "monogramText": "Bb",
+      "customLogoDataUrl": null,
+      "logoSize": 0.22,
+      "logoOffsetX": 0,
+      "logoOffsetY": 0,
+      "logoRotation": 0,
+      "logoKnockout": "squircle",
+      "logoColor": "#ee203f",
+      "cornerStickerPlacement": "all-4",
+      "cornerStickerKind": "emoji",
+      "cornerStickerVectorId": "heart",
+      "cornerStickerEmoji": "💎",
+      "cornerStickerColor": "#1D4ED8",
+      "cornerStickerScale": 1,
+      "cornerStickerRotation": 0,
+      "cornerStickerOffset": 0,
+      "layers": [
+        {
+          "id": "frame",
+          "label": "Cadre & Texture",
+          "visible": true
+        },
+        {
+          "id": "modules",
+          "label": "Modules & Repères QR",
+          "visible": true
+        },
+        {
+          "id": "centerLogo",
+          "label": "Emblème central",
+          "visible": true
+        },
+        {
+          "id": "cornerStickers",
+          "label": "Stickers d’angle",
+          "visible": true
+        },
+        {
+          "id": "typography",
+          "label": "Textes & Titres",
+          "visible": true
+        }
+      ],
+      "extraTexts": [],
+      "errorCorrection": "H",
+      "margin": 3,
+      "cornerRadius": 24
+    },
+    "payload": "https://ais-dev-ilm5e4yw54j7f37llj7het-670918435423.europe-west3.run.app/m/9p8i659",
+    "category": "Personnel",
+    "experience": {
+      "template": "standard",
+      "headline": "",
+      "description": "",
+      "mixedTextBlock": "",
+      "accentMood": "auto",
+      "eventDate": "18 juin 2026",
+      "eventTime": "19h30",
+      "eventLocation": "Palais de Tokyo — Salle 4, Paris",
+      "eventDressCode": "Tenue de soirée · Accès VIP",
+      "personName": "Camille Laurent",
+      "personRole": "Directrice Artistique",
+      "companyName": "Atelier Travers Studio",
+      "contactEmail": "bonjour@atelier-travers.fr",
+      "contactPhone": "+33 1 42 68 55 10",
+      "websiteUrl": "https://atelier-travers.fr",
+      "postcardFrom": "Atelier Lumière, Paris",
+      "postcardTo": "Pour vous",
+      "postcardStampText": "PAR AVION · ÉDITION 2026",
+      "privateBadgeLabel": "Accès confidentiel vérifié",
+      "privateSecretNote": "Ce message réservé s’affiche uniquement après validation sécurisée.",
+      "galleryItems": [
+        {
+          "id": "demo-g1",
+          "type": "image",
+          "url": "/src/assets/images/demo_atelier_poster_1794867724640.jpg",
+          "caption": "Exposition Formes Géométriques — Pièce centrale"
+        }
+      ],
+      "ctaLabel": "",
+      "ctaUrl": ""
+    }
+  }
+]

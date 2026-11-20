@@ -198,6 +198,7 @@ export interface DynamicQrRecord {
       eyeColor: string;
       fontId: QrFontId;
     };
+    config?: QrConfig;
   };
   stats: DynamicQrStats;
 }
@@ -291,10 +292,17 @@ export interface QrConfig {
   titleSize: number;
   subtitleSize: number;
   messageFontSize: number;
-  titleWeight: 500 | 600 | 700;
+  titleWeight: 400 | 500 | 600 | 700;
   titleItalic: boolean;
   titleUppercase: boolean;
   textAlign: QrTextAlign;
+  messageFontId?: QrFontId;
+  messageWeight?: 400 | 500 | 600 | 700;
+  messageItalic?: boolean;
+  messageAlign?: QrTextAlign;
+  messageColor?: string;
+  messageLetterSpacing?: number;
+  messageTextDecoration?: 'none' | 'underline';
   titleText: string;
   subtitleText: string;
   titleOffsetY: number;
