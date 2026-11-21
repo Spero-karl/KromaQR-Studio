@@ -2,15 +2,14 @@ import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
 import type { DosyaStorageService } from './dosyaStorage';
-import { readWorkspaceProjects, writeWorkspaceProjects } from './workspaceStore';
+import { readWorkspaceProjects, writeWorkspaceProjects } from './workspaceStore.ts';
 import {
   addMonthsToIso,
   classifyRetentionStatus,
   getDueNotificationMilestones,
   normalizePricingConfig,
   type NotificationMilestone,
-  type PricingConfig,
-} from '../utils/retentionPricing';
+} from '../utils/retentionPricing.ts';
 import type {
   DeletionAuditEntry,
   RetentionNotification,
