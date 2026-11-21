@@ -7,7 +7,7 @@ export interface MediaAssociationRef {
 export interface StoredMediaLike {
   id: string;
   kind?: 'media' | 'collection';
-  type: 'image' | 'video' | 'collection';
+  type: 'image' | 'video' | 'document' | 'audio' | 'collection';
   originalName: string;
   url: string;
   posterUrl?: string;

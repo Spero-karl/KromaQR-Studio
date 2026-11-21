@@ -1,6 +1,6 @@
 {
-  "name": "KromaQR Studio",
-  "description": "Studio créatif pour concevoir et personnaliser des codes QR à partir de texte, d'images et de vidéos avec couleurs, polices, thèmes, filtres et logos uniques.",
+  "name": "SparkQR",
+  "description": "SparkQR — Studio créatif pour concevoir et personnaliser des codes QR à partir de texte, d'images, de vidéos, de liens et de réseaux Wi-Fi.",
   "requestFramePermissions": [],
   "majorCapabilities": [
     "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"

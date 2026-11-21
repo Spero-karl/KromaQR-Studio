@@ -87,7 +87,7 @@ export async function serializeSvgForExport(
 
 export async function downloadQrSvg(
   svgEl: SVGSVGElement,
-  filename = 'kromaqr-code.svg',
+  filename = 'sparkqr-code.svg',
   options?: { scope?: 'card' | 'qr-only'; transparentBackground?: boolean }
 ): Promise<void> {
   const svgString = await serializeSvgForExport(svgEl, options);
@@ -163,7 +163,7 @@ export async function renderSvgToPngBlob(
 
 export async function downloadQrPng(
   svgEl: SVGSVGElement,
-  filename = 'kromaqr-code.png',
+  filename = 'sparkqr-code.png',
   options?: { width?: number; scope?: 'card' | 'qr-only'; transparentBackground?: boolean }
 ): Promise<void> {
   const blob = await renderSvgToPngBlob(svgEl, options?.width ?? 1200, {
@@ -177,7 +177,7 @@ export async function downloadQrPng(
 
 export async function downloadQrPdf(
   svgEl: SVGSVGElement,
-  filename = 'kromaqr-code.pdf',
+  filename = 'sparkqr-code.pdf',
   options?: {
     width?: number;
     scope?: 'card' | 'qr-only';
@@ -213,7 +213,7 @@ export async function downloadQrPdf(
   // Subtle print registration footer
   doc.setFontSize(9);
   doc.setTextColor(120, 120, 128);
-  const caption = options?.title ? `${options.title} — KromaQR Studio` : 'KromaQR Studio';
+  const caption = options?.title ? `${options.title} — SparkQR` : 'SparkQR';
   doc.text(caption, pageW / 2, y + artH + 14, { align: 'center' });
 
   doc.save(filename);
@@ -226,7 +226,7 @@ export async function executeProExport(
   title?: string
 ): Promise<void> {
   const suffix = options.scope === 'qr-only' ? '-qr' : '';
-  const safeBase = baseSlug || 'kromaqr';
+  const safeBase = baseSlug || 'sparkqr';
 
   if (options.format === 'svg') {
     await downloadQrSvg(svgEl, `${safeBase}${suffix}.svg`, {

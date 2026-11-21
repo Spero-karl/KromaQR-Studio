@@ -13,6 +13,8 @@ export type ReaderContentCategory =
   | 'text-free'
   | 'video-single'
   | 'video-gallery'
+  | 'document-single'
+  | 'audio-single'
   | 'mixed-collection'
   | 'url'
   | 'wifi'
@@ -63,15 +65,17 @@ export function resolveReaderCategory(
   experience: PostScanExperience
 ): ReaderContentCategory {
   const tpl = experience.template || 'standard';
+  const items = experience.galleryItems || [];
+  const hasDocOrAudio = items.some((i) => i.type === 'document' || i.type === 'audio');
+
   if (tpl === 'mixed-collection') return 'mixed-collection';
   if (tpl === 'video-gallery') return 'video-gallery';
   if (tpl === 'photo-gallery') return 'image-gallery';
   if (tpl === 'media-gallery') {
-    const items = experience.galleryItems || [];
     const hasImg = items.some((i) => i.type === 'image') || Boolean(source.imageUrl);
     const hasVid = items.some((i) => i.type === 'video') || Boolean(source.videoUrl);
     const hasMixedText = Boolean(experience.mixedTextBlock?.trim());
-    if ((hasImg && hasVid) || hasMixedText) return 'mixed-collection';
+    if ((hasImg && hasVid) || hasMixedText || hasDocOrAudio) return 'mixed-collection';
     if (hasVid && !hasImg) return 'video-gallery';
     return 'image-gallery';
   }
@@ -80,13 +84,23 @@ export function resolveReaderCategory(
   if (tpl === 'business-card') return 'business-card';
   if (tpl === 'private-page') return 'private-page';
   if (tpl === 'video-page') {
-    const videoItems = (experience.galleryItems || []).filter((i) => i.type === 'video');
+    const videoItems = items.filter((i) => i.type === 'video');
     return videoItems.length > 1 ? 'video-gallery' : 'video-single';
   }
 
-  // Standard: determined by encoded source
-  if (source.type === 'image') return 'image-single';
-  if (source.type === 'video') return 'video-single';
+  // Standard: determined by encoded source (also supports single document/audio media routes)
+  const rawType = source.type as string;
+  if (rawType === 'document') return 'document-single';
+  if (rawType === 'audio') return 'audio-single';
+  if (source.type === 'image') {
+    if (hasDocOrAudio) return 'mixed-collection';
+    return 'image-single';
+  }
+  if (source.type === 'video') {
+    if (hasDocOrAudio) return 'mixed-collection';
+    return 'video-single';
+  }
+  if (hasDocOrAudio) return 'mixed-collection';
   if (source.textMode === 'wifi') return 'wifi';
   if (source.textMode === 'url') return 'url';
   return 'text-free';
@@ -98,6 +112,8 @@ export function buildReaderMediaBuckets(
 ): {
   images: PostScanMediaItem[];
   videos: PostScanMediaItem[];
+  documents: PostScanMediaItem[];
+  audios: PostScanMediaItem[];
   textBody: string;
 } {
   const tpl = experience.template || 'standard';
@@ -113,9 +129,17 @@ export function buildReaderMediaBuckets(
       url: normalizeMediaAssetUrl(item.url),
       posterUrl: item.posterUrl ? normalizeMediaAssetUrl(item.posterUrl) : undefined,
     }));
+  const galleryDocs = gallery
+    .filter((item) => item.type === 'document' && item.url.trim())
+    .map((item) => ({ ...item, url: normalizeMediaAssetUrl(item.url) }));
+  const galleryAudios = gallery
+    .filter((item) => item.type === 'audio' && item.url.trim())
+    .map((item) => ({ ...item, url: normalizeMediaAssetUrl(item.url) }));
 
   const images: PostScanMediaItem[] = [];
   const videos: PostScanMediaItem[] = [];
+  const documents: PostScanMediaItem[] = [];
+  const audios: PostScanMediaItem[] = [];
 
   if (source.type === 'image' && source.imageUrl.trim()) {
     images.push({
@@ -123,6 +147,9 @@ export function buildReaderMediaBuckets(
       type: 'image',
       url: normalizeMediaAssetUrl(source.imageUrl),
       caption: source.imageName || experience.headline || 'Image principale',
+      mimeType: source.imageMimeType,
+      isEncrypted: source.imageEncrypted,
+      originalSize: source.imageSize,
     });
   }
 
@@ -135,6 +162,9 @@ export function buildReaderMediaBuckets(
       posterUrl: source.videoPosterUrl?.trim()
         ? normalizeMediaAssetUrl(source.videoPosterUrl)
         : undefined,
+      mimeType: source.videoMimeType,
+      isEncrypted: source.videoEncrypted,
+      originalSize: source.videoSize,
     });
   }
 
@@ -142,7 +172,9 @@ export function buildReaderMediaBuckets(
     tpl === 'photo-gallery' ||
     tpl === 'video-gallery' ||
     tpl === 'media-gallery' ||
-    tpl === 'mixed-collection';
+    tpl === 'mixed-collection' ||
+    galleryDocs.length > 0 ||
+    galleryAudios.length > 0;
 
   if (useGallery) {
     for (const img of galleryImages) {
@@ -155,6 +187,16 @@ export function buildReaderMediaBuckets(
         videos.push(vid);
       }
     }
+    for (const doc of galleryDocs) {
+      if (!documents.some((existing) => existing.url === doc.url)) {
+        documents.push(doc);
+      }
+    }
+    for (const aud of galleryAudios) {
+      if (!audios.some((existing) => existing.url === aud.url)) {
+        audios.push(aud);
+      }
+    }
   }
 
   const textBody =
@@ -163,7 +205,7 @@ export function buildReaderMediaBuckets(
     experience.description ||
     '';
 
-  return { images, videos, textBody };
+  return { images, videos, documents, audios, textBody };
 }
 
 export function inspectVideoSourceCompatibility(rawUrl: string): VideoCompatibilityResult {
@@ -173,7 +215,7 @@ export function inspectVideoSourceCompatibility(rawUrl: string): VideoCompatibil
       playableInHtml5: false,
       reason: 'empty',
       label: 'Aucune source vidéo définie',
-      hint: 'Importez un fichier MP4, WebM ou MOV depuis le studio pour l’héberger sur KromaQR.',
+      hint: 'Importez un fichier MP4, WebM ou MOV depuis le studio pour l’héberger sur SparkQR.',
     };
   }
 
@@ -187,11 +229,11 @@ export function inspectVideoSourceCompatibility(rawUrl: string): VideoCompatibil
       playableInHtml5: false,
       reason: 'local-only-path',
       label: 'Chemin local non accessible à distance',
-      hint: 'Un fichier situé sur un disque local doit être téléversé sur KromaQR Studio (ou hébergé via URL publique HTTPS) pour être lisible après scan.',
+      hint: 'Un fichier situé sur un disque local doit être téléversé sur SparkQR (ou hébergé via URL publique HTTPS) pour être lisible après scan.',
     };
   }
 
-  // Detect external video platforms — KromaQR never redirects automatically to YouTube/Vimeo
+  // Detect external video platforms — SparkQR never redirects automatically to YouTube/Vimeo
   const platformPatterns: Array<{ name: string; regex: RegExp }> = [
     { name: 'YouTube', regex: /(?:youtube\.com|youtu\.be)/i },
     { name: 'Vimeo', regex: /vimeo\.com/i },
@@ -205,7 +247,7 @@ export function inspectVideoSourceCompatibility(rawUrl: string): VideoCompatibil
         reason: 'external-platform',
         platformName: p.name,
         label: `Lien externe ${p.name} non lisible en flux natif`,
-        hint: `Le lecteur natif KromaQR lit directement des flux vidéo HTML5 (MP4, WebM, OGG, MOV) sans redirection automatique vers ${p.name}. Importez le fichier vidéo dans le studio pour une lecture native intégrée.`,
+        hint: `Le lecteur natif SparkQR lit directement des flux vidéo HTML5 (MP4, WebM, OGG, MOV) sans redirection automatique vers ${p.name}. Importez le fichier vidéo pour une lecture native intégrée.`,
       };
     }
   }
@@ -261,16 +303,12 @@ export function computeReadingMetrics(rawText: string): ReadingMetrics {
 }
 
 export function getDefaultReaderColorMode(
-  config: QrConfig,
-  mood: PostScanExperience['accentMood'] = 'auto'
+  _config: QrConfig,
+  _mood: PostScanExperience['accentMood'] = 'auto',
+  readerThemeMode?: 'light' | 'dark'
 ): ReaderColorMode {
-  if (mood === 'botanical') return 'light';
-  if (mood === 'gold-velvet' || mood === 'midnight-neon' || mood === 'cinema-35') {
-    return 'dark';
-  }
-  return relativeLuminance(config.cardBackgroundColor || '#FFFFFF') < 0.25
-    ? 'dark'
-    : 'light';
+  if (readerThemeMode === 'dark') return 'dark';
+  return 'light';
 }
 
 export function buildReaderThemeTokens(
@@ -350,7 +388,7 @@ export function needsHostedMediaCollection(
     return true;
   }
   if (source.type === 'text' && source.textMode === 'text') {
-    // Always open free text inside KromaQR Studio's typographic reader (/m/:id)
+    // Always open free text inside SparkQR's typographic reader (/m/:id)
     // so smartphones display the formatted message directly instead of triggering Google Search.
     return true;
   }

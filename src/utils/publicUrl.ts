@@ -271,7 +271,7 @@ export function inspectMediaUrlForQr(rawUrl: string): MediaUrlSafetyResult {
     };
   }
 
-  // Relative paths managed by KromaQR server (/uploads/* or built-in /demo-*)
+  // Relative paths managed by SparkQR server (/uploads/* or built-in /demo-*)
   if (trimmed.startsWith('/')) {
     return { safe: true };
   }
@@ -303,7 +303,7 @@ export function inspectMediaUrlForQr(rawUrl: string): MediaUrlSafetyResult {
       safe: false,
       reason: 'aistudio-preview',
       error:
-        'URL Google AI Studio interdite : importez le fichier sur KromaQR ou utilisez une URL publique HTTPS.',
+        'URL Google AI Studio interdite : importez le fichier sur SparkQR ou utilisez une URL publique HTTPS.',
     };
   }
 
@@ -330,7 +330,7 @@ export function buildPublicReaderUrl(publicAppUrl: string, routePath: string): s
 
 /**
  * Normalizes stored media URLs by stripping accidental local or AI Studio preview origins
- * for KromaQR-hosted routes (/uploads/..., /demo-..., /m/..., /d/...).
+ * for SparkQR-hosted routes (/uploads/..., /demo-..., /m/..., /d/...).
  */
 export function normalizeMediaAssetUrl(rawUrl: string): string {
   const trimmed = (rawUrl || '').trim();

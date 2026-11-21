@@ -107,7 +107,7 @@ test('buildObjectKey sanitizes French accents and spaces while preserving extens
     originalName: 'Affiche Été Studio (HD) !.png',
     mimeType: 'image/png',
   });
-  assert.match(imgKey, /^kromaqr\/images\/abc123\/\d+-affiche-ete-studio-hd\.png$/);
+  assert.match(imgKey, /^sparkqr\/images\/abc123\/\d+-affiche-ete-studio-hd\.png$/);
 
   const vidKey = service.buildObjectKey({
     mediaId: 'vid999',
@@ -115,7 +115,15 @@ test('buildObjectKey sanitizes French accents and spaces while preserving extens
     originalName: 'sans-extension',
     mimeType: 'video/mp4',
   });
-  assert.match(vidKey, /^kromaqr\/videos\/vid999\/\d+-sans-extension\.mp4$/);
+  assert.match(vidKey, /^sparkqr\/videos\/vid999\/\d+-sans-extension\.mp4$/);
+
+  const encKey = service.buildObjectKey({
+    mediaId: 'enc111',
+    type: 'encrypted',
+    originalName: 'encrypted-media.spk1',
+    mimeType: 'application/octet-stream',
+  });
+  assert.match(encKey, /^sparkqr\/encrypted\/enc111\/\d+-encrypted-media\.spk1$/);
 });
 
 test('uploadObject, getObjectStream (full + Range 206), headObject, and deleteObject issue valid AWS S3 commands', async () => {

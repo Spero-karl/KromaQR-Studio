@@ -72,6 +72,15 @@ const MIME_EXTENSION_MAP: Record<string, string> = {
   'video/webm': '.webm',
   'video/quicktime': '.mov',
   'video/ogg': '.ogv',
+  'application/pdf': '.pdf',
+  'text/plain': '.txt',
+  'text/csv': '.csv',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document': '.docx',
+  'audio/mpeg': '.mp3',
+  'audio/wav': '.wav',
+  'audio/ogg': '.ogg',
+  'audio/mp4': '.m4a',
+  'application/octet-stream': '.spk1',
 };
 
 export function readDosyaConfigFromEnv(
@@ -176,11 +185,18 @@ export class DosyaStorageService {
 
   buildObjectKey(params: {
     mediaId: string;
-    type: 'image' | 'video';
+    type: 'image' | 'video' | 'document' | 'audio' | 'encrypted';
     originalName: string;
     mimeType: string;
   }): string {
-    const folder = params.type === 'video' ? 'videos' : 'images';
+    const folderMap: Record<string, string> = {
+      image: 'images',
+      video: 'videos',
+      document: 'documents',
+      audio: 'audio',
+      encrypted: 'encrypted',
+    };
+    const folder = folderMap[params.type] || 'files';
     const rawExt = path.extname(params.originalName || '').toLowerCase();
     const safeRawExt = rawExt.replace(/[^a-z0-9.]/g, '');
     const ext =
@@ -197,7 +213,7 @@ export class DosyaStorageService {
         .replace(/^-+|-+$/g, '')
         .slice(0, 48) || 'media';
 
-    return `kromaqr/${folder}/${params.mediaId}/${Date.now()}-${safeBase}${ext}`;
+    return `sparkqr/${folder}/${params.mediaId}/${Date.now()}-${safeBase}${ext}`;
   }
 
   async uploadObject(params: {
@@ -280,12 +296,43 @@ export class DosyaStorageService {
   }
 
   async deleteObject(key: string): Promise<void> {
+    if (!key || !key.trim()) return;
     const client = this.getClient();
     const cmd = new DeleteObjectCommand({
       Bucket: this.config.bucket,
       Key: key,
     });
-    await client.send(cmd);
+    try {
+      await client.send(cmd);
+    } catch (err) {
+      const errName = (err as { name?: string })?.name;
+      const httpStatus = (err as { $metadata?: { httpStatusCode?: number } })?.$metadata?.httpStatusCode;
+      if (errName === 'NoSuchKey' || httpStatus === 404) {
+        return; // Idempotent deletion
+      }
+      throw err;
+    }
+  }
+
+  async deleteObjects(keys: string[]): Promise<{
+    deletedCount: number;
+    failedKeys: Array<{ key: string; error: string }>;
+  }> {
+    const uniqueKeys = Array.from(new Set(keys.map((k) => k.trim()).filter(Boolean)));
+    let deletedCount = 0;
+    const failedKeys: Array<{ key: string; error: string }> = [];
+    for (const key of uniqueKeys) {
+      try {
+        await this.deleteObject(key);
+        deletedCount += 1;
+      } catch (err) {
+        failedKeys.push({
+          key,
+          error: err instanceof Error ? err.message : 'Erreur S3 inconnue',
+        });
+      }
+    }
+    return { deletedCount, failedKeys };
   }
 }
 

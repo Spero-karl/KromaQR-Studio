@@ -59,12 +59,12 @@ export const ExportModal: React.FC<ExportModalProps> = ({
       role="dialog"
       aria-modal="true"
       aria-labelledby="export-modal-title"
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/65 p-4"
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/65 p-0 sm:p-4"
       onClick={onClose}
     >
       <div
         data-testid="pro-export-modal"
-        className="w-full max-w-md bg-white border border-[#E2E0D8] rounded-2xl p-5 sm:p-6 shadow-2xl space-y-5"
+        className="w-full max-w-md bg-white border border-[#E2E6F0] rounded-t-3xl sm:rounded-2xl p-5 sm:p-6 pb-safe shadow-2xl space-y-5 max-h-[92dvh] overflow-y-auto animate-modal-enter"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-start justify-between gap-3">
@@ -73,7 +73,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
               Exportation professionnelle
             </h2>
             <p className="text-xs text-[#6E7078] mt-0.5 truncate">
-              {title || 'KromaQR Studio'}
+              {title || 'SparkQR'}
             </p>
           </div>
           <button

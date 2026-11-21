@@ -118,10 +118,13 @@ export type PostScanTemplate =
 
 export interface PostScanMediaItem {
   id: string;
-  type: 'image' | 'video';
+  type: 'image' | 'video' | 'document' | 'audio';
   url: string;
   caption: string;
   posterUrl?: string;
+  mimeType?: string;
+  isEncrypted?: boolean;
+  originalSize?: number;
 }
 
 export interface PostScanExperience {
@@ -130,6 +133,7 @@ export interface PostScanExperience {
   description: string;
   mixedTextBlock?: string;
   accentMood: 'auto' | 'gold-velvet' | 'midnight-neon' | 'cinema-35' | 'botanical';
+  readerThemeMode?: 'light' | 'dark';
   // Event Invite
   eventDate: string;
   eventTime: string;
@@ -227,7 +231,7 @@ export interface MediaAssociationInfo {
 
 export interface UploadedMediaInfo {
   id: string;
-  type: 'image' | 'video';
+  type: 'image' | 'video' | 'document' | 'audio';
   filename: string;
   originalName: string;
   mimeType: string;
@@ -236,6 +240,9 @@ export interface UploadedMediaInfo {
   fileUrl?: string;
   downloadUrl?: string;
   pageUrl: string;
+  isEncrypted?: boolean;
+  e2eeVersion?: 1;
+  retentionPlanMonths?: number | null;
   storage?: {
     provider: 'dosya-s3' | 'demo' | 'collection';
     bucket?: string;
@@ -245,7 +252,80 @@ export interface UploadedMediaInfo {
     region?: string;
   };
   associations?: MediaAssociationInfo[];
+  serverExpiresAt?: string | null;
   createdAt: string;
+}
+
+export interface WorkspaceInfo {
+  id: string;
+  name: string;
+  accessCode: string;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export interface RetentionNotification {
+  id: string;
+  workspaceId: string;
+  targetKind: 'media' | 'collection' | 'dynamic';
+  targetId: string;
+  targetTitle: string;
+  milestone: '48h' | '24h' | 'expired' | 'deleted' | 'extended';
+  message: string;
+  expiresAt?: string | null;
+  createdAt: string;
+  read: boolean;
+}
+
+export interface DeletionAuditEntry {
+  id: string;
+  workspaceId: string;
+  shortRef: string;
+  resourceKind: 'media' | 'collection' | 'dynamic';
+  reason: 'expired' | 'manual';
+  freedBytes: number;
+  s3ObjectsDeleted: number;
+  deletedAt: string;
+}
+
+export interface StorageDashboardItem {
+  id: string;
+  kind: 'media' | 'collection' | 'dynamic';
+  title: string;
+  mediaType: 'image' | 'video' | 'document' | 'audio' | 'collection' | 'dynamic';
+  sizeBytes: number;
+  isEncrypted: boolean;
+  createdAt: string;
+  expiresAt: string | null;
+  retentionPlanMonths: number | null;
+  status: 'permanent' | 'active' | 'expiring' | 'expired' | 'deleted';
+  pageUrl: string;
+  s3ObjectsCount: number;
+}
+
+export interface EmailAlertStatus {
+  configuredTransport: 'resend' | 'smtp' | 'none';
+  email: string | null;
+  verified: boolean;
+  optedIn: boolean;
+  pendingVerification: boolean;
+}
+
+export interface StorageDashboardResponse {
+  workspace: WorkspaceInfo;
+  summary: {
+    activeCount: number;
+    expiringSoonCount: number;
+    expiredCount: number;
+    totalStorageBytes: number;
+    freedStorageBytes: number;
+    currentPlanLabel: string;
+    maxPlanMonths: number;
+  };
+  items: StorageDashboardItem[];
+  notifications: RetentionNotification[];
+  auditLog: DeletionAuditEntry[];
+  emailAlerts: EmailAlertStatus;
 }
 
 export interface QrSourceState {
@@ -259,11 +339,19 @@ export interface QrSourceState {
   imageUrl: string;
   imageName: string;
   imagePageUrl: string;
+  imageMimeType?: string;
+  imageSize?: number;
+  imageEncrypted?: boolean;
   useSourceImageAsLogo: boolean;
   videoUrl: string;
   videoName: string;
   videoPageUrl: string;
   videoPosterUrl?: string;
+  videoMimeType?: string;
+  videoSize?: number;
+  videoEncrypted?: boolean;
+  e2eeEnabled?: boolean;
+  e2eeKeyFragment?: string;
 }
 
 export interface QrConfig {
@@ -367,12 +455,18 @@ export interface SavedQrItem {
   id: string;
   name: string;
   category: ProjectCategory;
+  workspaceId?: string;
   createdAt: string;
   updatedAt?: string;
   source: QrSourceState;
   config: QrConfig;
   experience?: PostScanExperience;
   dynamicSlug?: string | null;
+  serverCollectionId?: string | null;
+  serverExpiresAt?: string | null;
+  retentionPlanMonths?: number | null;
+  isEncrypted?: boolean;
+  accessibilityKind?: 'permanent' | 'hosted' | 'dynamic';
   payload: string;
 }
 

@@ -6,6 +6,7 @@ import {
   buildReaderThemeTokens,
   computeReadingMetrics,
   formatMediaTimestamp,
+  getDefaultReaderColorMode,
   inspectVideoSourceCompatibility,
   needsHostedMediaCollection,
   resolveReaderCategory,
@@ -122,10 +123,20 @@ test('computeReadingMetrics handles UTF-8 emojis, line breaks, and long texts ac
   assert.equal(emojiMetrics.characters, 16);
   assert.equal(emojiMetrics.isLongText, false);
 
-  const longText = Array(60).fill('KromaQR').join(' ');
+  const longText = Array(60).fill('SparkQR').join(' ');
   const longMetrics = computeReadingMetrics(longText);
   assert.equal(longMetrics.words, 60);
   assert.equal(longMetrics.isLongText, true);
+});
+
+test('getDefaultReaderColorMode defaults to light and respects explicit dark setting', () => {
+  assert.equal(getDefaultReaderColorMode(DEFAULT_CONFIG, 'auto'), 'light');
+  assert.equal(getDefaultReaderColorMode(DEFAULT_CONFIG, 'midnight-neon'), 'light');
+  assert.equal(
+    getDefaultReaderColorMode({ ...DEFAULT_CONFIG, cardBackgroundColor: '#090A0D' }, 'gold-velvet', 'light'),
+    'light'
+  );
+  assert.equal(getDefaultReaderColorMode(DEFAULT_CONFIG, 'auto', 'dark'), 'dark');
 });
 
 test('buildReaderThemeTokens supports dark and light modes cleanly', () => {

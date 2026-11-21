@@ -1,0 +1,43 @@
+name: SparkQR Render Keep-Alive & Retention Sweep
+
+# Maintient l'instance Render éveillée via /health (requête HTTP ultra-légère sans S3 ni disque).
+# Ajoutez le secret GitHub RENDER_APP_URL (ex: https://votre-app.onrender.com)
+# et optionnellement CRON_SECRET si configuré sur Render.
+#
+# Note : GitHub Actions autorise un pas minimal de 15 min ('*/15 * * * *').
+# Pour exactement 14 minutes, vous pouvez aussi configurer cron-job.org (gratuit) sur :
+#   GET https://votre-app.onrender.com/health  toutes les 14 minutes.
+
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+
+jobs:
+  keepalive:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping léger /health sur Render
+        env:
+          RENDER_APP_URL: ${{ secrets.RENDER_APP_URL }}
+        run: |
+          if [ -z "$RENDER_APP_URL" ]; then
+            echo "RENDER_APP_URL non défini dans GitHub Secrets — étape ignorée."
+            exit 0
+          fi
+          curl -fsS --max-time 15 "${RENDER_APP_URL%/}/health"
+          echo ""
+      - name: Passage automatique de conservation (si CRON_SECRET configuré)
+        env:
+          RENDER_APP_URL: ${{ secrets.RENDER_APP_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          if [ -z "$RENDER_APP_URL" ]; then
+            exit 0
+          fi
+          if [ -n "$CRON_SECRET" ]; then
+            curl -fsS --max-time 25 -X POST -H "Authorization: Bearer ${CRON_SECRET}" "${RENDER_APP_URL%/}/api/cron/cleanup"
+          else
+            curl -fsS --max-time 25 -X POST "${RENDER_APP_URL%/}/api/cron/cleanup"
+          fi
+          echo ""

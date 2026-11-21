@@ -14,31 +14,46 @@ import {
   normalizeMediaAssetUrl,
   validatePublicAppUrl,
 } from './src/utils/publicUrl.ts';
-import { createDosyaStorageFromEnv } from './src/server/dosyaStorage.ts';
+import {
+  createDosyaStorageFromEnv,
+} from './src/server/dosyaStorage.ts';
 import { findMediaQrAssociations } from './src/server/mediaAssociations.ts';
+import {
+  RetentionEngine,
+  type DynamicRecordLike,
+  type MediaRecordLike,
+} from './src/server/retentionEngine.ts';
+import {
+  AdminAuthService,
+  createStripeCheckoutSession,
+  getConfiguredEmailTransport,
+  isStripeConfigured,
+  retrieveStripeCheckoutSession,
+  sendTransactionalEmail,
+  verifyCronSecretHeader,
+  verifyStripeWebhookSignature,
+} from './src/server/stripeAdmin.ts';
+import {
+  canWorkspaceAccessRecord,
+  createWorkspaceRecord,
+  findWorkspaceByAccessCode,
+  isValidWorkspaceId,
+  loadWorkspacesMap,
+  readWorkspaceProjects,
+  sanitizeWorkspaceName,
+  saveWorkspacesMap,
+  writeWorkspaceProjects,
+  type WorkspaceRecord,
+} from './src/server/workspaceStore.ts';
+import {
+  computeFreeRetentionExpiry,
+  isValidPaidMonths,
+  type NotificationMilestone,
+} from './src/utils/retentionPricing.ts';
+import { computeDefaultServerExpiry } from './src/utils/serverAvailability.ts';
 
-interface MediaRecord {
-  id: string;
-  kind?: 'media' | 'collection';
-  type: 'image' | 'video' | 'collection';
-  filename: string;
-  originalName: string;
-  mimeType: string;
-  size: number;
-  url: string;
-  storage?: {
-    provider: 'dosya-s3' | 'demo' | 'collection';
-    bucket?: string;
-    key?: string;
-    etag?: string;
-    endpoint?: string;
-    region?: string;
-  };
-  posterUrl?: string;
-  source?: Record<string, unknown>;
-  experience?: Record<string, unknown>;
-  config?: Record<string, unknown>;
-  createdAt: string;
+interface MediaRecord extends MediaRecordLike {
+  type: 'image' | 'video' | 'document' | 'audio' | 'collection';
 }
 
 interface DynamicScanEvent {
@@ -47,17 +62,9 @@ interface DynamicScanEvent {
   unlocked: boolean;
 }
 
-interface ServerDynamicRecord {
-  slug: string;
-  active: boolean;
-  pinSalt: string | null;
-  pinHash: string | null;
-  expiresAt: string | null;
-  maxScans: number | null;
-  createdAt: string;
-  updatedAt: string;
+interface ServerDynamicRecord extends DynamicRecordLike {
   destination: {
-    intent: 'url' | 'text' | 'wifi' | 'image' | 'video';
+    intent: 'url' | 'text' | 'wifi' | 'image' | 'video' | 'document' | 'audio';
     payload: string;
     title: string;
     sourceSnapshot: Record<string, unknown>;
@@ -77,13 +84,14 @@ interface ServerDynamicRecord {
   };
 }
 
-const PORT = 3000;
+const PORT = Number(process.env.PORT || 3000);
 const ROOT_DIR = process.cwd();
 const DATA_DIR = path.join(ROOT_DIR, 'data');
 const LEGACY_UPLOADS_DIR = path.join(ROOT_DIR, 'uploads');
 const INDEX_FILE = path.join(DATA_DIR, 'media-index.json');
 const DYNAMIC_FILE = path.join(DATA_DIR, 'dynamic-qrs.json');
 const PROJECTS_FILE = path.join(DATA_DIR, 'projects.json');
+const WORKSPACES_FILE = path.join(DATA_DIR, 'workspaces.json');
 const PUBLIC_CONFIG_FILE = path.join(DATA_DIR, 'public-config.json');
 const SECRET_FILE = path.join(DATA_DIR, '.hmac-secret');
 
@@ -125,6 +133,22 @@ function getHmacSecret(): string {
 }
 
 const HMAC_SECRET = getHmacSecret();
+const retentionEngine = new RetentionEngine(
+  DATA_DIR,
+  dosyaStorage,
+  async (alert) => {
+    if (getConfiguredEmailTransport() !== 'none') {
+      await sendTransactionalEmail(alert);
+    }
+  }
+);
+const adminAuth = new AdminAuthService(DATA_DIR, HMAC_SECRET);
+
+function isRecordExpired(expiresAt: string | null | undefined): boolean {
+  if (!expiresAt) return false;
+  const ms = Date.parse(expiresAt);
+  return Number.isFinite(ms) && Date.now() >= ms;
+}
 
 function readJsonStore<T>(filePath: string, fallback: T): T {
   try {
@@ -156,12 +180,50 @@ function writeDynamicStore(store: Record<string, ServerDynamicRecord>): void {
   writeJsonStore(DYNAMIC_FILE, store);
 }
 
-function readProjectsStore(): unknown[] {
-  return readJsonStore<unknown[]>(PROJECTS_FILE, []);
+const WORKSPACE_COOKIE_NAME = 'sparkqr_ws';
+
+function setWorkspaceCookie(res: express.Response, workspaceId: string): void {
+  res.cookie(WORKSPACE_COOKIE_NAME, workspaceId, {
+    httpOnly: false,
+    sameSite: 'lax',
+    maxAge: 365 * 24 * 60 * 60 * 1000,
+    path: '/',
+  });
 }
 
-function writeProjectsStore(projects: unknown[]): void {
-  writeJsonStore(PROJECTS_FILE, projects);
+function resolveRequestWorkspace(
+  req: express.Request,
+  res?: express.Response,
+  createIfMissing = true
+): { workspace: WorkspaceRecord; isNew: boolean } | null {
+  const map = loadWorkspacesMap(WORKSPACES_FILE);
+  const headerId = req.get('x-workspace-id');
+  const cookies = parseCookies(req.headers.cookie);
+  const cookieId = cookies[WORKSPACE_COOKIE_NAME];
+
+  const candidateId = isValidWorkspaceId(headerId)
+    ? headerId.trim()
+    : isValidWorkspaceId(cookieId)
+    ? cookieId.trim()
+    : null;
+
+  if (candidateId && map[candidateId]) {
+    if (res && cookieId !== candidateId) {
+      setWorkspaceCookie(res, candidateId);
+    }
+    return { workspace: map[candidateId], isNew: false };
+  }
+
+  if (!createIfMissing) {
+    return null;
+  }
+
+  const created = createWorkspaceRecord(map);
+  saveWorkspacesMap(WORKSPACES_FILE, map);
+  if (res) {
+    setWorkspaceCookie(res, created.id);
+  }
+  return { workspace: created, isNew: true };
 }
 
 interface StoredPublicConfig {
@@ -367,24 +429,24 @@ function renderStatusHtml(title: string, message: string, codeLabel: string): st
 <html lang="fr">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>${escapeHtml(title)} — KromaQR</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <title>${escapeHtml(title)} — SparkQR</title>
     <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@600;700&family=Plus+Jakarta+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
     <style>
       * { box-sizing: border-box; }
       body {
-        margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center;
+        margin: 0; min-height: 100dvh; display: flex; align-items: center; justify-content: center;
         padding: 24px; font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
-        background: linear-gradient(160deg, #FAF9F5 0%, #F1EFE8 100%); color: #111214;
+        background: linear-gradient(160deg, #F5F3FF 0%, #FDF2F8 50%, #EEF2FF 100%); color: #111214;
       }
       .card {
         max-width: 460px; width: 100%; background: #FFFFFF; border: 1px solid #E6E4DC;
-        border-radius: 24px; padding: 32px; text-align: center; box-shadow: 0 20px 56px rgba(17,18,20,0.07);
+        border-radius: 24px; padding: 32px; text-align: center; box-shadow: 0 20px 56px rgba(37,99,235,0.09);
       }
-      .kicker { font-size: 11px; font-weight: 600; color: #1D4ED8; letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 8px; }
+      .kicker { font-size: 11px; font-weight: 600; color: #2563EB; letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 8px; }
       h1 { font-family: 'Bricolage Grotesque', sans-serif; font-size: 22px; margin: 0 0 10px; color: #111214; }
-      p { font-size: 14px; color: #5C5E66; line-height: 1.6; margin: 0 0 22px; }
-      a { display: inline-block; padding: 10px 20px; border-radius: 12px; background: #1D4ED8; color: #FFFFFF; text-decoration: none; font-size: 13px; font-weight: 600; }
+      p { font-size: 14px; color: #5C5E66; line-height: 1.6; margin: 0; }
     </style>
   </head>
   <body>
@@ -392,7 +454,6 @@ function renderStatusHtml(title: string, message: string, codeLabel: string): st
       <div class="kicker">${escapeHtml(codeLabel)}</div>
       <h1>${escapeHtml(title)}</h1>
       <p>${escapeHtml(message)}</p>
-      <a href="/">Retour à KromaQR Studio</a>
     </main>
   </body>
 </html>`;
@@ -403,15 +464,16 @@ function renderPinGateHtml(slug: string, title: string, errorMsg?: string): stri
 <html lang="fr">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
     <title>Contenu protégé — ${escapeHtml(title)}</title>
     <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@600;700&family=Plus+Jakarta+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
     <style>
       * { box-sizing: border-box; }
       body {
-        margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center;
+        margin: 0; min-height: 100dvh; display: flex; align-items: center; justify-content: center;
         padding: 24px; font-family: 'Plus Jakarta Sans', system-ui, sans-serif;
-        background: linear-gradient(160deg, #FAF9F5 0%, #F1EFE8 100%);
+        background: linear-gradient(160deg, #F5F3FF 0%, #FDF2F8 50%, #EEF2FF 100%);
         color: #111214;
       }
       .card {
@@ -442,7 +504,7 @@ function renderPinGateHtml(slug: string, title: string, errorMsg?: string): stri
   </head>
   <body>
     <main class="card" data-testid="server-pin-gate">
-      <div class="kicker">KromaQR Studio · Accès privé</div>
+      <div class="kicker">SparkQR · Accès privé</div>
       <h1>Accès protégé</h1>
       <p>Ce code QR (« ${escapeHtml(title)} ») nécessite un code PIN ou mot de passe vérifié par le serveur pour afficher son contenu.</p>
       ${errorMsg ? `<div class="error" role="alert">${escapeHtml(errorMsg)}</div>` : ''}
@@ -456,16 +518,33 @@ function renderPinGateHtml(slug: string, title: string, errorMsg?: string): stri
 </html>`;
 }
 
+const ALLOWED_UPLOAD_MIMES = new Set([
+  'application/pdf',
+  'text/plain',
+  'text/csv',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/octet-stream',
+]);
+
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: {
-    fileSize: 60 * 1024 * 1024, // 60MB
+    fileSize: 65 * 1024 * 1024, // 65MB (allows up to 60MB + E2EE overhead)
   },
   fileFilter: (_req, file, cb) => {
-    if (file.mimetype.startsWith('image/') || file.mimetype.startsWith('video/')) {
+    if (
+      file.mimetype.startsWith('image/') ||
+      file.mimetype.startsWith('video/') ||
+      file.mimetype.startsWith('audio/') ||
+      ALLOWED_UPLOAD_MIMES.has(file.mimetype)
+    ) {
       cb(null, true);
     } else {
-      cb(new Error('Format non pris en charge. Importez une image ou une vidéo.'));
+      cb(
+        new Error(
+          'Format non pris en charge. Importez une image, vidéo, audio ou document (PDF, TXT, CSV, DOCX).'
+        )
+      );
     }
   },
 });
@@ -483,11 +562,104 @@ async function startServer() {
   const app = express();
   app.set('trust proxy', true);
 
+  // Ultra-lightweight Render keep-alive endpoint (zero disk I/O, zero S3, zero heavy operations)
+  app.get('/health', (_req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
+    res.status(200).json({ ok: true, status: 'alive', ts: Date.now() });
+  });
+
+  app.get('/api/health', (_req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
+    res.status(200).json({ ok: true });
+  });
+
+  // Stripe Webhook MUST receive raw JSON body before express.json() middleware
+  app.post(
+    '/api/payments/webhook',
+    express.raw({ type: 'application/json' }),
+    (req, res) => {
+      const webhookSecret = (process.env.STRIPE_WEBHOOK_SECRET || '').trim();
+      const sigHeader = req.get('stripe-signature');
+      if (!webhookSecret) {
+        res.status(503).json({ error: 'STRIPE_WEBHOOK_SECRET non configuré.' });
+        return;
+      }
+      const rawBody = Buffer.isBuffer(req.body)
+        ? req.body
+        : Buffer.from(JSON.stringify(req.body || {}));
+      if (!verifyStripeWebhookSignature(rawBody, sigHeader, webhookSecret)) {
+        res.status(400).json({ error: 'Signature Stripe invalide.' });
+        return;
+      }
+
+      try {
+        const event = JSON.parse(rawBody.toString('utf8')) as {
+          type?: string;
+          data?: {
+            object?: {
+              id?: string;
+              payment_status?: string;
+              metadata?: Record<string, string>;
+            };
+          };
+        };
+
+        if (event.type === 'checkout.session.completed') {
+          const session = event.data?.object;
+          if (session?.id && session.payment_status === 'paid') {
+            const meta = session.metadata || {};
+            const existingOrder = retentionEngine.getPaymentOrder(session.id);
+            const workspaceId = existingOrder?.workspaceId || meta.workspaceId || '';
+            const targetKind = (existingOrder?.targetKind ||
+              meta.targetKind ||
+              'workspace') as 'media' | 'collection' | 'dynamic' | 'workspace';
+            const targetId = existingOrder?.targetId || meta.targetId || workspaceId;
+            const months = Number(existingOrder?.months || meta.months || 1);
+
+            if (
+              workspaceId &&
+              isValidPaidMonths(months) &&
+              existingOrder?.status !== 'paid'
+            ) {
+              retentionEngine.extendRetention({
+                workspaceId,
+                targetKind,
+                targetId,
+                months,
+              });
+              retentionEngine.savePaymentOrder({
+                sessionId: session.id,
+                workspaceId,
+                targetKind,
+                targetId,
+                months,
+                amountCents:
+                  existingOrder?.amountCents ||
+                  retentionEngine.getPricingConfig().monthsCents[months] ||
+                  0,
+                currency: 'EUR',
+                status: 'paid',
+                appliedAt: new Date().toISOString(),
+                createdAt: existingOrder?.createdAt || new Date().toISOString(),
+              });
+            }
+          }
+        }
+
+        res.json({ received: true });
+      } catch (err) {
+        console.error('Stripe webhook parse error:', err);
+        res.status(400).json({ error: 'Payload Stripe invalide.' });
+      }
+    }
+  );
+
   app.use(express.json({ limit: '8mb' }));
   app.use(express.urlencoded({ extended: false }));
 
-  // Public scan routes & media assets must never block external clients with CORS/CORP
+  // Privacy & scan headers: prevent #fragment key leakage via Referer and allow public QR readers
   app.use((req, res, next) => {
+    res.setHeader('Referrer-Policy', 'no-referrer');
     const isPublicRoute =
       req.path.startsWith('/api/reader/') ||
       req.path.startsWith('/api/media') ||
@@ -512,8 +684,47 @@ async function startServer() {
     next();
   });
 
-  app.get('/api/health', (_req, res) => {
-    res.json({ ok: true });
+  // =========================================================================
+  // PERSONAL MULTI-USER WORKSPACE ENDPOINTS
+  // =========================================================================
+
+  app.get('/api/workspace', (req, res) => {
+    const resolved = resolveRequestWorkspace(req, res, true)!;
+    res.json({ workspace: resolved.workspace, isNew: resolved.isNew });
+  });
+
+  app.post('/api/workspace', (req, res) => {
+    const name = typeof req.body?.name === 'string' ? req.body.name : undefined;
+    const map = loadWorkspacesMap(WORKSPACES_FILE);
+    const created = createWorkspaceRecord(map, name);
+    saveWorkspacesMap(WORKSPACES_FILE, map);
+    setWorkspaceCookie(res, created.id);
+    res.status(201).json({ workspace: created });
+  });
+
+  app.patch('/api/workspace', (req, res) => {
+    const resolved = resolveRequestWorkspace(req, res, true)!;
+    const map = loadWorkspacesMap(WORKSPACES_FILE);
+    const current = map[resolved.workspace.id] || resolved.workspace;
+    current.name = sanitizeWorkspaceName(req.body?.name);
+    current.updatedAt = new Date().toISOString();
+    map[current.id] = current;
+    saveWorkspacesMap(WORKSPACES_FILE, map);
+    res.json({ workspace: current });
+  });
+
+  app.post('/api/workspace/join', (req, res) => {
+    const code = typeof req.body?.accessCode === 'string' ? req.body.accessCode : '';
+    const map = loadWorkspacesMap(WORKSPACES_FILE);
+    const found = findWorkspaceByAccessCode(map, code);
+    if (!found) {
+      res.status(404).json({
+        error: 'Code espace introuvable. Vérifiez votre code personnel (ex. SPK-XXXX-XXXX).',
+      });
+      return;
+    }
+    setWorkspaceCookie(res, found.id);
+    res.json({ workspace: found });
   });
 
   app.get('/api/storage/status', (_req, res) => {
@@ -564,26 +775,57 @@ async function startServer() {
       return;
     }
 
-    const type: 'image' | 'video' = req.file.mimetype.startsWith('video/')
-      ? 'video'
-      : 'image';
+    const bodyFlags = (req.body || {}) as {
+      isEncrypted?: string;
+      mediaType?: string;
+      originalSize?: string;
+    };
+    const isEncrypted = bodyFlags.isEncrypted === 'true' || bodyFlags.isEncrypted === '1';
+
+    let type: 'image' | 'video' | 'document' | 'audio' = 'image';
+    if (
+      bodyFlags.mediaType === 'video' ||
+      bodyFlags.mediaType === 'document' ||
+      bodyFlags.mediaType === 'audio' ||
+      bodyFlags.mediaType === 'image'
+    ) {
+      type = bodyFlags.mediaType;
+    } else if (req.file.mimetype.startsWith('video/')) {
+      type = 'video';
+    } else if (req.file.mimetype.startsWith('audio/')) {
+      type = 'audio';
+    } else if (
+      req.file.mimetype === 'application/pdf' ||
+      req.file.mimetype.startsWith('text/') ||
+      req.file.mimetype.includes('wordprocessingml')
+    ) {
+      type = 'document';
+    }
+
     const id = generateShortId();
-    const originalName = req.file.originalname || `media-${id}`;
+    const originalName = isEncrypted
+      ? 'contenu-chiffre.spk1'
+      : req.file.originalname || `media-${id}`;
     const objectKey = dosyaStorage.buildObjectKey({
       mediaId: id,
-      type,
+      type: isEncrypted ? 'encrypted' : type,
       originalName,
-      mimeType: req.file.mimetype,
+      mimeType: isEncrypted ? 'application/octet-stream' : req.file.mimetype,
     });
+
+    const { workspace } = resolveRequestWorkspace(req, res, true)!;
+    const nowIso = new Date().toISOString();
+    const serverExpiresAt = computeFreeRetentionExpiry(nowIso);
 
     try {
       const uploaded = await dosyaStorage.uploadObject({
         key: objectKey,
         body: req.file.buffer,
-        contentType: req.file.mimetype,
+        contentType: isEncrypted ? 'application/octet-stream' : req.file.mimetype,
         metadata: {
           mediaid: id,
           mediatype: type,
+          e2ee: isEncrypted ? '1' : '0',
         },
       });
 
@@ -593,13 +835,18 @@ async function startServer() {
 
       const record: MediaRecord = {
         id,
+        ownerWorkspaceId: workspace.id,
         kind: 'media',
         type,
         filename: path.basename(uploaded.key),
         originalName,
-        mimeType: req.file.mimetype,
+        mimeType: isEncrypted ? 'application/octet-stream' : req.file.mimetype,
         size: req.file.size,
         url: fileUrl,
+        isEncrypted,
+        e2eeVersion: isEncrypted ? 1 : undefined,
+        retentionPlanMonths: null,
+        sentMilestones: [],
         storage: {
           provider: 'dosya-s3',
           bucket: uploaded.bucket,
@@ -608,7 +855,8 @@ async function startServer() {
           endpoint: uploaded.endpoint,
           region: uploaded.region,
         },
-        createdAt: new Date().toISOString(),
+        serverExpiresAt,
+        createdAt: nowIso,
       };
 
       const index = readMediaIndex();
@@ -621,6 +869,7 @@ async function startServer() {
         fileUrl,
         downloadUrl,
         pageUrl,
+        serverExpiresAt,
         publicUrl: pub.valid ? buildPublicReaderUrl(pub.configuredUrl, pageUrl) : undefined,
       });
     } catch (err) {
@@ -671,11 +920,13 @@ async function startServer() {
 
   // Register a full hosted multimedia collection / custom reader bundle (/m/:id)
   app.post('/api/media-collection', (req, res) => {
-    const { source, experience, config, title } = req.body as {
+    const { source, experience, config, title, isEncrypted, encryptedMeta } = req.body as {
       source?: Record<string, unknown>;
       experience?: Record<string, unknown>;
       config?: Record<string, unknown>;
       title?: string;
+      isEncrypted?: boolean;
+      encryptedMeta?: unknown;
     };
     if (!source) {
       res.status(400).json({ error: 'Données multimédia manquantes.' });
@@ -687,16 +938,25 @@ async function startServer() {
       return;
     }
 
+    const { workspace } = resolveRequestWorkspace(req, res, true)!;
     const id = generateShortId();
+    const nowIso = new Date().toISOString();
+    const serverExpiresAt = computeFreeRetentionExpiry(nowIso);
     const record: MediaRecord = {
       id,
+      ownerWorkspaceId: workspace.id,
       kind: 'collection',
       type: 'collection',
       filename: id,
-      originalName: title || 'Collection KromaQR Studio',
+      originalName: isEncrypted ? `Contenu chiffré #${id}` : title || 'Collection SparkQR',
       mimeType: 'application/json',
-      size: 0,
+      size: encryptedMeta ? Buffer.byteLength(JSON.stringify(encryptedMeta), 'utf8') : 0,
       url: `/m/${id}`,
+      isEncrypted: Boolean(isEncrypted),
+      e2eeVersion: isEncrypted ? 1 : undefined,
+      encryptedMeta: isEncrypted ? encryptedMeta : undefined,
+      retentionPlanMonths: null,
+      sentMilestones: [],
       storage: { provider: 'collection' },
       posterUrl:
         typeof source.videoPosterUrl === 'string' && source.videoPosterUrl
@@ -705,7 +965,8 @@ async function startServer() {
       source,
       experience: experience || {},
       config: config || {},
-      createdAt: new Date().toISOString(),
+      serverExpiresAt,
+      createdAt: nowIso,
     };
     const index = readMediaIndex();
     index[id] = record;
@@ -715,16 +976,25 @@ async function startServer() {
     res.status(201).json({
       id,
       pageUrl,
+      serverExpiresAt,
+      isEncrypted: Boolean(isEncrypted),
       publicUrl: pub.valid ? buildPublicReaderUrl(pub.configuredUrl, pageUrl) : undefined,
     });
   });
 
   app.get('/api/media', (req, res) => {
+    const resolved = resolveRequestWorkspace(req, res, true)!;
+    const wsId = resolved.workspace.id;
     const index = readMediaIndex();
     const dynamicStore = readDynamicStore();
     const pub = getEffectivePublicConfig(req);
     const items = Object.values(index)
-      .filter((rec) => rec.kind !== 'collection' && rec.storage?.provider === 'dosya-s3')
+      .filter(
+        (rec) =>
+          rec.kind !== 'collection' &&
+          rec.storage?.provider === 'dosya-s3' &&
+          canWorkspaceAccessRecord(rec.ownerWorkspaceId, wsId)
+      )
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
       .map((rec) => {
         const pageUrl = `/m/${rec.id}`;
@@ -733,6 +1003,7 @@ async function startServer() {
           fileUrl: `/api/media/${rec.id}/file`,
           downloadUrl: `/api/media/${rec.id}/download`,
           pageUrl,
+          serverExpiresAt: rec.serverExpiresAt || computeDefaultServerExpiry(rec.createdAt),
           publicUrl: pub.valid ? buildPublicReaderUrl(pub.configuredUrl, pageUrl) : undefined,
           associations: findMediaQrAssociations(rec.id, rec.url, index, dynamicStore),
         };
@@ -745,6 +1016,15 @@ async function startServer() {
     const record = index[req.params.id];
     if (!record) {
       res.status(404).json({ error: 'Média introuvable.' });
+      return;
+    }
+    if (isRecordExpired(record.serverExpiresAt)) {
+      void retentionEngine.deleteResourceNow({
+        kind: record.kind === 'collection' ? 'collection' : 'media',
+        id: record.id,
+        reason: 'expired',
+      });
+      res.status(410).json({ error: 'Ce média a expiré et a été supprimé.' });
       return;
     }
     const dynamicStore = readDynamicStore();
@@ -770,6 +1050,15 @@ async function startServer() {
     const record = index[req.params.id];
     if (!record || record.kind === 'collection') {
       res.status(404).json({ error: 'Média introuvable.' });
+      return;
+    }
+    if (isRecordExpired(record.serverExpiresAt)) {
+      void retentionEngine.deleteResourceNow({
+        kind: 'media',
+        id: record.id,
+        reason: 'expired',
+      });
+      res.status(410).json({ error: 'Ce fichier a expiré et a été supprimé.' });
       return;
     }
 
@@ -865,46 +1154,33 @@ async function startServer() {
   });
 
   app.delete('/api/media/:id', async (req, res) => {
+    const resolved = resolveRequestWorkspace(req, res, true)!;
     const index = readMediaIndex();
     const record = index[req.params.id];
     if (!record) {
       res.status(404).json({ error: 'Média introuvable.' });
       return;
     }
+    if (!canWorkspaceAccessRecord(record.ownerWorkspaceId, resolved.workspace.id)) {
+      res.status(403).json({ error: 'Ce média appartient à un autre espace utilisateur.' });
+      return;
+    }
 
     const dynamicStore = readDynamicStore();
     const associations = findMediaQrAssociations(record.id, record.url, index, dynamicStore);
 
-    let removedFromS3 = false;
-    if (record.storage?.provider === 'dosya-s3' && record.storage.key) {
-      if (!dosyaStorage.isConfigured()) {
-        res.status(503).json({
-          error: 'Stockage Dosya.dev non configuré sur le serveur pour supprimer cet objet.',
-        });
-        return;
-      }
-      try {
-        await dosyaStorage.deleteObject(record.storage.key);
-        removedFromS3 = true;
-      } catch (err) {
-        console.error('Dosya.dev S3 delete failed:', err);
-        res.status(502).json({
-          error:
-            err instanceof Error
-              ? `Impossible de supprimer l’objet sur Dosya.dev : ${err.message}`
-              : 'Impossible de supprimer l’objet sur Dosya.dev.',
-        });
-        return;
-      }
-    }
-
-    delete index[req.params.id];
-    writeMediaIndex(index);
+    const result = await retentionEngine.deleteResourceNow({
+      kind: record.kind === 'collection' ? 'collection' : 'media',
+      id: record.id,
+      reason: 'manual',
+    });
 
     res.json({
-      deleted: true,
+      deleted: result.deleted,
       id: req.params.id,
-      removedFromS3,
+      removedFromS3: result.s3ObjectsDeleted > 0,
+      freedBytes: result.freedBytes,
+      pendingRetry: result.pendingRetry,
       associations,
     });
   });
@@ -914,6 +1190,15 @@ async function startServer() {
     const record = index[req.params.id];
     if (!record) {
       res.status(404).json({ error: 'Média introuvable ou expiré.' });
+      return;
+    }
+    if (isRecordExpired(record.serverExpiresAt)) {
+      void retentionEngine.deleteResourceNow({
+        kind: record.kind === 'collection' ? 'collection' : 'media',
+        id: record.id,
+        reason: 'expired',
+      });
+      res.status(410).json({ error: 'Ce contenu a expiré et a été définitivement supprimé.' });
       return;
     }
 
@@ -938,6 +1223,10 @@ async function startServer() {
       res.json({
         id: record.id,
         payload: publicPayload,
+        isEncrypted: Boolean(record.isEncrypted),
+        e2eeVersion: record.e2eeVersion,
+        encryptedMeta: record.encryptedMeta,
+        serverExpiresAt: record.serverExpiresAt || null,
         source: normalizedSource,
         experience: record.experience || {},
         config: record.config || null,
@@ -946,16 +1235,22 @@ async function startServer() {
     }
 
     const isVideo = record.type === 'video';
+    const isDocument = record.type === 'document';
+    const isAudio = record.type === 'audio';
     const cleanAssetUrl = normalizeMediaAssetUrl(record.url);
     res.json({
       id: record.id,
       payload: publicPayload,
+      isEncrypted: Boolean(record.isEncrypted),
+      e2eeVersion: record.e2eeVersion,
+      mediaType: record.type,
+      serverExpiresAt: record.serverExpiresAt || null,
       source: {
-        type: isVideo ? 'video' : 'image',
+        type: isVideo ? 'video' : isDocument ? 'document' : isAudio ? 'audio' : 'image',
         textMode: 'url',
-        imageUrl: isVideo ? '' : cleanAssetUrl,
-        imageName: isVideo ? '' : record.originalName,
-        imagePageUrl: isVideo ? '' : `/m/${record.id}`,
+        imageUrl: !isVideo && !isDocument && !isAudio ? cleanAssetUrl : '',
+        imageName: !isVideo && !isDocument && !isAudio ? record.originalName : '',
+        imagePageUrl: !isVideo && !isDocument && !isAudio ? `/m/${record.id}` : '',
         videoUrl: isVideo ? cleanAssetUrl : '',
         videoName: isVideo ? record.originalName : '',
         videoPageUrl: isVideo ? `/m/${record.id}` : '',
@@ -963,8 +1258,8 @@ async function startServer() {
       },
       experience: {
         template: 'standard',
-        headline: record.originalName,
-        description: 'Partagé via KromaQR Studio — Lecteur multimédia natif',
+        headline: record.isEncrypted ? 'Contenu protégé de bout en bout' : record.originalName,
+        description: 'Partagé via SparkQR — Lecteur sécurisé',
         accentMood: 'auto',
       },
       config: record.config || null,
@@ -976,10 +1271,13 @@ async function startServer() {
   // =========================================================================
 
   app.get('/api/dynamic', (req, res) => {
+    const resolved = resolveRequestWorkspace(req, res, true)!;
+    const wsId = resolved.workspace.id;
     const store = readDynamicStore();
     const pub = getEffectivePublicConfig(req);
     const publicOrigin = pub.valid ? pub.configuredUrl : '';
     const list = Object.values(store)
+      .filter((rec) => canWorkspaceAccessRecord(rec.ownerWorkspaceId, wsId))
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
       .map((rec) => sanitizeDynamicRecord(rec, publicOrigin));
     res.json({ items: list });
@@ -1033,10 +1331,15 @@ async function startServer() {
       }
     }
 
+    const resolved = resolveRequestWorkspace(req, res, true)!;
+    const wsId = resolved.workspace.id;
     const store = readDynamicStore();
     const now = new Date().toISOString();
-    const slug = body.slug && store[body.slug] ? body.slug : generateShortId();
-    const existing = store[slug];
+    const canReuseSlug =
+      Boolean(body.slug && store[body.slug]) &&
+      canWorkspaceAccessRecord(store[body.slug!].ownerWorkspaceId, wsId);
+    const slug = canReuseSlug ? body.slug! : generateShortId();
+    const existing = canReuseSlug ? store[slug] : undefined;
 
     let pinSalt = existing?.pinSalt ?? null;
     let pinHash = existing?.pinHash ?? null;
@@ -1057,10 +1360,16 @@ async function startServer() {
 
     const nextRecord: ServerDynamicRecord = {
       slug,
+      ownerWorkspaceId: wsId,
       active: typeof body.active === 'boolean' ? body.active : existing?.active ?? true,
       pinSalt,
       pinHash,
-      expiresAt: body.expiresAt ? body.expiresAt : null,
+      expiresAt: body.expiresAt
+        ? body.expiresAt
+        : existing?.expiresAt ?? computeFreeRetentionExpiry(now),
+      retentionPlanMonths: existing?.retentionPlanMonths ?? null,
+      isEncrypted: Boolean((body as { isEncrypted?: boolean }).isEncrypted ?? existing?.isEncrypted),
+      sentMilestones: existing?.sentMilestones ?? [],
       maxScans:
         typeof body.maxScans === 'number' && body.maxScans > 0 ? body.maxScans : null,
       createdAt: existing?.createdAt ?? now,
@@ -1082,10 +1391,15 @@ async function startServer() {
   });
 
   app.patch('/api/dynamic/:slug', (req, res) => {
+    const resolved = resolveRequestWorkspace(req, res, true)!;
     const store = readDynamicStore();
     const rec = store[req.params.slug];
     if (!rec) {
       res.status(404).json({ error: 'QR dynamique introuvable.' });
+      return;
+    }
+    if (!canWorkspaceAccessRecord(rec.ownerWorkspaceId, resolved.workspace.id)) {
+      res.status(403).json({ error: 'Ce QR dynamique appartient à un autre espace utilisateur.' });
       return;
     }
     const body = req.body as {
@@ -1151,15 +1465,24 @@ async function startServer() {
     res.json(sanitizeDynamicRecord(rec, publicOrigin));
   });
 
-  app.delete('/api/dynamic/:slug', (req, res) => {
+  app.delete('/api/dynamic/:slug', async (req, res) => {
+    const resolved = resolveRequestWorkspace(req, res, true)!;
     const store = readDynamicStore();
-    if (!store[req.params.slug]) {
+    const rec = store[req.params.slug];
+    if (!rec) {
       res.status(404).json({ error: 'QR dynamique introuvable.' });
       return;
     }
-    delete store[req.params.slug];
-    writeDynamicStore(store);
-    res.json({ deleted: true });
+    if (!canWorkspaceAccessRecord(rec.ownerWorkspaceId, resolved.workspace.id)) {
+      res.status(403).json({ error: 'Ce QR dynamique appartient à un autre espace utilisateur.' });
+      return;
+    }
+    const result = await retentionEngine.deleteResourceNow({
+      kind: 'dynamic',
+      id: rec.slug,
+      reason: 'manual',
+    });
+    res.json({ deleted: result.deleted, freedBytes: result.freedBytes });
   });
 
   // Server-side PIN verification API (used by interactive Showcase Modal as well)
@@ -1174,8 +1497,13 @@ async function startServer() {
       res.status(410).json({ error: 'Ce code QR dynamique a été désactivé.' });
       return;
     }
-    if (rec.expiresAt && Date.now() > new Date(rec.expiresAt).getTime()) {
-      res.status(410).json({ error: 'Ce code QR dynamique a expiré.' });
+    if (isRecordExpired(rec.expiresAt)) {
+      void retentionEngine.deleteResourceNow({
+        kind: 'dynamic',
+        id: rec.slug,
+        reason: 'expired',
+      });
+      res.status(410).json({ error: 'Ce code QR dynamique a expiré et a été supprimé.' });
       return;
     }
     if (rec.maxScans && rec.stats.totalScans >= rec.maxScans) {
@@ -1205,7 +1533,7 @@ async function startServer() {
     writeDynamicStore(store);
 
     const token = signUnlockToken(rec.slug);
-    res.cookie(`kroma_unlock_${rec.slug}`, token, {
+    res.cookie(`sparkqr_unlock_${rec.slug}`, token, {
       httpOnly: true,
       sameSite: 'lax',
       maxAge: 15 * 60 * 1000,
@@ -1225,8 +1553,13 @@ async function startServer() {
       res.status(410).json({ error: 'Ce code QR dynamique a été désactivé.' });
       return;
     }
-    if (rec.expiresAt && Date.now() > new Date(rec.expiresAt).getTime()) {
-      res.status(410).json({ error: 'Ce lien dynamique a expiré.' });
+    if (isRecordExpired(rec.expiresAt)) {
+      void retentionEngine.deleteResourceNow({
+        kind: 'dynamic',
+        id: rec.slug,
+        reason: 'expired',
+      });
+      res.status(410).json({ error: 'Ce lien dynamique a expiré et a été supprimé.' });
       return;
     }
     if (rec.maxScans && rec.stats.totalScans >= rec.maxScans) {
@@ -1235,7 +1568,7 @@ async function startServer() {
     }
 
     const cookies = parseCookies(req.headers.cookie);
-    const unlockCookie = cookies[`kroma_unlock_${rec.slug}`];
+    const unlockCookie = cookies[`sparkqr_unlock_${rec.slug}`] || cookies[`kroma_unlock_${rec.slug}`];
     if (rec.pinHash && rec.pinSalt && !verifyUnlockToken(rec.slug, unlockCookie)) {
       const pub = getEffectivePublicConfig(req);
       res.json({
@@ -1249,7 +1582,7 @@ async function startServer() {
         experience: {
           template: 'private-page',
           headline: rec.destination.title || 'Contenu protégé',
-          description: 'Entrez votre code PIN pour accéder au lecteur KromaQR.',
+          description: 'Entrez votre code PIN pour accéder au contenu SparkQR.',
         },
         cardTheme: rec.destination.cardTheme,
         config: rec.destination.config || null,
@@ -1274,6 +1607,9 @@ async function startServer() {
       locked: false,
       dynamicSlug: rec.slug,
       hasPin: Boolean(rec.pinHash),
+      isEncrypted: Boolean(rec.isEncrypted),
+      encryptedMeta: (rec.destination as { encryptedMeta?: unknown }).encryptedMeta,
+      serverExpiresAt: rec.expiresAt || null,
       payload: rec.destination.payload,
       source: rec.destination.sourceSnapshot || {},
       experience: rec.destination.experience || {},
@@ -1312,13 +1648,18 @@ async function startServer() {
       return;
     }
 
-    if (rec.expiresAt && Date.now() > new Date(rec.expiresAt).getTime()) {
+    if (isRecordExpired(rec.expiresAt)) {
+      void retentionEngine.deleteResourceNow({
+        kind: 'dynamic',
+        id: rec.slug,
+        reason: 'expired',
+      });
       res
         .status(410)
         .send(
           renderStatusHtml(
-            'Lien expiré',
-            'La date limite de consultation de ce code QR est dépassée.',
+            'Lien expiré et supprimé',
+            'La durée de conservation de ce code QR est dépassée. Les données associées ont été supprimées.',
             '410 · EXPIRÉ'
           )
         );
@@ -1339,7 +1680,7 @@ async function startServer() {
     }
 
     const cookies = parseCookies(req.headers.cookie);
-    const unlockCookie = cookies[`kroma_unlock_${rec.slug}`];
+    const unlockCookie = cookies[`sparkqr_unlock_${rec.slug}`] || cookies[`kroma_unlock_${rec.slug}`];
     if (rec.pinHash && rec.pinSalt && !verifyUnlockToken(rec.slug, unlockCookie)) {
       res.status(200).send(renderPinGateHtml(rec.slug, rec.destination.title));
       return;
@@ -1381,7 +1722,7 @@ async function startServer() {
       }
     }
 
-    // Otherwise serve the interactive React KromaMediaReader SPA (which calls /api/reader/dynamic/:slug)
+    // Otherwise serve the interactive React SparkMediaReader SPA
     next();
   });
 
@@ -1400,7 +1741,7 @@ async function startServer() {
       return;
     }
     const token = signUnlockToken(rec.slug);
-    res.cookie(`kroma_unlock_${rec.slug}`, token, {
+    res.cookie(`sparkqr_unlock_${rec.slug}`, token, {
       httpOnly: true,
       sameSite: 'lax',
       maxAge: 15 * 60 * 1000,
@@ -1409,24 +1750,405 @@ async function startServer() {
   });
 
   // =========================================================================
-  // SERVER-SIDE PROJECTS DASHBOARD PERSISTENCE
+  // SERVER-SIDE PROJECTS DASHBOARD PERSISTENCE (PER WORKSPACE)
   // =========================================================================
 
-  app.get('/api/projects', (_req, res) => {
-    res.json({ items: readProjectsStore() });
+  app.get('/api/projects', (req, res) => {
+    const resolved = resolveRequestWorkspace(req, res, true)!;
+    res.json({ items: readWorkspaceProjects(DATA_DIR, resolved.workspace.id) });
   });
 
   app.put('/api/projects', (req, res) => {
+    const resolved = resolveRequestWorkspace(req, res, true)!;
     const items = (req.body as { items?: unknown[] })?.items;
     if (!Array.isArray(items)) {
       res.status(400).json({ error: 'Liste de projets invalide.' });
       return;
     }
-    writeProjectsStore(items.slice(0, 200));
+    writeWorkspaceProjects(DATA_DIR, resolved.workspace.id, items);
     res.json({ saved: true, count: items.length });
   });
 
-  // Standalone responsive media landing page when someone scans an Image, Video, or Collection QR code
+  // =========================================================================
+  // STORAGE & RETENTION DASHBOARD, NOTIFICATIONS, AUDIT, PAYMENTS & ADMIN
+  // =========================================================================
+
+  app.get('/api/storage/dashboard', (req, res) => {
+    const resolved = resolveRequestWorkspace(req, res, true)!;
+    const wsId = resolved.workspace.id;
+    const items = retentionEngine.buildWorkspaceDashboardItems(wsId);
+    const activeItems = items.filter((it) => it.status !== 'expired' && it.status !== 'deleted');
+    const expiringSoonCount = items.filter((it) => it.status === 'expiring').length;
+    const expiredCount = items.filter((it) => it.status === 'expired').length;
+    const totalStorageBytes = activeItems.reduce((sum, it) => sum + (it.sizeBytes || 0), 0);
+    const maxPlanMonths = activeItems.reduce(
+      (maxM, it) => Math.max(maxM, it.retentionPlanMonths || 0),
+      0
+    );
+    const stats = retentionEngine.getWorkspaceStats(wsId);
+    const emailSub = retentionEngine.getEmailSubscription(wsId);
+    const transport = getConfiguredEmailTransport();
+
+    res.json({
+      workspace: resolved.workspace,
+      summary: {
+        activeCount: activeItems.length,
+        expiringSoonCount,
+        expiredCount,
+        totalStorageBytes,
+        freedStorageBytes: stats.freedBytes,
+        currentPlanLabel:
+          maxPlanMonths > 0 ? `Offre étendue (${maxPlanMonths} mois)` : 'Offre gratuite (7 jours)',
+        maxPlanMonths,
+      },
+      items,
+      notifications: retentionEngine.listNotifications(wsId),
+      auditLog: retentionEngine.listAuditLog(wsId),
+      emailAlerts: {
+        configuredTransport: transport,
+        email: emailSub?.email || null,
+        verified: Boolean(emailSub?.verified),
+        optedIn: Boolean(emailSub?.optedIn),
+        pendingVerification: Boolean(emailSub && !emailSub.verified && emailSub.verificationCodeHash),
+      },
+    });
+  });
+
+  app.delete('/api/storage/item/:kind/:id', async (req, res) => {
+    const resolved = resolveRequestWorkspace(req, res, true)!;
+    const kind = req.params.kind as 'media' | 'collection' | 'dynamic';
+    if (kind !== 'media' && kind !== 'collection' && kind !== 'dynamic') {
+      res.status(400).json({ error: 'Type de ressource invalide.' });
+      return;
+    }
+    const id = req.params.id;
+    if (kind === 'dynamic') {
+      const store = readDynamicStore();
+      const rec = store[id];
+      if (!rec) {
+        res.status(404).json({ error: 'Ressource introuvable.' });
+        return;
+      }
+      if (!canWorkspaceAccessRecord(rec.ownerWorkspaceId, resolved.workspace.id)) {
+        res.status(403).json({ error: 'Accès refusé à cet espace.' });
+        return;
+      }
+    } else {
+      const index = readMediaIndex();
+      const rec = index[id];
+      if (!rec) {
+        res.status(404).json({ error: 'Ressource introuvable.' });
+        return;
+      }
+      if (!canWorkspaceAccessRecord(rec.ownerWorkspaceId, resolved.workspace.id)) {
+        res.status(403).json({ error: 'Accès refusé à cet espace.' });
+        return;
+      }
+    }
+
+    const result = await retentionEngine.deleteResourceNow({
+      kind,
+      id,
+      reason: 'manual',
+    });
+    res.json(result);
+  });
+
+  app.post('/api/notifications/read', (req, res) => {
+    const resolved = resolveRequestWorkspace(req, res, true)!;
+    const ids = Array.isArray(req.body?.ids) ? (req.body.ids as string[]) : undefined;
+    retentionEngine.markNotificationsRead(resolved.workspace.id, ids);
+    res.json({ ok: true });
+  });
+
+  app.post('/api/notifications/email/request', async (req, res) => {
+    const resolved = resolveRequestWorkspace(req, res, true)!;
+    const rawEmail = typeof req.body?.email === 'string' ? req.body.email.trim().toLowerCase() : '';
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(rawEmail)) {
+      res.status(400).json({ error: 'Adresse e-mail invalide.' });
+      return;
+    }
+    if (getConfiguredEmailTransport() === 'none') {
+      res.status(503).json({
+        error:
+          'L’envoi d’e-mails n’est pas encore configuré sur le serveur Render (ajoutez RESEND_API_KEY ou SMTP_HOST / SMTP_USER / SMTP_PASS). Les notifications dans l’application restent actives.',
+      });
+      return;
+    }
+
+    const code = String(crypto.randomInt(100000, 999999));
+    const codeHash = crypto.createHash('sha256').update(code).digest('hex');
+    const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString();
+
+    try {
+      await sendTransactionalEmail({
+        email: rawEmail,
+        subject: 'SparkQR — Code de vérification des alertes de conservation',
+        textBody: `Votre code de vérification SparkQR : ${code}\nCe code expire dans 15 minutes.\nSi vous n'avez pas demandé ces alertes, ignorez ce message.`,
+      });
+      retentionEngine.saveEmailSubscription({
+        workspaceId: resolved.workspace.id,
+        email: rawEmail,
+        verified: false,
+        optedIn: false,
+        verificationCodeHash: codeHash,
+        verificationExpiresAt: expiresAt,
+        updatedAt: new Date().toISOString(),
+      });
+      res.json({ sent: true, email: rawEmail });
+    } catch (err) {
+      res.status(502).json({
+        error: err instanceof Error ? err.message : 'Impossible d’envoyer le code par e-mail.',
+      });
+    }
+  });
+
+  app.post('/api/notifications/email/verify', (req, res) => {
+    const resolved = resolveRequestWorkspace(req, res, true)!;
+    const code = typeof req.body?.code === 'string' ? req.body.code.trim() : '';
+    const sub = retentionEngine.getEmailSubscription(resolved.workspace.id);
+    if (!sub || !sub.verificationCodeHash) {
+      res.status(400).json({ error: 'Aucune demande de vérification en attente.' });
+      return;
+    }
+    if (sub.verificationExpiresAt && Date.now() > Date.parse(sub.verificationExpiresAt)) {
+      res.status(400).json({ error: 'Le code de vérification a expiré. Demandez-en un nouveau.' });
+      return;
+    }
+    const attemptHash = crypto.createHash('sha256').update(code).digest('hex');
+    if (attemptHash !== sub.verificationCodeHash) {
+      res.status(403).json({ error: 'Code de vérification incorrect.' });
+      return;
+    }
+    retentionEngine.saveEmailSubscription({
+      workspaceId: resolved.workspace.id,
+      email: sub.email,
+      verified: true,
+      optedIn: true,
+      updatedAt: new Date().toISOString(),
+    });
+    res.json({ verified: true, email: sub.email });
+  });
+
+  app.delete('/api/notifications/email', (req, res) => {
+    const resolved = resolveRequestWorkspace(req, res, true)!;
+    retentionEngine.deleteEmailSubscription(resolved.workspace.id);
+    res.json({ removed: true });
+  });
+
+  app.get('/api/pricing', (_req, res) => {
+    const pricing = retentionEngine.getPricingConfig();
+    const stripeStatus = isStripeConfigured();
+    res.json({
+      pricing,
+      stripeConfigured: stripeStatus.configured,
+      missingStripeVars: stripeStatus.missingVars,
+    });
+  });
+
+  app.post('/api/payments/checkout', async (req, res) => {
+    const resolved = resolveRequestWorkspace(req, res, true)!;
+    const stripeStatus = isStripeConfigured();
+    if (!stripeStatus.configured) {
+      res.status(503).json({
+        error: `Paiement en ligne Stripe non encore configuré sur Render (${stripeStatus.missingVars.join(', ')} manquant(s)).`,
+        missingVars: stripeStatus.missingVars,
+      });
+      return;
+    }
+
+    const { months, targetKind, targetId } = req.body as {
+      months?: number;
+      targetKind?: 'media' | 'collection' | 'dynamic' | 'workspace';
+      targetId?: string;
+    };
+
+    if (!isValidPaidMonths(months)) {
+      res.status(400).json({ error: 'Choisissez une durée entre 1 et 12 mois.' });
+      return;
+    }
+
+    const safeKind =
+      targetKind === 'media' || targetKind === 'collection' || targetKind === 'dynamic'
+        ? targetKind
+        : 'workspace';
+    const safeTargetId =
+      safeKind === 'workspace'
+        ? resolved.workspace.id
+        : (targetId || '').trim() || resolved.workspace.id;
+
+    const pricing = retentionEngine.getPricingConfig();
+    const amountCents = pricing.monthsCents[months];
+    const pub = getEffectivePublicConfig(req);
+    const baseOrigin = pub.valid ? pub.configuredUrl : getDetectedOrigin(req);
+
+    try {
+      const session = await createStripeCheckoutSession({
+        secretKey: (process.env.STRIPE_SECRET_KEY || '').trim(),
+        amountCents,
+        currency: 'eur',
+        productName: `SparkQR — Conservation ${months} mois`,
+        productDescription:
+          safeKind === 'workspace'
+            ? `Prolongation de vos QR codes actifs (+${months} mois)`
+            : `Prolongation du QR code #${safeTargetId.slice(0, 6)} (+${months} mois)`,
+        successUrl: `${baseOrigin}/?payment=success&session_id={CHECKOUT_SESSION_ID}`,
+        cancelUrl: `${baseOrigin}/?payment=cancelled`,
+        metadata: {
+          workspaceId: resolved.workspace.id,
+          targetKind: safeKind,
+          targetId: safeTargetId,
+          months: String(months),
+        },
+      });
+
+      retentionEngine.savePaymentOrder({
+        sessionId: session.id,
+        workspaceId: resolved.workspace.id,
+        targetKind: safeKind,
+        targetId: safeTargetId,
+        months,
+        amountCents,
+        currency: 'EUR',
+        status: 'pending',
+        createdAt: new Date().toISOString(),
+      });
+
+      res.json({ sessionId: session.id, checkoutUrl: session.url });
+    } catch (err) {
+      res.status(502).json({
+        error: err instanceof Error ? err.message : 'Erreur Stripe Checkout.',
+      });
+    }
+  });
+
+  app.post('/api/payments/verify-session', async (req, res) => {
+    const resolved = resolveRequestWorkspace(req, res, true)!;
+    const stripeKey = (process.env.STRIPE_SECRET_KEY || '').trim();
+    const sessionId = typeof req.body?.sessionId === 'string' ? req.body.sessionId.trim() : '';
+    if (!stripeKey || !sessionId) {
+      res.status(400).json({ error: 'Session de paiement invalide.' });
+      return;
+    }
+
+    const existingOrder = retentionEngine.getPaymentOrder(sessionId);
+    if (existingOrder?.status === 'paid') {
+      res.json({ paid: true, alreadyApplied: true, months: existingOrder.months });
+      return;
+    }
+
+    try {
+      const session = await retrieveStripeCheckoutSession({ secretKey: stripeKey, sessionId });
+      if (session.paymentStatus !== 'paid') {
+        res.status(402).json({ paid: false, error: 'Paiement non confirmé par Stripe.' });
+        return;
+      }
+
+      const workspaceId = existingOrder?.workspaceId || session.metadata.workspaceId || '';
+      if (workspaceId && workspaceId !== resolved.workspace.id) {
+        res.status(403).json({ error: 'Cette transaction appartient à un autre espace.' });
+        return;
+      }
+      const targetKind = (existingOrder?.targetKind ||
+        session.metadata.targetKind ||
+        'workspace') as 'media' | 'collection' | 'dynamic' | 'workspace';
+      const targetId =
+        existingOrder?.targetId || session.metadata.targetId || resolved.workspace.id;
+      const months = Number(existingOrder?.months || session.metadata.months || 1);
+
+      const ext = retentionEngine.extendRetention({
+        workspaceId: resolved.workspace.id,
+        targetKind,
+        targetId,
+        months: isValidPaidMonths(months) ? months : 1,
+      });
+
+      retentionEngine.savePaymentOrder({
+        sessionId,
+        workspaceId: resolved.workspace.id,
+        targetKind,
+        targetId,
+        months: isValidPaidMonths(months) ? months : 1,
+        amountCents: existingOrder?.amountCents || 0,
+        currency: 'EUR',
+        status: 'paid',
+        appliedAt: new Date().toISOString(),
+        createdAt: existingOrder?.createdAt || new Date().toISOString(),
+      });
+
+      res.json({ paid: true, months, ...ext });
+    } catch (err) {
+      res.status(502).json({
+        error: err instanceof Error ? err.message : 'Erreur de vérification Stripe.',
+      });
+    }
+  });
+
+  // Admin Pricing Console Auth & Endpoints
+  app.get('/api/admin/status', (_req, res) => {
+    res.json({
+      ...adminAuth.getStatus(),
+      stripe: isStripeConfigured(),
+      dosya: dosyaStorage.getPublicStatus(),
+      emailTransport: getConfiguredEmailTransport(),
+      cronSecretConfigured: Boolean((process.env.CRON_SECRET || '').trim()),
+    });
+  });
+
+  app.post('/api/admin/claim', (req, res) => {
+    const passcode = typeof req.body?.passcode === 'string' ? req.body.passcode : '';
+    const claimed = adminAuth.claimFirstRunPasscode(passcode);
+    if (!claimed.ok) {
+      res.status(400).json({ error: claimed.error });
+      return;
+    }
+    res.json({ token: claimed.token });
+  });
+
+  app.post('/api/admin/login', (req, res) => {
+    const passcode = typeof req.body?.passcode === 'string' ? req.body.passcode : '';
+    if (!adminAuth.verifyPasscode(passcode)) {
+      res.status(403).json({ error: 'Code administrateur invalide.' });
+      return;
+    }
+    res.json({ token: adminAuth.issueAdminToken() });
+  });
+
+  app.put('/api/admin/pricing', (req, res) => {
+    const authHeader = req.get('authorization');
+    const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7).trim() : '';
+    if (!adminAuth.verifyAdminToken(token)) {
+      res.status(401).json({ error: 'Session administrateur expirée ou invalide.' });
+      return;
+    }
+    const monthsCents = (req.body as { monthsCents?: Record<number, number> })?.monthsCents;
+    if (!monthsCents || typeof monthsCents !== 'object') {
+      res.status(400).json({ error: 'Grille tarifaire invalide.' });
+      return;
+    }
+    const saved = retentionEngine.savePricingConfig({ monthsCents });
+    res.json({ pricing: saved });
+  });
+
+  // External/Scheduled Cleanup Endpoint (protected by CRON_SECRET if configured)
+  app.post('/api/cron/cleanup', async (req, res) => {
+    const expectedSecret = (process.env.CRON_SECRET || '').trim();
+    if (expectedSecret) {
+      const ok = verifyCronSecretHeader(
+        req.get('authorization'),
+        req.get('x-cron-secret'),
+        expectedSecret
+      );
+      if (!ok) {
+        res.status(401).json({ error: 'Jeton CRON invalide.' });
+        return;
+      }
+    }
+    const summary = await retentionEngine.runCleanupPass();
+    res.json({ ok: true, ...summary, ranAt: new Date().toISOString() });
+  });
+
+  // Standalone responsive media landing page when someone scans an Image, Video, Document, Audio, or Collection QR code
   app.get('/m/:id', (req, res, next) => {
     const index = readMediaIndex();
     const record = index[req.params.id];
@@ -1442,8 +2164,25 @@ async function startServer() {
         );
       return;
     }
+    if (isRecordExpired(record.serverExpiresAt)) {
+      void retentionEngine.deleteResourceNow({
+        kind: record.kind === 'collection' ? 'collection' : 'media',
+        id: record.id,
+        reason: 'expired',
+      });
+      res
+        .status(410)
+        .send(
+          renderStatusHtml(
+            'Contenu expiré et supprimé',
+            'La durée de conservation de ce code QR est écoulée. Son contenu et ses fichiers associés ont été supprimés définitivement.',
+            '410 · EXPIRÉ'
+          )
+        );
+      return;
+    }
 
-    // Serve the interactive React KromaMediaReader SPA
+    // Serve the interactive React SparkMediaReader SPA
     next();
   });
 
@@ -1474,7 +2213,21 @@ async function startServer() {
   }
 
   app.listen(PORT, '0.0.0.0', () => {
-    console.log(`KromaQR server listening on http://0.0.0.0:${PORT}`);
+    console.log(`SparkQR server listening on http://0.0.0.0:${PORT}`);
+
+    // Lightweight non-blocking retention catch-up pass after startup + periodic sweep every 15 min while awake
+    setTimeout(() => {
+      void retentionEngine.runCleanupPass().catch((err) => {
+        console.error('Initial retention cleanup pass failed:', err);
+      });
+    }, 8000);
+
+    const sweepTimer = setInterval(() => {
+      void retentionEngine.runCleanupPass().catch((err) => {
+        console.error('Periodic retention cleanup pass failed:', err);
+      });
+    }, 15 * 60 * 1000);
+    sweepTimer.unref();
   });
 }
 

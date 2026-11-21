@@ -1,10 +1,11 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   AlertCircle,
   CheckCircle2,
   Film,
   Image as ImageIcon,
   Link as LinkIcon,
+  Lock,
   QrCode,
   ShieldCheck,
   Sparkles,
@@ -20,6 +21,11 @@ import {
   FONT_CATALOG,
 } from '../data/presets';
 import type { QrConfig, QrIntent, QrSourceState } from '../types/qr';
+import { workspaceHeaders } from '../utils/dynamicApi';
+import {
+  encryptFileForUpload,
+  generateE2eeKeyBase64Url,
+} from '../utils/e2eeCrypto';
 import { inspectMediaUrlForQr } from '../utils/publicUrl';
 import { resolveEncodedTextStyle } from '../utils/textStyle';
 
@@ -42,12 +48,61 @@ const INTENT_OPTIONS: Array<{
   label: string;
   hint: string;
   icon: React.ComponentType<{ className?: string }>;
+  iconSolid: string;
+  idleSurface: string;
+  activeBorder: string;
+  activeSurface: string;
 }> = [
-  { id: 'url', label: 'Lien web', hint: 'Site ou page', icon: LinkIcon },
-  { id: 'text', label: 'Texte', hint: 'Message typographique', icon: Type },
-  { id: 'wifi', label: 'Wi-Fi', hint: 'Accès instantané', icon: Wifi },
-  { id: 'image', label: 'Image', hint: 'Photo ou affiche', icon: ImageIcon },
-  { id: 'video', label: 'Vidéo', hint: 'Lecteur natif HD', icon: Film },
+  {
+    id: 'url',
+    label: 'Lien web',
+    hint: 'Site ou page',
+    icon: LinkIcon,
+    iconSolid: 'bg-[#2563EB] text-white shadow-[0_6px_14px_rgba(37,99,235,0.28)]',
+    idleSurface: 'border-[#DCE6FF] bg-[#F5F8FF] hover:border-[#93C5FD] hover:bg-[#EFF5FF]',
+    activeBorder: 'border-[#2563EB]',
+    activeSurface: 'bg-[#EAF1FF] shadow-[0_10px_24px_rgba(37,99,235,0.16)]',
+  },
+  {
+    id: 'text',
+    label: 'Texte',
+    hint: 'Message libre',
+    icon: Type,
+    iconSolid: 'bg-[#7C3AED] text-white shadow-[0_6px_14px_rgba(124,58,237,0.28)]',
+    idleSurface: 'border-[#E6DDFF] bg-[#F7F4FF] hover:border-[#C4B5FD] hover:bg-[#F2ECFF]',
+    activeBorder: 'border-[#7C3AED]',
+    activeSurface: 'bg-[#EFE8FF] shadow-[0_10px_24px_rgba(124,58,237,0.16)]',
+  },
+  {
+    id: 'wifi',
+    label: 'Wi-Fi',
+    hint: 'Accès instantané',
+    icon: Wifi,
+    iconSolid: 'bg-[#059669] text-white shadow-[0_6px_14px_rgba(5,150,105,0.28)]',
+    idleSurface: 'border-[#CCF3E3] bg-[#F2FCF8] hover:border-[#6EE7B7] hover:bg-[#E8FAF2]',
+    activeBorder: 'border-[#059669]',
+    activeSurface: 'bg-[#E2F9EF] shadow-[0_10px_24px_rgba(5,150,105,0.16)]',
+  },
+  {
+    id: 'image',
+    label: 'Image',
+    hint: 'Photo ou affiche',
+    icon: ImageIcon,
+    iconSolid: 'bg-[#D97706] text-white shadow-[0_6px_14px_rgba(217,119,6,0.28)]',
+    idleSurface: 'border-[#FDE6B8] bg-[#FFFBEB] hover:border-[#FCD34D] hover:bg-[#FEF5D6]',
+    activeBorder: 'border-[#D97706]',
+    activeSurface: 'bg-[#FEF2C7] shadow-[0_10px_24px_rgba(217,119,6,0.16)]',
+  },
+  {
+    id: 'video',
+    label: 'Vidéo',
+    hint: 'Lecteur natif HD',
+    icon: Film,
+    iconSolid: 'bg-[#E11D48] text-white shadow-[0_6px_14px_rgba(225,29,72,0.28)]',
+    idleSurface: 'border-[#FFD5DF] bg-[#FFF4F6] hover:border-[#FDA4AF] hover:bg-[#FFEAEF]',
+    activeBorder: 'border-[#E11D48]',
+    activeSurface: 'bg-[#FFE4EB] shadow-[0_10px_24px_rgba(225,29,72,0.16)]',
+  },
 ];
 
 export const SourcePanel: React.FC<SourcePanelProps> = ({
@@ -69,6 +124,17 @@ export const SourcePanel: React.FC<SourcePanelProps> = ({
   const [uploading, setUploading] = useState<'image' | 'video' | 'poster' | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [dragActive, setDragActive] = useState(false);
+  const [localPreviews, setLocalPreviews] = useState<Record<string, string>>({});
+  const localPreviewsRef = useRef<Record<string, string>>({});
+
+  useEffect(() => {
+    const refMap = localPreviewsRef.current;
+    return () => {
+      Object.values(refMap).forEach((u) => URL.revokeObjectURL(u));
+    };
+  }, []);
+
+  const isE2eeActive = source.e2eeEnabled !== false;
 
   const imageUrlWarning =
     selectedIntent === 'image' && source.imageUrl.trim()
@@ -99,36 +165,77 @@ export const SourcePanel: React.FC<SourcePanelProps> = ({
     setUploading(expectedType);
     try {
       const formData = new FormData();
-      formData.append('file', file);
+      let activeKey = source.e2eeKeyFragment || '';
+      let encryptedMeta: {
+        originalName: string;
+        originalMimeType: string;
+        originalSize: number;
+      } | null = null;
+
+      if (isE2eeActive) {
+        if (!activeKey) {
+          activeKey = generateE2eeKeyBase64Url();
+        }
+        const { encryptedFile, meta } = await encryptFileForUpload(file, activeKey);
+        encryptedMeta = meta;
+        formData.append('file', encryptedFile);
+        formData.append('isEncrypted', 'true');
+        formData.append('mediaType', expectedType === 'video' ? 'video' : 'image');
+        formData.append('originalSize', String(meta.originalSize));
+      } else {
+        formData.append('file', file);
+      }
+
       const res = await fetch('/api/upload', {
         method: 'POST',
+        headers: workspaceHeaders(),
         body: formData,
       });
       const data = await res.json();
       if (!res.ok) {
         throw new Error(data.error || 'Échec du téléversement.');
       }
+
+      const uploadedUrl = data.fileUrl || data.url;
+      if (uploadedUrl && isE2eeActive) {
+        const previewBlobUrl = URL.createObjectURL(file);
+        if (localPreviewsRef.current[uploadedUrl]) {
+          URL.revokeObjectURL(localPreviewsRef.current[uploadedUrl]);
+        }
+        localPreviewsRef.current[uploadedUrl] = previewBlobUrl;
+        setLocalPreviews({ ...localPreviewsRef.current });
+      }
+
       if (expectedType === 'image') {
         onChange({
           ...source,
           type: 'image',
-          imageUrl: data.fileUrl || data.url,
+          imageUrl: uploadedUrl,
           imagePageUrl: data.pageUrl,
-          imageName: data.originalName || file.name,
+          imageName: encryptedMeta?.originalName || data.originalName || file.name,
+          imageMimeType: encryptedMeta?.originalMimeType || file.type,
+          imageSize: encryptedMeta?.originalSize || file.size,
+          imageEncrypted: isE2eeActive,
+          e2eeKeyFragment: isE2eeActive ? activeKey : source.e2eeKeyFragment,
         });
       } else if (expectedType === 'poster') {
         onChange({
           ...source,
           type: 'video',
-          videoPosterUrl: data.fileUrl || data.url,
+          videoPosterUrl: uploadedUrl,
+          e2eeKeyFragment: isE2eeActive ? activeKey : source.e2eeKeyFragment,
         });
       } else {
         onChange({
           ...source,
           type: 'video',
-          videoUrl: data.fileUrl || data.url,
+          videoUrl: uploadedUrl,
           videoPageUrl: data.pageUrl,
-          videoName: data.originalName || file.name,
+          videoName: encryptedMeta?.originalName || data.originalName || file.name,
+          videoMimeType: encryptedMeta?.originalMimeType || file.type,
+          videoSize: encryptedMeta?.originalSize || file.size,
+          videoEncrypted: isE2eeActive,
+          e2eeKeyFragment: isE2eeActive ? activeKey : source.e2eeKeyFragment,
         });
       }
       onMediaUploaded?.();
@@ -224,12 +331,16 @@ export const SourcePanel: React.FC<SourcePanelProps> = ({
   return (
     <section
       aria-labelledby="source-heading"
-      className="bg-white border border-[#E6E4DC] rounded-2xl p-5 sm:p-6 shadow-[0_1px_2px_rgba(17,18,20,0.03)] transition-all"
+      className="bg-white/95 border border-[#E2E6F0] rounded-2xl p-5 sm:p-6 shadow-[0_6px_24px_rgba(37,99,235,0.05)] transition-all overflow-hidden relative"
     >
+      <div
+        aria-hidden="true"
+        className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-[#2563EB] via-[#7C3AED] to-[#EC4899]"
+      />
       {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-3 pb-4 border-b border-[#F1EFE9]">
+      <div className="flex flex-wrap items-center justify-between gap-3 pb-4 border-b border-[#F0F2F8]">
         <div>
-          <span className="block text-[11px] font-semibold uppercase tracking-[0.14em] text-[#1D4ED8]">
+          <span className="block text-[11px] font-semibold uppercase tracking-[0.14em] text-[#2563EB]">
             Étape 1
           </span>
           <h2
@@ -240,9 +351,9 @@ export const SourcePanel: React.FC<SourcePanelProps> = ({
           </h2>
         </div>
 
-        <span className="inline-flex items-center gap-1.5 text-xs text-[#5C5E66]">
-          <ShieldCheck className="w-4 h-4 text-[#1D4ED8]" aria-hidden="true" />
-          <span>Chiffrement à la demande</span>
+        <span className="inline-flex items-center gap-1.5 text-xs font-medium text-[#475569]">
+          <ShieldCheck className="w-4 h-4 text-[#2563EB]" aria-hidden="true" />
+          <span>Privé &amp; sécurisé</span>
         </span>
       </div>
 
@@ -263,18 +374,14 @@ export const SourcePanel: React.FC<SourcePanelProps> = ({
               aria-selected={active}
               data-testid={`intent-${opt.id}`}
               onClick={() => handleChooseIntent(opt.id)}
-              className={`group flex flex-col items-start justify-between gap-3 p-3.5 rounded-xl border text-left transition-all duration-150 cursor-pointer ${
-                active
-                  ? 'border-[#1D4ED8] bg-[#F4F7FF] text-[#1D4ED8] shadow-[0_2px_10px_rgba(29,78,216,0.08)]'
-                  : 'border-[#E8E6DF] bg-[#FAF9F5] text-[#2C2E33] hover:border-[#CFCBC0] hover:bg-white'
+              className={`group min-h-[44px] flex flex-col items-start justify-between gap-3 p-3.5 rounded-xl border text-left transition-all duration-200 ease-[cubic-bezier(0.16,1,0.3,1)] hover:-translate-y-0.5 active:scale-[0.98] cursor-pointer ${
+                active ? `${opt.activeBorder} ${opt.activeSurface}` : opt.idleSurface
               }`}
             >
               <span
-                className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${
-                  active
-                    ? 'bg-[#1D4ED8] text-white'
-                    : 'bg-white border border-[#E6E4DC] text-[#111214] group-hover:border-[#CFCBC0]'
-                }`}
+                className={`w-9 h-9 rounded-xl flex items-center justify-center transition-transform duration-200 ${
+                  opt.iconSolid
+                } ${active ? 'scale-105' : 'group-hover:scale-105'}`}
               >
                 <Icon className="w-4 h-4" aria-hidden="true" />
               </span>
@@ -282,7 +389,7 @@ export const SourcePanel: React.FC<SourcePanelProps> = ({
                 <span className="block text-sm font-semibold leading-tight text-[#111214] truncate">
                   {opt.label}
                 </span>
-                <span className="block text-[11px] text-[#6E7078] truncate mt-0.5">
+                <span className="block text-[11px] text-[#525866] truncate mt-0.5">
                   {opt.hint}
                 </span>
               </div>
@@ -295,9 +402,9 @@ export const SourcePanel: React.FC<SourcePanelProps> = ({
       {selectedIntent === null && (
         <div
           data-testid="intent-prompt-state"
-          className="mt-5 rounded-xl border border-dashed border-[#DAD7CD] bg-[#FAF9F5] px-4 py-4 text-xs text-[#5C5E66]"
+          className="mt-5 rounded-xl border border-dashed border-[#CBD5E1] bg-gradient-to-r from-[#F8FAFC] to-[#F5F3FF]/60 px-4 py-4 text-xs text-[#475569]"
         >
-          Sélectionnez un type de contenu ci-dessus pour saisir votre lien, texte, Wi-Fi, image ou vidéo.
+          Touchez l’un des 5 formats colorés ci-dessus pour créer votre lien, texte, Wi-Fi, photo ou vidéo.
         </div>
       )}
 
@@ -608,14 +715,14 @@ export const SourcePanel: React.FC<SourcePanelProps> = ({
             {source.imageUrl && (
               <div className="flex items-center gap-2.5 px-3 py-1.5 bg-[#F4F2EC] rounded-xl shrink-0">
                 <img
-                  src={source.imageUrl}
+                  src={localPreviews[source.imageUrl] || source.imageUrl}
                   alt={source.imageName || 'Aperçu'}
                   referrerPolicy="no-referrer"
                   className="w-7 h-7 rounded-md object-cover border border-black/10"
                 />
                 <span className="text-xs font-medium text-[#15803D] inline-flex items-center gap-1">
                   <CheckCircle2 className="w-3.5 h-3.5" aria-hidden="true" />
-                  <span>Prête</span>
+                  <span>{source.imageEncrypted ? 'Chiffrée' : 'Prête'}</span>
                 </span>
                 <label className="inline-flex items-center gap-1.5 text-xs font-medium text-[#2C2E33] cursor-pointer">
                   <input
@@ -748,8 +855,12 @@ export const SourcePanel: React.FC<SourcePanelProps> = ({
               <div className="flex items-center gap-2.5 px-3 py-1.5 bg-[#F4F2EC] rounded-xl shrink-0">
                 <div className="w-10 h-7 rounded overflow-hidden bg-black shrink-0">
                   <video
-                    src={source.videoUrl}
-                    poster={source.videoPosterUrl || undefined}
+                    src={localPreviews[source.videoUrl] || source.videoUrl}
+                    poster={
+                      (source.videoPosterUrl && localPreviews[source.videoPosterUrl]) ||
+                      source.videoPosterUrl ||
+                      undefined
+                    }
                     muted
                     playsInline
                     className="w-full h-full object-cover"
@@ -757,7 +868,7 @@ export const SourcePanel: React.FC<SourcePanelProps> = ({
                 </div>
                 <span className="text-xs font-medium text-[#15803D] inline-flex items-center gap-1">
                   <CheckCircle2 className="w-3.5 h-3.5" aria-hidden="true" />
-                  <span>Prête</span>
+                  <span>{source.videoEncrypted ? 'Chiffrée' : 'Prête'}</span>
                 </span>
                 <button
                   type="button"
@@ -848,6 +959,45 @@ export const SourcePanel: React.FC<SourcePanelProps> = ({
         </div>
       )}
 
+      {/* E2EE PRIVACY BAR + CONSERVATION SUMMARY */}
+      {selectedIntent !== null && (
+        <div className="mt-4 rounded-xl border border-[#DCE6FF] bg-[#F5F8FF]/80 px-3.5 py-2.5 flex flex-wrap items-start justify-between gap-3">
+          <label
+            htmlFor="e2ee-toggle-checkbox"
+            className="flex items-start gap-2.5 cursor-pointer min-w-0 flex-1"
+          >
+            <input
+              id="e2ee-toggle-checkbox"
+              data-testid="e2ee-toggle-checkbox"
+              type="checkbox"
+              checked={isE2eeActive}
+              onChange={(e) =>
+                onChange({
+                  ...source,
+                  e2eeEnabled: e.target.checked,
+                  e2eeKeyFragment:
+                    e.target.checked && !source.e2eeKeyFragment
+                      ? generateE2eeKeyBase64Url()
+                      : source.e2eeKeyFragment,
+                })
+              }
+              className="mt-0.5 w-4 h-4 accent-[#2563EB] shrink-0 cursor-pointer"
+            />
+            <div className="min-w-0">
+              <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#111214]">
+                <Lock className="w-3.5 h-3.5 text-[#2563EB]" aria-hidden="true" />
+                <span>Chiffrement de bout en bout (AES-256-GCM)</span>
+              </span>
+              <p className="text-[11px] text-[#475569] leading-relaxed mt-0.5">
+                {isE2eeActive
+                  ? 'Contenu chiffré sur votre appareil avant envoi · Conservation gratuite 7 jours. Attention : toute personne possédant le QR code ou le lien complet (#k=...) peut le déchiffrer tant qu’il est actif.'
+                  : 'Mode standard non chiffré · Conservation gratuite 7 jours sur votre espace.'}
+              </p>
+            </div>
+          </label>
+        </div>
+      )}
+
       {/* MANDATORY CONFIDENTIAL GENERATE CTA */}
       {selectedIntent !== null && (
         <div className="mt-5 pt-4 border-t border-[#F1EFE9] flex flex-wrap items-center justify-between gap-3">
@@ -867,7 +1017,7 @@ export const SourcePanel: React.FC<SourcePanelProps> = ({
             data-testid="generate-qr-btn"
             onClick={onGenerate}
             disabled={uploading !== null || isGenerating}
-            className="inline-flex items-center justify-center gap-2 px-5 py-2.5 text-sm font-semibold text-white bg-[#1D4ED8] hover:bg-[#1E40AF] rounded-xl transition-colors whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-60"
+            className="inline-flex items-center justify-center gap-2 px-5 py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-[#2563EB] to-[#4F46E5] hover:from-[#1D4ED8] hover:to-[#4338CA] shadow-[0_6px_18px_rgba(37,99,235,0.22)] hover:-translate-y-0.5 active:scale-[0.98] rounded-xl transition-all duration-200 whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-60 disabled:translate-y-0"
           >
             <QrCode className="w-4 h-4" aria-hidden="true" />
             <span>

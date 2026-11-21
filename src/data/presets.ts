@@ -42,6 +42,7 @@ export const DEFAULT_SOURCE: QrSourceState = {
   videoName: '',
   videoPageUrl: '',
   videoPosterUrl: '',
+  e2eeEnabled: true,
 };
 
 export const DEFAULT_LAYERS: QrLayerItem[] = [
@@ -58,6 +59,7 @@ export const DEFAULT_EXPERIENCE: PostScanExperience = {
   description: '',
   mixedTextBlock: '',
   accentMood: 'auto',
+  readerThemeMode: 'light',
   eventDate: '18 juin 2026',
   eventTime: '19h30',
   eventLocation: 'Palais de Tokyo — Salle 4, Paris',
@@ -136,7 +138,7 @@ export const DEFAULT_CONFIG: QrConfig = {
   titleOffsetY: 0,
   logoId: 'aperture',
   centerEmoji: null,
-  monogramText: 'KQ',
+  monogramText: 'SQ',
   customLogoDataUrl: null,
   logoSize: 0.16,
   logoOffsetX: 0,

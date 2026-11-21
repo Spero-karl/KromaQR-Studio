@@ -1,13 +1,17 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   Calendar,
   ChevronDown,
   ChevronUp,
+  FileText,
   ImagePlus,
   Lock,
+  Moon,
+  Music,
   Plus,
   Shield,
   Sparkles,
+  Sun,
   Trash2,
 } from 'lucide-react';
 import {
@@ -25,6 +29,11 @@ import type {
   PostScanTemplate,
   ProjectCategory,
 } from '../types/qr';
+import { workspaceHeaders } from '../utils/dynamicApi';
+import {
+  encryptFileForUpload,
+  generateE2eeKeyBase64Url,
+} from '../utils/e2eeCrypto';
 
 interface ExperienceSecurityPanelProps {
   experience: PostScanExperience;
@@ -33,6 +42,9 @@ interface ExperienceSecurityPanelProps {
   onChangeSecurity: (next: DynamicSecurityConfig) => void;
   projectCategory: ProjectCategory;
   onChangeCategory: (next: ProjectCategory) => void;
+  e2eeEnabled?: boolean;
+  e2eeKey?: string;
+  onEnsureE2eeKey?: () => string;
   onMediaUploaded?: () => void;
 }
 
@@ -54,6 +66,9 @@ export const ExperienceSecurityPanel: React.FC<ExperienceSecurityPanelProps> = (
   onChangeSecurity,
   projectCategory,
   onChangeCategory,
+  e2eeEnabled = true,
+  e2eeKey,
+  onEnsureE2eeKey,
   onMediaUploaded,
 }) => {
   const [expanded, setExpanded] = useState(false);
@@ -61,6 +76,15 @@ export const ExperienceSecurityPanel: React.FC<ExperienceSecurityPanelProps> = (
   const [uploadingGallery, setUploadingGallery] = useState(false);
   const [galleryError, setGalleryError] = useState<string | null>(null);
   const galleryFileRef = useRef<HTMLInputElement>(null);
+  const localThumbsRef = useRef<Record<string, string>>({});
+  const [localThumbs, setLocalThumbs] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    const map = localThumbsRef.current;
+    return () => {
+      Object.values(map).forEach((u) => URL.revokeObjectURL(u));
+    };
+  }, []);
 
   const updateExp = (patch: Partial<PostScanExperience>) => {
     onChangeExperience({ ...experience, ...patch });
@@ -76,19 +100,63 @@ export const ExperienceSecurityPanel: React.FC<ExperienceSecurityPanelProps> = (
     setUploadingGallery(true);
     try {
       const added: PostScanMediaItem[] = [];
+      let activeKey = e2eeKey || '';
+      if (e2eeEnabled && !activeKey) {
+        activeKey = onEnsureE2eeKey ? onEnsureE2eeKey() : generateE2eeKeyBase64Url();
+      }
+
       for (const file of Array.from(files).slice(0, 6)) {
+        const mediaKind: PostScanMediaItem['type'] = file.type.startsWith('video/')
+          ? 'video'
+          : file.type.startsWith('audio/')
+          ? 'audio'
+          : file.type.startsWith('image/')
+          ? 'image'
+          : 'document';
+
         const fd = new FormData();
-        fd.append('file', file);
-        const res = await fetch('/api/upload', { method: 'POST', body: fd });
+        let origName = file.name;
+        let origMime = file.type;
+        let origSize = file.size;
+
+        if (e2eeEnabled && activeKey) {
+          const { encryptedFile, meta } = await encryptFileForUpload(file, activeKey);
+          origName = meta.originalName;
+          origMime = meta.originalMimeType;
+          origSize = meta.originalSize;
+          fd.append('file', encryptedFile);
+          fd.append('isEncrypted', 'true');
+          fd.append('mediaType', mediaKind);
+          fd.append('originalSize', String(origSize));
+        } else {
+          fd.append('file', file);
+          fd.append('mediaType', mediaKind);
+        }
+
+        const res = await fetch('/api/upload', {
+          method: 'POST',
+          headers: workspaceHeaders(),
+          body: fd,
+        });
         const data = await res.json();
         if (!res.ok) {
           throw new Error(data.error || 'Échec du téléversement.');
         }
+
+        const uploadedUrl = data.fileUrl || data.url;
+        if (e2eeEnabled && uploadedUrl && (mediaKind === 'image' || mediaKind === 'video')) {
+          localThumbsRef.current[uploadedUrl] = URL.createObjectURL(file);
+          setLocalThumbs({ ...localThumbsRef.current });
+        }
+
         added.push({
           id: `${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-          type: data.type === 'video' ? 'video' : 'image',
-          url: data.fileUrl || data.url,
-          caption: data.originalName || file.name,
+          type: mediaKind,
+          url: uploadedUrl,
+          caption: origName || file.name,
+          mimeType: origMime || undefined,
+          isEncrypted: e2eeEnabled,
+          originalSize: origSize,
         });
       }
       updateExp({ galleryItems: [...experience.galleryItems, ...added] });
@@ -101,33 +169,78 @@ export const ExperienceSecurityPanel: React.FC<ExperienceSecurityPanelProps> = (
   };
 
   const activeTemplateMeta = POST_SCAN_TEMPLATES.find((t) => t.id === experience.template);
+  const currentReaderTheme: 'light' | 'dark' =
+    experience.readerThemeMode === 'dark' ? 'dark' : 'light';
 
   return (
     <section
       aria-labelledby="exp-sec-heading"
       data-testid="experience-security-panel"
-      className="bg-white border border-[#E6E4DC] rounded-2xl overflow-hidden shadow-[0_1px_2px_rgba(17,18,20,0.03)]"
+      className="bg-white/95 border border-[#E2E6F0] rounded-2xl overflow-hidden shadow-[0_6px_24px_rgba(13,148,136,0.05)] transition-shadow duration-200 hover:shadow-[0_10px_28px_rgba(13,148,136,0.08)] relative"
     >
-      <div className="px-5 sm:px-6 py-4 bg-[#FAF9F5] border-b border-[#F1EFE9] flex flex-wrap items-center justify-between gap-3">
+      <div
+        aria-hidden="true"
+        className="h-1 w-full bg-gradient-to-r from-[#0D9488] via-[#10B981] to-[#2563EB]"
+      />
+      <div className="px-5 sm:px-6 py-4 bg-gradient-to-r from-[#F0FDFA]/80 via-[#F8FAFC] to-[#EFF6FF]/60 border-b border-[#E2E8F0] flex flex-wrap items-center justify-between gap-3">
         <div className="min-w-0">
+          <span className="block text-[11px] font-semibold uppercase tracking-[0.14em] text-[#0D9488]">
+            Étape 3 · Après scan
+          </span>
           <h2
             id="exp-sec-heading"
-            className="font-display text-sm sm:text-base font-bold tracking-tight text-[#111214]"
+            className="font-display text-sm sm:text-base font-bold tracking-tight text-[#111214] mt-0.5"
           >
-            Options avancées · Destination après scan &amp; Sécurité
+            Affichage après scan &amp; Sécurité
           </h2>
           <p className="text-xs text-[#6E7078] truncate mt-0.5">
             {activeTemplateMeta?.label || 'Aperçu direct'}
             {' · '}
+            Mode {currentReaderTheme === 'dark' ? 'Sombre' : 'Clair'}
+            {' · '}
             {dynamicSecurity.enabled
               ? `QR dynamique${dynamicSecurity.pinCode || dynamicSecurity.hasPin ? ' · Code PIN' : ''}`
               : 'QR statique'}
-            {' · '}
-            {projectCategory}
           </p>
         </div>
 
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex flex-wrap items-center gap-2 shrink-0">
+          {/* Quick Clair / Sombre Post-Scan Mode Switcher */}
+          <div
+            role="group"
+            aria-label="Mode d'affichage après scan"
+            className="inline-flex p-0.5 bg-[#EFECE3] rounded-xl border border-[#E2DFD5]"
+          >
+            <button
+              type="button"
+              data-testid="post-scan-mode-light"
+              aria-pressed={currentReaderTheme === 'light'}
+              onClick={() => updateExp({ readerThemeMode: 'light' })}
+              className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold rounded-lg transition-all duration-150 whitespace-nowrap cursor-pointer ${
+                currentReaderTheme === 'light'
+                  ? 'bg-white text-[#111214] shadow-xs'
+                  : 'text-[#5C5E66] hover:text-[#111214]'
+              }`}
+            >
+              <Sun className="w-3.5 h-3.5 text-[#D97706]" aria-hidden="true" />
+              <span>Clair</span>
+            </button>
+            <button
+              type="button"
+              data-testid="post-scan-mode-dark"
+              aria-pressed={currentReaderTheme === 'dark'}
+              onClick={() => updateExp({ readerThemeMode: 'dark' })}
+              className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold rounded-lg transition-all duration-150 whitespace-nowrap cursor-pointer ${
+                currentReaderTheme === 'dark'
+                  ? 'bg-[#111318] text-white shadow-xs'
+                  : 'text-[#5C5E66] hover:text-[#111214]'
+              }`}
+            >
+              <Moon className="w-3.5 h-3.5 text-[#60A5FA]" aria-hidden="true" />
+              <span>Sombre</span>
+            </button>
+          </div>
+
           <button
             type="button"
             data-testid="toggle-exp-sec-btn"
@@ -135,8 +248,8 @@ export const ExperienceSecurityPanel: React.FC<ExperienceSecurityPanelProps> = (
             onClick={() => setExpanded((v) => !v)}
             className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-[#111214] bg-white hover:bg-[#F4F2EC] border border-[#E6E4DC] rounded-xl transition-colors whitespace-nowrap shrink-0 cursor-pointer"
           >
-            <Shield className="w-3.5 h-3.5 text-[#1D4ED8]" aria-hidden="true" />
-            <span>{expanded ? 'Masquer' : 'Configurer'}</span>
+            <Shield className="w-3.5 h-3.5 text-[#2563EB]" aria-hidden="true" />
+            <span>{expanded ? 'Masquer' : 'Personnaliser'}</span>
             {expanded ? (
               <ChevronUp className="w-3.5 h-3.5" aria-hidden="true" />
             ) : (
@@ -199,7 +312,69 @@ export const ExperienceSecurityPanel: React.FC<ExperienceSecurityPanelProps> = (
           </div>
 
           {activeTab === 'experience' ? (
-            <div className="space-y-4">
+            <div className="space-y-4 animate-[fadeIn_160ms_ease-out]">
+              {/* Post-Scan Light/Dark Appearance Setting */}
+              <div className="p-3.5 rounded-xl bg-[#FAF9F5] border border-[#E8E6DF] space-y-2.5">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="text-xs font-bold text-[#111214]">
+                    Apparence de la page après scan
+                  </span>
+                  <span className="text-[11px] text-[#6E7078]">
+                    Mode affiché automatiquement au visiteur
+                  </span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  <button
+                    type="button"
+                    data-testid="post-scan-card-light"
+                    onClick={() => updateExp({ readerThemeMode: 'light' })}
+                    className={`flex items-center gap-3 p-3 rounded-xl border text-left transition-all duration-150 cursor-pointer ${
+                      currentReaderTheme === 'light'
+                        ? 'border-[#2563EB] bg-white shadow-[0_4px_14px_rgba(37,99,235,0.1)]'
+                        : 'border-[#E6E4DC] bg-white/60 hover:bg-white'
+                    }`}
+                  >
+                    <span className="w-9 h-9 rounded-lg bg-[#FFFBEB] text-[#D97706] flex items-center justify-center shrink-0">
+                      <Sun className="w-4 h-4" aria-hidden="true" />
+                    </span>
+                    <div className="min-w-0">
+                      <span className="block text-xs font-bold text-[#111214]">
+                        Mode Clair (par défaut)
+                      </span>
+                      <span className="block text-[11px] text-[#6E7078] truncate">
+                        Papier éditorial lumineux et épuré
+                      </span>
+                    </div>
+                  </button>
+                  <button
+                    type="button"
+                    data-testid="post-scan-card-dark"
+                    onClick={() => updateExp({ readerThemeMode: 'dark' })}
+                    className={`flex items-center gap-3 p-3 rounded-xl border text-left transition-all duration-150 cursor-pointer ${
+                      currentReaderTheme === 'dark'
+                        ? 'border-[#2563EB] bg-[#111318] text-white shadow-[0_6px_18px_rgba(17,19,24,0.25)]'
+                        : 'border-[#E6E4DC] bg-white/60 hover:bg-white text-[#111214]'
+                    }`}
+                  >
+                    <span className="w-9 h-9 rounded-lg bg-[#1E293B] text-[#60A5FA] flex items-center justify-center shrink-0">
+                      <Moon className="w-4 h-4" aria-hidden="true" />
+                    </span>
+                    <div className="min-w-0">
+                      <span className="block text-xs font-bold">
+                        Mode Sombre
+                      </span>
+                      <span
+                        className={`block text-[11px] truncate ${
+                          currentReaderTheme === 'dark' ? 'text-[#94A3B8]' : 'text-[#6E7078]'
+                        }`}
+                      >
+                        Écrin nocturne élégant et contrasté
+                      </span>
+                    </div>
+                  </button>
+                </div>
+              </div>
+
               {/* Post-Scan Templates */}
               <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
                 {POST_SCAN_TEMPLATES.map((tpl) => {
@@ -481,7 +656,7 @@ export const ExperienceSecurityPanel: React.FC<ExperienceSecurityPanelProps> = (
                             ? 'image/*'
                             : experience.template === 'video-gallery'
                             ? 'video/*'
-                            : 'image/*,video/*'
+                            : 'image/*,video/*,audio/*,.pdf,.txt,.csv,.docx'
                         }
                         className="sr-only"
                         onChange={(e) => void handleGalleryUpload(e.target.files)}
@@ -575,14 +750,22 @@ export const ExperienceSecurityPanel: React.FC<ExperienceSecurityPanelProps> = (
                         <div className="flex items-center gap-2">
                           {item.type === 'video' ? (
                             <video
-                              src={item.url}
+                              src={localThumbs[item.url] || item.url}
                               poster={item.posterUrl || undefined}
                               muted
                               className="w-10 h-10 rounded-lg object-cover bg-black shrink-0"
                             />
+                          ) : item.type === 'document' ? (
+                            <div className="w-10 h-10 rounded-lg bg-[#EFF4FF] text-[#1D4ED8] flex items-center justify-center shrink-0">
+                              <FileText className="w-4 h-4" aria-hidden="true" />
+                            </div>
+                          ) : item.type === 'audio' ? (
+                            <div className="w-10 h-10 rounded-lg bg-[#F5F3FF] text-[#7C3AED] flex items-center justify-center shrink-0">
+                              <Music className="w-4 h-4" aria-hidden="true" />
+                            </div>
                           ) : (
                             <img
-                              src={item.url}
+                              src={localThumbs[item.url] || item.url}
                               alt=""
                               className="w-10 h-10 rounded-lg object-cover shrink-0"
                             />
@@ -640,10 +823,10 @@ export const ExperienceSecurityPanel: React.FC<ExperienceSecurityPanelProps> = (
                     htmlFor="dynamic-enabled-toggle"
                     className="text-xs font-bold text-[#111214] cursor-pointer"
                   >
-                    Activer le routage dynamique serveur (/d/slug)
+                    Activer le QR code modifiable (dynamique)
                   </label>
                   <p className="text-[11px] text-[#5C5E66] mt-0.5">
-                    Permet de modifier la destination après impression, compter les scans, protéger par PIN serveur, limiter les scans ou désactiver le QR.
+                    Permet de modifier le contenu après création, compter les scans, protéger par code PIN ou définir une durée d’accessibilité.
                   </p>
                 </div>
                 <input

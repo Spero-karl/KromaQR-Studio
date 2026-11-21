@@ -28,8 +28,8 @@ interface CustomVideoPlayerProps {
 export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
   src,
   poster,
-  title = 'Vidéo KromaQR',
-  accentColor = '#1D4ED8',
+  title = 'Vidéo SparkQR',
+  accentColor = '#2563EB',
   borderColor = 'rgba(255,255,255,0.14)',
   autoPlay = false,
   loop = false,
