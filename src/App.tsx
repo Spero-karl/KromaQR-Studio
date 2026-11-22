@@ -46,7 +46,6 @@ import {
   saveDynamicQr,
   syncServerProjects,
   deleteHostedMedia,
-  verifyStripeSession,
   type PublicAppConfigResponse,
 } from './utils/dynamicApi';
 import {
@@ -304,7 +303,6 @@ export default function App() {
 
   const qrSvgRef = useRef<SVGSVGElement | null>(null);
   const customizeSectionRef = useRef<HTMLDivElement | null>(null);
-  const handledPaymentReturnRef = useRef(false);
 
   const scannabilityReport = useMemo(
     () => evaluateScannability(config, generatedSnapshot?.source ?? source),
@@ -395,63 +393,6 @@ export default function App() {
         setWorkspaceReady(true);
       });
   }, [refreshPublicConfig, hydrateWorkspaceData]);
-
-  useEffect(() => {
-    if (!workspaceReady || handledPaymentReturnRef.current || viewerRoute) return;
-    const params = new URLSearchParams(window.location.search);
-    const paymentState = params.get('payment');
-    const sessionId = params.get('session_id');
-    if (!paymentState) return;
-    handledPaymentReturnRef.current = true;
-
-    window.history.replaceState(
-      {},
-      '',
-      `${window.location.pathname}${window.location.hash}`
-    );
-
-    if (paymentState === 'cancelled') {
-      setPaymentBanner({
-        type: 'error',
-        text: 'Paiement annulé. Aucune prolongation n’a été appliquée.',
-      });
-      return;
-    }
-
-    if (paymentState === 'success' && sessionId) {
-      void verifyStripeSession(sessionId)
-        .then(async (res) => {
-          if (res.paid) {
-            setPaymentBanner({
-              type: 'success',
-              text: `Prolongation de ${res.months} mois confirmée. Vos fichiers restent en ligne sans interruption.`,
-            });
-            await Promise.all([
-              refreshDynamicRecords(),
-              refreshHostedMedia(),
-              refreshUnreadNotifications(),
-            ]);
-            setDashboardNonce((n) => n + 1);
-            setView('conservation');
-          }
-        })
-        .catch((err) => {
-          setPaymentBanner({
-            type: 'error',
-            text:
-              err instanceof Error
-                ? err.message
-                : 'Impossible de vérifier le paiement Stripe.',
-          });
-        });
-    }
-  }, [
-    workspaceReady,
-    viewerRoute,
-    refreshDynamicRecords,
-    refreshHostedMedia,
-    refreshUnreadNotifications,
-  ]);
 
   useEffect(() => {
     if (!workspace || !workspaceReady) return;
@@ -1356,6 +1297,21 @@ export default function App() {
         targetId={extendTarget?.targetId || workspace?.id || ''}
         targetTitle={extendTarget?.targetTitle || 'Mon espace SparkQR'}
         currentExpiresAt={extendTarget?.currentExpiresAt}
+        onExtended={(res) => {
+          setPaymentBanner({
+            type: res.updatedCount > 0 ? 'success' : 'error',
+            text:
+              res.updatedCount > 0
+                ? `Conservation prolongée de ${res.months} mois (${res.updatedCount} ressource${res.updatedCount > 1 ? 's' : ''} mise${res.updatedCount > 1 ? 's' : ''} à jour).`
+                : 'Aucune ressource hébergée ou dynamique active à prolonger pour cette sélection.',
+          });
+          void Promise.all([
+            refreshDynamicRecords(),
+            refreshHostedMedia(),
+            refreshUnreadNotifications(),
+          ]);
+          setDashboardNonce((n) => n + 1);
+        }}
       />
 
       <PrivacyTermsModal

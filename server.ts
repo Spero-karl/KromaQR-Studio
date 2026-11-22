@@ -25,14 +25,10 @@ import {
 } from './src/server/retentionEngine.ts';
 import {
   AdminAuthService,
-  createStripeCheckoutSession,
   getConfiguredEmailTransport,
-  isStripeConfigured,
-  retrieveStripeCheckoutSession,
   sendTransactionalEmail,
   verifyCronSecretHeader,
-  verifyStripeWebhookSignature,
-} from './src/server/stripeAdmin.ts';
+} from './src/server/adminService.ts';
 import {
   canWorkspaceAccessRecord,
   createWorkspaceRecord,
@@ -572,87 +568,6 @@ async function startServer() {
     res.setHeader('Cache-Control', 'no-store');
     res.status(200).json({ ok: true });
   });
-
-  // Stripe Webhook MUST receive raw JSON body before express.json() middleware
-  app.post(
-    '/api/payments/webhook',
-    express.raw({ type: 'application/json' }),
-    (req, res) => {
-      const webhookSecret = (process.env.STRIPE_WEBHOOK_SECRET || '').trim();
-      const sigHeader = req.get('stripe-signature');
-      if (!webhookSecret) {
-        res.status(503).json({ error: 'STRIPE_WEBHOOK_SECRET non configuré.' });
-        return;
-      }
-      const rawBody = Buffer.isBuffer(req.body)
-        ? req.body
-        : Buffer.from(JSON.stringify(req.body || {}));
-      if (!verifyStripeWebhookSignature(rawBody, sigHeader, webhookSecret)) {
-        res.status(400).json({ error: 'Signature Stripe invalide.' });
-        return;
-      }
-
-      try {
-        const event = JSON.parse(rawBody.toString('utf8')) as {
-          type?: string;
-          data?: {
-            object?: {
-              id?: string;
-              payment_status?: string;
-              metadata?: Record<string, string>;
-            };
-          };
-        };
-
-        if (event.type === 'checkout.session.completed') {
-          const session = event.data?.object;
-          if (session?.id && session.payment_status === 'paid') {
-            const meta = session.metadata || {};
-            const existingOrder = retentionEngine.getPaymentOrder(session.id);
-            const workspaceId = existingOrder?.workspaceId || meta.workspaceId || '';
-            const targetKind = (existingOrder?.targetKind ||
-              meta.targetKind ||
-              'workspace') as 'media' | 'collection' | 'dynamic' | 'workspace';
-            const targetId = existingOrder?.targetId || meta.targetId || workspaceId;
-            const months = Number(existingOrder?.months || meta.months || 1);
-
-            if (
-              workspaceId &&
-              isValidPaidMonths(months) &&
-              existingOrder?.status !== 'paid'
-            ) {
-              retentionEngine.extendRetention({
-                workspaceId,
-                targetKind,
-                targetId,
-                months,
-              });
-              retentionEngine.savePaymentOrder({
-                sessionId: session.id,
-                workspaceId,
-                targetKind,
-                targetId,
-                months,
-                amountCents:
-                  existingOrder?.amountCents ||
-                  retentionEngine.getPricingConfig().monthsCents[months] ||
-                  0,
-                currency: 'EUR',
-                status: 'paid',
-                appliedAt: new Date().toISOString(),
-                createdAt: existingOrder?.createdAt || new Date().toISOString(),
-              });
-            }
-          }
-        }
-
-        res.json({ received: true });
-      } catch (err) {
-        console.error('Stripe webhook parse error:', err);
-        res.status(400).json({ error: 'Payload Stripe invalide.' });
-      }
-    }
-  );
 
   app.use(express.json({ limit: '8mb' }));
   app.use(express.urlencoded({ extended: false }));
@@ -1938,25 +1853,11 @@ async function startServer() {
 
   app.get('/api/pricing', (_req, res) => {
     const pricing = retentionEngine.getPricingConfig();
-    const stripeStatus = isStripeConfigured();
-    res.json({
-      pricing,
-      stripeConfigured: stripeStatus.configured,
-      missingStripeVars: stripeStatus.missingVars,
-    });
+    res.json({ pricing });
   });
 
-  app.post('/api/payments/checkout', async (req, res) => {
+  app.post('/api/retention/extend', (req, res) => {
     const resolved = resolveRequestWorkspace(req, res, true)!;
-    const stripeStatus = isStripeConfigured();
-    if (!stripeStatus.configured) {
-      res.status(503).json({
-        error: `Paiement en ligne Stripe non encore configuré sur Render (${stripeStatus.missingVars.join(', ')} manquant(s)).`,
-        missingVars: stripeStatus.missingVars,
-      });
-      return;
-    }
-
     const { months, targetKind, targetId } = req.body as {
       months?: number;
       targetKind?: 'media' | 'collection' | 'dynamic' | 'workspace';
@@ -1975,120 +1876,55 @@ async function startServer() {
     const safeTargetId =
       safeKind === 'workspace'
         ? resolved.workspace.id
-        : (targetId || '').trim() || resolved.workspace.id;
+        : (targetId || '').trim();
 
-    const pricing = retentionEngine.getPricingConfig();
-    const amountCents = pricing.monthsCents[months];
-    const pub = getEffectivePublicConfig(req);
-    const baseOrigin = pub.valid ? pub.configuredUrl : getDetectedOrigin(req);
-
-    try {
-      const session = await createStripeCheckoutSession({
-        secretKey: (process.env.STRIPE_SECRET_KEY || '').trim(),
-        amountCents,
-        currency: 'eur',
-        productName: `SparkQR — Conservation ${months} mois`,
-        productDescription:
-          safeKind === 'workspace'
-            ? `Prolongation de vos QR codes actifs (+${months} mois)`
-            : `Prolongation du QR code #${safeTargetId.slice(0, 6)} (+${months} mois)`,
-        successUrl: `${baseOrigin}/?payment=success&session_id={CHECKOUT_SESSION_ID}`,
-        cancelUrl: `${baseOrigin}/?payment=cancelled`,
-        metadata: {
-          workspaceId: resolved.workspace.id,
-          targetKind: safeKind,
-          targetId: safeTargetId,
-          months: String(months),
-        },
-      });
-
-      retentionEngine.savePaymentOrder({
-        sessionId: session.id,
-        workspaceId: resolved.workspace.id,
-        targetKind: safeKind,
-        targetId: safeTargetId,
-        months,
-        amountCents,
-        currency: 'EUR',
-        status: 'pending',
-        createdAt: new Date().toISOString(),
-      });
-
-      res.json({ sessionId: session.id, checkoutUrl: session.url });
-    } catch (err) {
-      res.status(502).json({
-        error: err instanceof Error ? err.message : 'Erreur Stripe Checkout.',
-      });
-    }
-  });
-
-  app.post('/api/payments/verify-session', async (req, res) => {
-    const resolved = resolveRequestWorkspace(req, res, true)!;
-    const stripeKey = (process.env.STRIPE_SECRET_KEY || '').trim();
-    const sessionId = typeof req.body?.sessionId === 'string' ? req.body.sessionId.trim() : '';
-    if (!stripeKey || !sessionId) {
-      res.status(400).json({ error: 'Session de paiement invalide.' });
+    if (safeKind !== 'workspace' && !safeTargetId) {
+      res.status(400).json({ error: 'Identifiant de ressource manquant.' });
       return;
     }
 
-    const existingOrder = retentionEngine.getPaymentOrder(sessionId);
-    if (existingOrder?.status === 'paid') {
-      res.json({ paid: true, alreadyApplied: true, months: existingOrder.months });
-      return;
-    }
-
-    try {
-      const session = await retrieveStripeCheckoutSession({ secretKey: stripeKey, sessionId });
-      if (session.paymentStatus !== 'paid') {
-        res.status(402).json({ paid: false, error: 'Paiement non confirmé par Stripe.' });
+    if (safeKind === 'dynamic') {
+      const store = readDynamicStore();
+      const rec = store[safeTargetId];
+      if (!rec) {
+        res.status(404).json({ error: 'QR dynamique introuvable.' });
         return;
       }
-
-      const workspaceId = existingOrder?.workspaceId || session.metadata.workspaceId || '';
-      if (workspaceId && workspaceId !== resolved.workspace.id) {
-        res.status(403).json({ error: 'Cette transaction appartient à un autre espace.' });
+      if (!canWorkspaceAccessRecord(rec.ownerWorkspaceId, resolved.workspace.id)) {
+        res.status(403).json({ error: 'Accès refusé à cet espace.' });
         return;
       }
-      const targetKind = (existingOrder?.targetKind ||
-        session.metadata.targetKind ||
-        'workspace') as 'media' | 'collection' | 'dynamic' | 'workspace';
-      const targetId =
-        existingOrder?.targetId || session.metadata.targetId || resolved.workspace.id;
-      const months = Number(existingOrder?.months || session.metadata.months || 1);
-
-      const ext = retentionEngine.extendRetention({
-        workspaceId: resolved.workspace.id,
-        targetKind,
-        targetId,
-        months: isValidPaidMonths(months) ? months : 1,
-      });
-
-      retentionEngine.savePaymentOrder({
-        sessionId,
-        workspaceId: resolved.workspace.id,
-        targetKind,
-        targetId,
-        months: isValidPaidMonths(months) ? months : 1,
-        amountCents: existingOrder?.amountCents || 0,
-        currency: 'EUR',
-        status: 'paid',
-        appliedAt: new Date().toISOString(),
-        createdAt: existingOrder?.createdAt || new Date().toISOString(),
-      });
-
-      res.json({ paid: true, months, ...ext });
-    } catch (err) {
-      res.status(502).json({
-        error: err instanceof Error ? err.message : 'Erreur de vérification Stripe.',
-      });
+    } else if (safeKind === 'media' || safeKind === 'collection') {
+      const index = readMediaIndex();
+      const rec = index[safeTargetId];
+      if (!rec) {
+        res.status(404).json({ error: 'Ressource introuvable.' });
+        return;
+      }
+      if (!canWorkspaceAccessRecord(rec.ownerWorkspaceId, resolved.workspace.id)) {
+        res.status(403).json({ error: 'Accès refusé à cet espace.' });
+        return;
+      }
     }
+
+    const ext = retentionEngine.extendRetention({
+      workspaceId: resolved.workspace.id,
+      targetKind: safeKind,
+      targetId: safeTargetId,
+      months,
+    });
+
+    res.json({
+      ok: true,
+      months,
+      ...ext,
+    });
   });
 
   // Admin Pricing Console Auth & Endpoints
   app.get('/api/admin/status', (_req, res) => {
     res.json({
       ...adminAuth.getStatus(),
-      stripe: isStripeConfigured(),
       dosya: dosyaStorage.getPublicStatus(),
       emailTransport: getConfiguredEmailTransport(),
       cronSecretConfigured: Boolean((process.env.CRON_SECRET || '').trim()),

@@ -390,8 +390,6 @@ export async function removeEmailAlerts(): Promise<void> {
 
 export interface PricingApiResponse {
   pricing: PricingConfig;
-  stripeConfigured: boolean;
-  missingStripeVars: string[];
 }
 
 export async function fetchPricingInfo(): Promise<PricingApiResponse> {
@@ -403,44 +401,26 @@ export async function fetchPricingInfo(): Promise<PricingApiResponse> {
   return data as PricingApiResponse;
 }
 
-export async function createStripeCheckout(input: {
+export async function extendRetentionPlan(input: {
   months: number;
   targetKind: 'media' | 'collection' | 'dynamic' | 'workspace';
   targetId: string;
-}): Promise<{ sessionId: string; checkoutUrl: string }> {
-  const res = await fetch('/api/payments/checkout', {
+}): Promise<{ ok: boolean; months: number; updatedCount: number; newExpiresAt: string }> {
+  const res = await fetch('/api/retention/extend', {
     method: 'POST',
     headers: workspaceHeaders({ 'Content-Type': 'application/json' }),
     body: JSON.stringify(input),
   });
   const data = await res.json();
   if (!res.ok) {
-    throw new Error(data.error || 'Paiement indisponible.');
+    throw new Error(data.error || 'Prolongation impossible.');
   }
-  return data as { sessionId: string; checkoutUrl: string };
-}
-
-export async function verifyStripeSession(sessionId: string): Promise<{
-  paid: boolean;
-  months: number;
-  newExpiresAt?: string;
-}> {
-  const res = await fetch('/api/payments/verify-session', {
-    method: 'POST',
-    headers: workspaceHeaders({ 'Content-Type': 'application/json' }),
-    body: JSON.stringify({ sessionId }),
-  });
-  const data = await res.json();
-  if (!res.ok) {
-    throw new Error(data.error || 'Impossible de vérifier le paiement.');
-  }
-  return data as { paid: boolean; months: number; newExpiresAt?: string };
+  return data as { ok: boolean; months: number; updatedCount: number; newExpiresAt: string };
 }
 
 export interface AdminStatusResponse {
   configuredViaEnv: boolean;
   needsInitialClaim: boolean;
-  stripe: { configured: boolean; missingVars: string[] };
   dosya: StorageStatusInfo;
   emailTransport: 'resend' | 'smtp' | 'none';
   cronSecretConfigured: boolean;

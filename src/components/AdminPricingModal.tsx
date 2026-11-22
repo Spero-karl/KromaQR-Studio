@@ -120,7 +120,7 @@ export const AdminPricingModal: React.FC<AdminPricingModalProps> = ({
         nextInputs[m] = (updated.monthsCents[m] / 100).toFixed(2);
       }
       setEuroInputs(nextInputs);
-      setSavedNotice('Tarifs mis à jour et appliqués aux nouveaux paiements.');
+      setSavedNotice('Tarifs mis à jour et enregistrés sur le serveur.');
       onPricingSaved?.();
     } catch (err) {
       if (err instanceof Error && /expirée|invalide/i.test(err.message)) {
@@ -185,12 +185,6 @@ export const AdminPricingModal: React.FC<AdminPricingModalProps> = ({
                     <span className="text-[#5C5E66]">Stockage Dosya.dev S3</span>
                     <span className={status.dosya.configured ? 'font-bold text-[#059669]' : 'font-bold text-[#B91C1C]'}>
                       {status.dosya.configured ? 'Actif' : 'Incomplet'}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between gap-2 bg-white px-3 py-2 rounded-xl border border-[#E8E6DF]">
-                    <span className="text-[#5C5E66]">Paiements Stripe</span>
-                    <span className={status.stripe.configured ? 'font-bold text-[#059669]' : 'font-bold text-[#D97706]'}>
-                      {status.stripe.configured ? 'Actif' : 'À configurer'}
                     </span>
                   </div>
                   <div className="flex items-center justify-between gap-2 bg-white px-3 py-2 rounded-xl border border-[#E8E6DF]">

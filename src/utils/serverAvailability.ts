@@ -1,5 +1,5 @@
-import type { DynamicQrRecord, SavedQrItem } from '../types/qr';
-import { FREE_RETENTION_DAYS, formatExactFrenchDateTime } from './retentionPricing';
+import type { DynamicQrRecord, SavedQrItem } from '../types/qr.ts';
+import { FREE_RETENTION_DAYS, formatExactFrenchDateTime } from './retentionPricing.ts';
 
 export const HOSTED_RETENTION_DAYS = FREE_RETENTION_DAYS;
 

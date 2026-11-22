@@ -91,7 +91,7 @@ test('DosyaStorageService throws a clear error when uploading without credential
   await assert.rejects(
     () =>
       service.uploadObject({
-        key: 'kromaqr/images/m1/photo.png',
+        key: 'sparkqr/images/m1/photo.png',
         body: Buffer.from('hello'),
         contentType: 'image/png',
       }),
@@ -180,7 +180,7 @@ test('uploadObject, getObjectStream (full + Range 206), headObject, and deleteOb
     fakeClient
   );
 
-  const key = 'kromaqr/videos/vid1/1700000-demo.mp4';
+  const key = 'sparkqr/videos/vid1/1700000-demo.mp4';
   const uploaded = await service.uploadObject({
     key,
     body: fakePayload,

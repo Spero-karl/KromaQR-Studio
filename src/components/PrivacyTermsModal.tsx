@@ -89,7 +89,7 @@ export const PrivacyTermsModal: React.FC<PrivacyTermsModalProps> = ({ open, onCl
               Tout contenu hébergé créé avec l’offre gratuite bénéficie d’une conservation serveur de <strong>7 jours</strong> à compter de sa création, avec date et heure exactes de suppression affichées dans <em>Stockage et conservation</em>.
             </p>
             <p>
-              Les extensions payantes (1 à 12 mois) sont cumulatives et ajoutent les mois sélectionnés à la date d’expiration en cours sans perte ni interruption des fichiers existants.
+              Les prolongations de conservation (1 à 12 mois) sont cumulatives et ajoutent les mois sélectionnés à la date d’expiration en cours sans perte ni interruption des fichiers existants.
             </p>
           </section>
 

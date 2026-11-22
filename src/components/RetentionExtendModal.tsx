@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { AlertCircle, CalendarClock, CreditCard, Loader2, ShieldCheck, X } from 'lucide-react';
-import { createStripeCheckout, fetchPricingInfo, type PricingApiResponse } from '../utils/dynamicApi';
+import { CalendarClock, CheckCircle2, Info, Loader2, ShieldCheck, X } from 'lucide-react';
+import { extendRetentionPlan, fetchPricingInfo, type PricingApiResponse } from '../utils/dynamicApi';
 import {
   addMonthsToIso,
   DEFAULT_MONTHLY_PRICES_CENTS,
@@ -17,6 +17,11 @@ interface RetentionExtendModalProps {
   targetId: string;
   targetTitle: string;
   currentExpiresAt?: string | null;
+  onExtended?: (result: {
+    months: number;
+    updatedCount: number;
+    newExpiresAt: string;
+  }) => void;
 }
 
 export const RetentionExtendModal: React.FC<RetentionExtendModalProps> = ({
@@ -26,6 +31,7 @@ export const RetentionExtendModal: React.FC<RetentionExtendModalProps> = ({
   targetId,
   targetTitle,
   currentExpiresAt,
+  onExtended,
 }) => {
   const [selectedMonths, setSelectedMonths] = useState<number>(3);
   const [pricingInfo, setPricingInfo] = useState<PricingApiResponse | null>(null);
@@ -40,7 +46,7 @@ export const RetentionExtendModal: React.FC<RetentionExtendModalProps> = ({
     void fetchPricingInfo()
       .then((res) => setPricingInfo(res))
       .catch((err) =>
-        setError(err instanceof Error ? err.message : 'Impossible de charger les tarifs.')
+        setError(err instanceof Error ? err.message : 'Impossible de charger les durées.')
       )
       .finally(() => setLoading(false));
   }, [open]);
@@ -63,25 +69,28 @@ export const RetentionExtendModal: React.FC<RetentionExtendModalProps> = ({
   if (!open) return null;
 
   const pricesMap = pricingInfo?.pricing.monthsCents || DEFAULT_MONTHLY_PRICES_CENTS;
-  const selectedPriceCents = pricesMap[selectedMonths] || DEFAULT_MONTHLY_PRICES_CENTS[selectedMonths];
   const projectedExpiryIso = addMonthsToIso(currentExpiresAt, selectedMonths);
-  const stripeReady = pricingInfo?.stripeConfigured ?? false;
 
-  const handleCheckout = async () => {
+  const handleConfirmExtension = async () => {
     setError(null);
     setSubmitting(true);
     try {
-      const { checkoutUrl } = await createStripeCheckout({
+      const res = await extendRetentionPlan({
         months: selectedMonths,
         targetKind,
         targetId,
       });
-      if (!checkoutUrl) {
-        throw new Error('URL de paiement Stripe introuvable.');
-      }
-      window.location.assign(checkoutUrl);
+      onExtended?.({
+        months: res.months,
+        updatedCount: res.updatedCount,
+        newExpiresAt: res.newExpiresAt,
+      });
+      onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Impossible de démarrer le paiement.');
+      setError(
+        err instanceof Error ? err.message : 'Impossible d’appliquer la prolongation.'
+      );
+    } finally {
       setSubmitting(false);
     }
   };
@@ -124,7 +133,7 @@ export const RetentionExtendModal: React.FC<RetentionExtendModalProps> = ({
         {loading ? (
           <div className="py-10 flex items-center justify-center gap-2 text-xs text-[#5C5E66]">
             <Loader2 className="w-4 h-4 animate-spin text-[#2563EB]" aria-hidden="true" />
-            <span>Chargement de la grille tarifaire…</span>
+            <span>Chargement des durées de conservation…</span>
           </div>
         ) : (
           <>
@@ -151,7 +160,7 @@ export const RetentionExtendModal: React.FC<RetentionExtendModalProps> = ({
                       <span className="block text-xs font-bold text-[#111214]">
                         {m} mois
                       </span>
-                      <span className="block text-sm font-display font-bold text-[#2563EB] tabular-nums mt-0.5">
+                      <span className="block text-xs font-semibold text-[#2563EB] tabular-nums mt-0.5">
                         {formatPriceEur(cents)}
                       </span>
                     </button>
@@ -179,30 +188,19 @@ export const RetentionExtendModal: React.FC<RetentionExtendModalProps> = ({
                 </p>
               )}
               <p className="text-[11px] text-[#475569] leading-relaxed">
-                Cumulatif sans perte de données : si une période payée est déjà active, la nouvelle durée s’ajoute à l’échéance existante et ne la raccourcit jamais.
+                Cumulatif sans perte de données : la nouvelle durée s’ajoute à l’échéance active sans interrompre l’accès à vos fichiers ni au QR code existant.
               </p>
             </div>
 
-            {!stripeReady && (
-              <div
-                data-testid="stripe-not-configured-alert"
-                className="rounded-xl border border-[#FDE68A] bg-[#FFFBEB] px-3.5 py-3 flex items-start gap-2.5 text-xs text-[#92400E]"
-              >
-                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-[#D97706]" aria-hidden="true" />
-                <div className="space-y-1">
-                  <p className="font-semibold">
-                    Paiement en ligne Stripe non encore activé sur ce serveur.
-                  </p>
-                  <p className="text-[11px] leading-relaxed">
-                    Pour activer les prolongations payantes en production sur Render, renseignez{' '}
-                    <code className="font-mono bg-white/70 px-1 rounded">
-                      {pricingInfo?.missingStripeVars.join(', ') || 'STRIPE_SECRET_KEY'}
-                    </code>{' '}
-                    dans les variables d’environnement.
-                  </p>
-                </div>
-              </div>
-            )}
+            <div
+              data-testid="direct-extension-note"
+              className="rounded-xl border border-[#DCE2EE] bg-[#FAF9F5] px-3.5 py-3 flex items-start gap-2.5 text-xs text-[#4B4D54]"
+            >
+              <Info className="w-4 h-4 shrink-0 mt-0.5 text-[#2563EB]" aria-hidden="true" />
+              <p className="text-[11px] leading-relaxed">
+                Prolongation gérée directement sur votre serveur SparkQR (aucun paiement par carte n’est actif sur cette instance ; les montants affichés servent de grille indicative).
+              </p>
+            </div>
 
             {error && (
               <p role="alert" className="text-xs font-medium text-[#B91C1C]">
@@ -213,7 +211,7 @@ export const RetentionExtendModal: React.FC<RetentionExtendModalProps> = ({
             <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-[#EFEFF5]">
               <div className="inline-flex items-center gap-1.5 text-[11px] text-[#5C5E66]">
                 <ShieldCheck className="w-3.5 h-3.5 text-[#059669]" aria-hidden="true" />
-                <span>Paiement vérifié côté serveur via Stripe</span>
+                <span>Mise à jour immédiate de l’échéance serveur</span>
               </div>
 
               <div className="flex items-center gap-2">
@@ -226,16 +224,16 @@ export const RetentionExtendModal: React.FC<RetentionExtendModalProps> = ({
                 </button>
                 <button
                   type="button"
-                  data-testid="confirm-extend-checkout-btn"
-                  disabled={submitting || !stripeReady}
-                  onClick={() => void handleCheckout()}
+                  data-testid="confirm-extend-btn"
+                  disabled={submitting}
+                  onClick={() => void handleConfirmExtension()}
                   className="inline-flex items-center gap-2 px-5 py-2.5 text-xs font-semibold text-white bg-gradient-to-r from-[#2563EB] to-[#4F46E5] hover:from-[#1D4ED8] hover:to-[#4338CA] rounded-xl cursor-pointer disabled:opacity-50"
                 >
-                  <CreditCard className="w-4 h-4" aria-hidden="true" />
+                  <CheckCircle2 className="w-4 h-4" aria-hidden="true" />
                   <span>
                     {submitting
-                      ? 'Redirection Stripe…'
-                      : `Payer ${formatPriceEur(selectedPriceCents)} (+${selectedMonths} mois)`}
+                      ? 'Application…'
+                      : `Prolonger (+${selectedMonths} mois)`}
                   </span>
                 </button>
               </div>

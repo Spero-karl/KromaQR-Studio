@@ -1,7 +1,7 @@
 import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
-import type { DosyaStorageService } from './dosyaStorage';
+import type { DosyaStorageService } from './dosyaStorage.ts';
 import { readWorkspaceProjects, writeWorkspaceProjects } from './workspaceStore.ts';
 import {
   addMonthsToIso,
@@ -9,12 +9,13 @@ import {
   getDueNotificationMilestones,
   normalizePricingConfig,
   type NotificationMilestone,
+  type PricingConfig,
 } from '../utils/retentionPricing.ts';
 import type {
   DeletionAuditEntry,
   RetentionNotification,
   StorageDashboardItem,
-} from '../types/qr';
+} from '../types/qr.ts';
 
 export interface MediaRecordLike {
   id: string;
@@ -99,19 +100,6 @@ export interface EmailSubscriptionRecord {
   verificationCodeHash?: string;
   verificationExpiresAt?: string;
   updatedAt: string;
-}
-
-export interface PaymentOrderRecord {
-  sessionId: string;
-  workspaceId: string;
-  targetKind: 'media' | 'collection' | 'dynamic' | 'workspace';
-  targetId: string;
-  months: number;
-  amountCents: number;
-  currency: 'EUR';
-  status: 'pending' | 'paid';
-  appliedAt?: string;
-  createdAt: string;
 }
 
 interface WorkspaceStatsRecord {
@@ -236,7 +224,6 @@ export interface RetentionStorePaths {
   deletionAuditFile: string;
   workspaceStatsFile: string;
   pricingConfigFile: string;
-  paymentOrdersFile: string;
   emailSubsFile: string;
 }
 
@@ -250,7 +237,6 @@ export function getRetentionStorePaths(dataDir: string): RetentionStorePaths {
     deletionAuditFile: path.join(dataDir, 'deletion-audit.json'),
     workspaceStatsFile: path.join(dataDir, 'workspace-stats.json'),
     pricingConfigFile: path.join(dataDir, 'pricing-config.json'),
-    paymentOrdersFile: path.join(dataDir, 'payment-orders.json'),
     emailSubsFile: path.join(dataDir, 'email-subscriptions.json'),
   };
 }
@@ -387,23 +373,6 @@ export class RetentionEngine {
     );
     delete map[workspaceId];
     writeJsonFileSafe(this.paths.emailSubsFile, map);
-  }
-
-  savePaymentOrder(order: PaymentOrderRecord): void {
-    const map = readJsonFileSafe<Record<string, PaymentOrderRecord>>(
-      this.paths.paymentOrdersFile,
-      {}
-    );
-    map[order.sessionId] = order;
-    writeJsonFileSafe(this.paths.paymentOrdersFile, map);
-  }
-
-  getPaymentOrder(sessionId: string): PaymentOrderRecord | null {
-    const map = readJsonFileSafe<Record<string, PaymentOrderRecord>>(
-      this.paths.paymentOrdersFile,
-      {}
-    );
-    return map[sessionId] || null;
   }
 
   /**
@@ -739,12 +708,12 @@ export class RetentionEngine {
       }
     } else if (params.targetKind === 'dynamic') {
       const dyn = dynamicStore[params.targetId];
-      if (dyn && (!dyn.ownerWorkspaceId || dyn.ownerWorkspaceId === params.workspaceId)) {
+      if (dyn && dyn.ownerWorkspaceId === params.workspaceId) {
         extendDynamic(dyn);
       }
     } else {
       const rec = mediaIndex[params.targetId];
-      if (rec && (!rec.ownerWorkspaceId || rec.ownerWorkspaceId === params.workspaceId)) {
+      if (rec && rec.ownerWorkspaceId === params.workspaceId) {
         extendMedia(rec);
       }
     }
