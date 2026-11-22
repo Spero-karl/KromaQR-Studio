@@ -2,6 +2,7 @@ import 'dotenv/config';
 import crypto from 'crypto';
 import express from 'express';
 import fs from 'fs';
+import http from 'http';
 import multer from 'multer';
 import path from 'path';
 import { createServer as createViteServer } from 'vite';
@@ -756,9 +757,8 @@ async function startServer() {
     }
 
     if (!dosyaStorage.isConfigured()) {
-      const status = dosyaStorage.getPublicStatus();
       res.status(503).json({
-        error: `Stockage Dosya.dev non configuré sur le serveur (${status.missingVars.join(', ')} manquant(s)).`,
+        error: 'Service de stockage temporairement indisponible.',
       });
       return;
     }
@@ -863,10 +863,7 @@ async function startServer() {
     } catch (err) {
       console.error('Dosya.dev S3 upload failed:', err);
       res.status(502).json({
-        error:
-          err instanceof Error
-            ? `Échec du téléversement vers Dosya.dev : ${err.message}`
-            : 'Échec du téléversement vers Dosya.dev.',
+        error: 'Échec du téléversement du fichier. Veuillez réessayer.',
       });
     }
   });
@@ -1065,13 +1062,13 @@ async function startServer() {
     }
 
     if (record.storage?.provider !== 'dosya-s3' || !record.storage.key) {
-      res.status(404).json({ error: 'Objet S3 introuvable pour ce média.' });
+      res.status(404).json({ error: 'Fichier introuvable pour ce contenu.' });
       return;
     }
 
     if (!dosyaStorage.isConfigured()) {
       res.status(503).json({
-        error: 'Stockage Dosya.dev non configuré sur le serveur pour lire ce média.',
+        error: 'Service de lecture temporairement indisponible.',
       });
       return;
     }
@@ -1118,7 +1115,7 @@ async function startServer() {
       obj.stream.on('error', (streamErr) => {
         console.error('S3 stream error:', streamErr);
         if (!res.headersSent) {
-          res.status(502).json({ error: 'Erreur de lecture du flux Dosya.dev.' });
+          res.status(502).json({ error: 'Erreur de lecture du média.' });
         } else {
           res.end();
         }
@@ -1129,11 +1126,11 @@ async function startServer() {
       const errName = (err as { name?: string })?.name;
       const httpStatus = (err as { $metadata?: { httpStatusCode?: number } })?.$metadata?.httpStatusCode;
       if (errName === 'NoSuchKey' || httpStatus === 404) {
-        res.status(404).json({ error: 'Fichier introuvable dans Dosya.dev.' });
+        res.status(404).json({ error: 'Fichier introuvable ou expiré.' });
         return;
       }
       console.error('Dosya.dev S3 read failed:', err);
-      res.status(502).json({ error: 'Impossible de lire le fichier depuis Dosya.dev.' });
+      res.status(502).json({ error: 'Impossible de lire ce fichier pour le moment.' });
     }
   };
 
@@ -1870,7 +1867,7 @@ async function startServer() {
     if (getConfiguredEmailTransport() === 'none') {
       res.status(503).json({
         error:
-          'L’envoi d’e-mails n’est pas encore configuré sur le serveur Render (ajoutez RESEND_API_KEY ou SMTP_HOST / SMTP_USER / SMTP_PASS). Les notifications dans l’application restent actives.',
+          'Les alertes par e-mail sont temporairement indisponibles. Vos notifications restent visibles dans votre espace.',
       });
       return;
     }
@@ -2006,9 +2003,19 @@ async function startServer() {
   });
 
   // Admin Pricing Console Auth & Endpoints
-  app.get('/api/admin/status', (_req, res) => {
+  app.get('/api/admin/status', (req, res) => {
+    const authHeader = req.get('authorization');
+    const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7).trim() : '';
+    const isAdmin = Boolean(token && adminAuth.verifyAdminToken(token));
+    const baseStatus = adminAuth.getStatus();
+    if (!isAdmin) {
+      res.json({
+        needsInitialClaim: baseStatus.needsInitialClaim,
+      });
+      return;
+    }
     res.json({
-      ...adminAuth.getStatus(),
+      ...baseStatus,
       dosya: dosyaStorage.getPublicStatus(),
       emailTransport: getConfiguredEmailTransport(),
       cronSecretConfigured: Boolean((process.env.CRON_SECRET || '').trim()),
@@ -2118,9 +2125,18 @@ async function startServer() {
     }
   );
 
+  const httpServer = http.createServer(app);
+
   if (process.env.NODE_ENV !== 'production') {
+    const hmrDisabled = process.env.DISABLE_HMR === 'true';
     const vite = await createViteServer({
-      server: { middlewareMode: true },
+      server: {
+        middlewareMode: true,
+        allowedHosts: true,
+        ws: { server: httpServer },
+        hmr: hmrDisabled ? false : true,
+        watch: hmrDisabled ? null : undefined,
+      },
       appType: 'spa',
     });
     app.use(vite.middlewares);
@@ -2132,7 +2148,7 @@ async function startServer() {
     });
   }
 
-  app.listen(PORT, '0.0.0.0', () => {
+  httpServer.listen(PORT, '0.0.0.0', () => {
     console.log(`SparkQR server listening on http://0.0.0.0:${PORT}`);
 
     // Lightweight non-blocking retention catch-up pass after startup + periodic sweep every 15 min while awake

@@ -606,7 +606,7 @@ export class RetentionEngine {
       const title = this.safeNotificationTitle(isEncrypted, params.kind, params.id);
       const msg =
         params.reason === 'expired'
-          ? `${title} a expiré et a été supprimé définitivement du serveur et du stockage Dosya.dev.`
+          ? `${title} a expiré et a été supprimé définitivement de votre espace.`
           : `${title} a été supprimé définitivement sur votre demande.`;
       this.appendNotification({
         workspaceId,

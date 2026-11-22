@@ -1,11 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  Activity,
   Bell,
   CalendarClock,
   Check,
   Clock,
-  HardDrive,
   Lock,
   Mail,
   RefreshCw,
@@ -59,7 +57,6 @@ interface StorageConservationViewProps {
     currentExpiresAt?: string | null;
   }) => void;
   onOpenPrivacy: () => void;
-  onOpenAdmin: () => void;
   onResourceDeleted?: () => void;
   onNotificationsChanged?: (unreadCount: number) => void;
 }
@@ -67,7 +64,6 @@ interface StorageConservationViewProps {
 export const StorageConservationView: React.FC<StorageConservationViewProps> = ({
   onOpenExtend,
   onOpenPrivacy,
-  onOpenAdmin,
   onResourceDeleted,
   onNotificationsChanged,
 }) => {
@@ -202,7 +198,7 @@ export const StorageConservationView: React.FC<StorageConservationViewProps> = (
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <span className="block text-[11px] font-semibold uppercase tracking-[0.14em] text-[#2563EB]">
-            Durée de vie &amp; Dosya.dev S3
+            Conservation &amp; sécurité
           </span>
           <h2
             id="conservation-heading"
@@ -363,10 +359,10 @@ export const StorageConservationView: React.FC<StorageConservationViewProps> = (
           <div className="px-5 py-4 border-b border-[#EFEFF5] flex items-center justify-between gap-2">
             <div>
               <h3 className="font-display text-sm font-bold text-[#111214]">
-                Journal technique anonymisé des suppressions
+                Historique des suppressions
               </h3>
               <p className="text-[11px] text-[#6E7078]">
-                Aucun contenu ni texte privé n’est conservé après suppression sur Dosya.dev S3.
+                Aucun contenu ni fichier privé n’est conservé après suppression définitive.
               </p>
             </div>
           </div>
@@ -390,7 +386,7 @@ export const StorageConservationView: React.FC<StorageConservationViewProps> = (
                         ? 'Suppression automatique (échéance atteinte)'
                         : 'Suppression manuelle définitive'}
                       {' · '}
-                      {entry.s3ObjectsDeleted} objet(s) S3 supprimé(s)
+                      {entry.s3ObjectsDeleted} élément(s) supprimé(s)
                     </span>
                   </div>
                   <div className="text-right tabular-nums space-y-0.5">
@@ -602,10 +598,10 @@ export const StorageConservationView: React.FC<StorageConservationViewProps> = (
           {dashboard?.emailAlerts.configuredTransport === 'none' ? (
             <div className="rounded-xl border border-[#E2E6F0] bg-[#FAF9F5] p-3.5 text-xs text-[#5C5E66] space-y-1">
               <p className="font-semibold text-[#111214]">
-                Service d’envoi e-mail non configuré sur le serveur.
+                Alertes par e-mail temporairement indisponibles.
               </p>
               <p className="leading-relaxed">
-                Les notifications fonctionnent toujours en direct dans votre espace ci-contre. Pour activer l’envoi par e-mail sur Render, configurez <code className="font-mono text-[11px]">RESEND_API_KEY</code> ou les identifiants SMTP.
+                Vos rappels et notifications d’expiration restent consultables en direct dans votre espace ci-contre.
               </p>
             </div>
           ) : dashboard?.emailAlerts.verified ? (
@@ -679,25 +675,6 @@ export const StorageConservationView: React.FC<StorageConservationViewProps> = (
         </div>
       </div>
 
-      {/* Lightweight Render Keep-Alive & Admin Footer Card */}
-      <div className="rounded-2xl border border-[#E2E6F0] bg-[#FAF9F5] px-5 py-4 flex flex-wrap items-center justify-between gap-3 text-xs text-[#5C5E66]">
-        <div className="flex items-start sm:items-center gap-2.5 min-w-0">
-          <Activity className="w-4 h-4 text-[#059669] shrink-0 mt-0.5 sm:mt-0" aria-hidden="true" />
-          <p className="leading-relaxed">
-            Maintien Render actif via l’endpoint léger <code className="font-mono text-[11px] bg-white px-1.5 py-0.5 rounded border border-[#E2E6F0]">GET /health</code> (ping externe toutes les 14 min) et purge automatique sur Dosya.dev S3 + JSON.
-          </p>
-        </div>
-
-        <button
-          type="button"
-          data-testid="open-admin-pricing-btn"
-          onClick={onOpenAdmin}
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-[#111214] bg-white hover:bg-[#EFF4FF] border border-[#DCE2EE] rounded-xl cursor-pointer shrink-0"
-        >
-          <HardDrive className="w-3.5 h-3.5 text-[#4F46E5]" aria-hidden="true" />
-          <span>Admin tarifs</span>
-        </button>
-      </div>
     </section>
   );
 };

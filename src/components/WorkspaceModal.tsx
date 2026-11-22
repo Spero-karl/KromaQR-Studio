@@ -185,7 +185,7 @@ export const WorkspaceModal: React.FC<WorkspaceModalProps> = ({
             {workspace.accessCode}
           </p>
           <p className="text-[11px] text-[#475569] leading-relaxed">
-            Conservez ce code pour retrouver cet espace depuis un iPhone, une tablette ou un autre ordinateur.
+            Conservez ce code pour retrouver votre espace à tout moment.
           </p>
         </div>
 

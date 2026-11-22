@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { CalendarClock, CheckCircle2, Info, Loader2, ShieldCheck, X } from 'lucide-react';
+import { CalendarClock, CheckCircle2, Loader2, ShieldCheck, X } from 'lucide-react';
 import { extendRetentionPlan, fetchPricingInfo, type PricingApiResponse } from '../utils/dynamicApi';
 import {
   addMonthsToIso,
@@ -192,16 +192,6 @@ export const RetentionExtendModal: React.FC<RetentionExtendModalProps> = ({
               </p>
             </div>
 
-            <div
-              data-testid="direct-extension-note"
-              className="rounded-xl border border-[#DCE2EE] bg-[#FAF9F5] px-3.5 py-3 flex items-start gap-2.5 text-xs text-[#4B4D54]"
-            >
-              <Info className="w-4 h-4 shrink-0 mt-0.5 text-[#2563EB]" aria-hidden="true" />
-              <p className="text-[11px] leading-relaxed">
-                Prolongation gérée directement sur votre serveur SparkQR (aucun paiement par carte n’est actif sur cette instance ; les montants affichés servent de grille indicative).
-              </p>
-            </div>
-
             {error && (
               <p role="alert" className="text-xs font-medium text-[#B91C1C]">
                 {error}
@@ -211,7 +201,7 @@ export const RetentionExtendModal: React.FC<RetentionExtendModalProps> = ({
             <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-[#EFEFF5]">
               <div className="inline-flex items-center gap-1.5 text-[11px] text-[#5C5E66]">
                 <ShieldCheck className="w-3.5 h-3.5 text-[#059669]" aria-hidden="true" />
-                <span>Mise à jour immédiate de l’échéance serveur</span>
+                <span>Mise à jour immédiate de la conservation</span>
               </div>
 
               <div className="flex items-center gap-2">

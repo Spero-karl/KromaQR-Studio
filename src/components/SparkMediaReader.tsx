@@ -519,11 +519,7 @@ export const SparkMediaReader: React.FC<SparkMediaReaderProps> = ({
   });
   const displayTitle = customTitle || genericTitle;
 
-  const customDescription =
-    sanitizePublicCaption(experience.description, '') ||
-    (config.subtitleText !== 'Scannez pour découvrir'
-      ? sanitizePublicCaption(config.subtitleText, '')
-      : '');
+  const customDescription = sanitizePublicCaption(experience.description, '');
 
   const showImageSection =
     (category === 'image-single' ||

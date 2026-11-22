@@ -57,26 +57,26 @@ export const PrivacyTermsModal: React.FC<PrivacyTermsModalProps> = ({ open, onCl
           <section className="rounded-2xl border border-[#DCE6FF] bg-[#F5F8FF] p-4 space-y-1.5">
             <div className="flex items-center gap-2 font-bold text-[#111214]">
               <Lock className="w-4 h-4 text-[#2563EB]" aria-hidden="true" />
-              <h3>1. Chiffrement de bout en bout (AES-256-GCM)</h3>
+              <h3>1. Chiffrement de bout en bout</h3>
             </div>
             <p>
-              Lorsque l’option E2EE est activée, vos textes, métadonnées, photos, vidéos, documents et pistes audio sont chiffrés directement dans votre navigateur via Web Crypto (AES-256-GCM) avant tout envoi vers le serveur. Les fichiers volumineux sont découpés et chiffrés par blocs de 2 Mo.
+              Lorsque la protection de bout en bout est activée, vos textes, images, vidéos et documents sont chiffrés directement depuis votre navigateur avant leur envoi.
             </p>
             <p>
-              La clé secrète de déchiffrement est placée uniquement dans le fragment de l’URL (<code className="font-mono text-xs bg-white px-1 rounded">#k=...</code>). Les navigateurs n’envoient pas le fragment URL dans les requêtes HTTP au serveur, et les en-têtes <code className="font-mono text-xs bg-white px-1 rounded">Referrer-Policy: no-referrer</code> limitent toute fuite vers des sites tiers.
+              La clé d’accès est associée uniquement à votre QR code et à son lien complet : vos fichiers ne sont jamais lisibles sans eux.
             </p>
           </section>
 
           <section className="rounded-2xl border border-[#FDE68A] bg-[#FFFBEB] p-4 space-y-1.5">
             <div className="flex items-center gap-2 font-bold text-[#92400E]">
               <ShieldCheck className="w-4 h-4 text-[#D97706]" aria-hidden="true" />
-              <h3>2. Portée réelle et limite de sécurité du fragment URL</h3>
+              <h3>2. Partage et accès sécurisés</h3>
             </div>
             <p className="text-[#78350F]">
-              Toute personne qui scanne votre QR code ou détient le lien complet contenant <code className="font-mono text-xs bg-white/80 px-1 rounded">#k=...</code> dispose techniquement de la clé nécessaire pour déchiffrer et consulter le contenu tant que la ressource est active. Partagez uniquement vos QR codes et liens chiffrés avec des destinataires de confiance.
+              Toute personne qui scanne votre QR code ou dispose du lien complet peut consulter le contenu tant que celui-ci est actif. Partagez uniquement vos créations privées avec des destinataires de confiance.
             </p>
             <p className="text-[#78350F]">
-              Si la clé du fragment est perdue ou tronquée, SparkQR ne peut pas récupérer ni déchiffrer vos fichiers : le serveur ne possède que des données chiffrées.
+              Si le lien ou le QR code d’origine est perdu, le contenu protégé ne peut pas être restauré ni déchiffré.
             </p>
           </section>
 
@@ -86,23 +86,20 @@ export const PrivacyTermsModal: React.FC<PrivacyTermsModalProps> = ({ open, onCl
               <h3>3. Durée de conservation : 7 jours gratuits ou 1 à 12 mois</h3>
             </div>
             <p>
-              Tout contenu hébergé créé avec l’offre gratuite bénéficie d’une conservation serveur de <strong>7 jours</strong> à compter de sa création, avec date et heure exactes de suppression affichées dans <em>Stockage et conservation</em>.
+              Tout contenu hébergé avec l’offre gratuite reste accessible pendant <strong>7 jours</strong> à compter de sa création, avec date et heure prévues affichées dans votre espace <em>Conservation</em>.
             </p>
             <p>
-              Les prolongations de conservation (1 à 12 mois) sont cumulatives et ajoutent les mois sélectionnés à la date d’expiration en cours sans perte ni interruption des fichiers existants.
+              Les prolongations (1 à 12 mois) s’ajoutent directement à la durée en cours sans interruption d’accès ni modification de votre QR code.
             </p>
           </section>
 
           <section className="rounded-2xl border border-[#E2E6F0] bg-[#FAF9F5] p-4 space-y-1.5">
             <div className="flex items-center gap-2 font-bold text-[#111214]">
               <Trash2 className="w-4 h-4 text-[#B91C1C]" aria-hidden="true" />
-              <h3>4. Suppression automatique, manuelle et délais techniques</h3>
+              <h3>4. Suppression automatique et manuelle</h3>
             </div>
             <p>
-              À l’échéance ou sur suppression définitive manuelle, SparkQR supprime immédiatement les métadonnées locales et déclenche la suppression des objets associés dans le stockage S3 Dosya.dev. Un journal technique anonymisé conserve uniquement la référence courte, l’horodatage et les octets libérés (sans aucun contenu privé).
-            </p>
-            <p className="text-xs text-[#6E7078]">
-              Remarque honnête : bien que l’objet actif soit supprimé immédiatement via l’API S3 de Dosya.dev (et re-tenté automatiquement en cas d’incident réseau), des caches réseau intermédiaires ou sauvegardes techniques propres à l’infrastructure de stockage peuvent nécessiter un délai de purge supplémentaire selon la politique du fournisseur.
+              À l’échéance prévue ou dès que vous demandez une suppression définitive depuis votre espace, vos contenus et fichiers associés sont immédiatement effacés.
             </p>
           </section>
         </div>

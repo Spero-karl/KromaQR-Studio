@@ -5,7 +5,6 @@ import {
   Loader2,
   Lock,
   Save,
-  Server,
   X,
 } from 'lucide-react';
 import {
@@ -154,7 +153,7 @@ export const AdminPricingModal: React.FC<AdminPricingModalProps> = ({
               id="admin-pricing-title"
               className="font-display text-lg sm:text-xl font-bold text-[#111214] mt-0.5"
             >
-              Console tarifs &amp; services Render
+              Administration des tarifs
             </h2>
           </div>
           <button
@@ -174,35 +173,6 @@ export const AdminPricingModal: React.FC<AdminPricingModalProps> = ({
           </div>
         ) : (
           <>
-            {status && (
-              <div className="rounded-2xl border border-[#E2E6F0] bg-[#FAF9F5] p-4 space-y-2 text-xs">
-                <div className="flex items-center gap-2 font-bold text-[#111214]">
-                  <Server className="w-4 h-4 text-[#4F46E5]" aria-hidden="true" />
-                  <span>État des variables d’environnement Render</span>
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px]">
-                  <div className="flex items-center justify-between gap-2 bg-white px-3 py-2 rounded-xl border border-[#E8E6DF]">
-                    <span className="text-[#5C5E66]">Stockage Dosya.dev S3</span>
-                    <span className={status.dosya.configured ? 'font-bold text-[#059669]' : 'font-bold text-[#B91C1C]'}>
-                      {status.dosya.configured ? 'Actif' : 'Incomplet'}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between gap-2 bg-white px-3 py-2 rounded-xl border border-[#E8E6DF]">
-                    <span className="text-[#5C5E66]">Alertes e-mail</span>
-                    <span className={status.emailTransport !== 'none' ? 'font-bold text-[#059669]' : 'font-bold text-[#5C5E66]'}>
-                      {status.emailTransport !== 'none' ? status.emailTransport.toUpperCase() : 'Non configuré'}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between gap-2 bg-white px-3 py-2 rounded-xl border border-[#E8E6DF]">
-                    <span className="text-[#5C5E66]">CRON_SECRET</span>
-                    <span className={status.cronSecretConfigured ? 'font-bold text-[#059669]' : 'font-bold text-[#5C5E66]'}>
-                      {status.cronSecretConfigured ? 'Protégé' : 'Optionnel'}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            )}
-
             {!adminToken ? (
               <form onSubmit={(e) => void handleAuthSubmit(e)} className="space-y-3 rounded-2xl border border-[#E2E6F0] p-4">
                 <div className="flex items-center gap-2 text-xs font-bold text-[#111214]">
@@ -215,7 +185,7 @@ export const AdminPricingModal: React.FC<AdminPricingModalProps> = ({
                 </div>
                 <p className="text-[11px] text-[#5C5E66] leading-relaxed">
                   {status?.needsInitialClaim
-                    ? 'Aucun code n’est encore défini. Saisissez un code d’au moins 8 caractères pour verrouiller la gestion des tarifs (ou définissez ADMIN_PASSCODE sur Render).'
+                    ? 'Aucun code n’est encore défini. Saisissez un code d’au moins 8 caractères pour verrouiller la gestion des tarifs.'
                     : 'Saisissez le code administrateur pour modifier la grille tarifaire (1 à 12 mois).'}
                 </p>
                 <div className="flex flex-wrap gap-2">

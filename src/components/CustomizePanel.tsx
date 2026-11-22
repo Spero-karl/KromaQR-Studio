@@ -1186,7 +1186,7 @@ export const CustomizePanel: React.FC<CustomizePanelProps> = ({
               <div className="space-y-4 animate-[fadeIn_140ms_ease-out]">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <span className="text-xs text-[#6E7078]">
-                    Texte affiché autour du QR code sur votre carte imprimable ou exportée.
+                    Titre affiché sur la carte et lors du scan · Légende affichée autour du QR code.
                   </span>
                   <div className="flex items-center gap-2">
                     <button

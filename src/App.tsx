@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AlertCircle, CheckCircle2, Sparkles, UserCheck } from 'lucide-react';
+import { AlertCircle, CheckCircle2, UserCheck } from 'lucide-react';
 import { AdminPricingModal } from './components/AdminPricingModal';
 import { CustomizePanel, type CustomizeCategoryTab } from './components/CustomizePanel';
 import { ExperienceSecurityPanel } from './components/ExperienceSecurityPanel';
@@ -7,6 +7,7 @@ import { ExportModal } from './components/ExportModal';
 import { HistoryGallery } from './components/HistoryGallery';
 import { PreviewStage } from './components/PreviewStage';
 import { PrivacyTermsModal } from './components/PrivacyTermsModal';
+import { PWAInstallButton } from './components/PWAInstallButton';
 import { RetentionExtendModal } from './components/RetentionExtendModal';
 import { SourcePanel } from './components/SourcePanel';
 import { StandaloneReaderPage } from './components/StandaloneReaderPage';
@@ -299,7 +300,10 @@ export default function App() {
     currentExpiresAt?: string | null;
   } | null>(null);
   const [privacyModalOpen, setPrivacyModalOpen] = useState(false);
-  const [adminModalOpen, setAdminModalOpen] = useState(false);
+  const [adminModalOpen, setAdminModalOpen] = useState(() =>
+    typeof window !== 'undefined' &&
+    (window.location.search.includes('admin=1') || window.location.hash === '#admin')
+  );
   const [paymentBanner, setPaymentBanner] = useState<{
     type: 'success' | 'error';
     text: string;
@@ -960,14 +964,14 @@ export default function App() {
     <div className="min-h-[100dvh] flex flex-col spark-canvas-bg text-[#111214] pb-safe">
       {/* Top Bar: strict 3-zone contract */}
       <header className="sticky top-0 z-30 pt-safe bg-white/90 backdrop-blur-md border-b border-[#E2E6F0]">
-        <div className="max-w-[1400px] mx-auto px-3 sm:px-6 h-14 sm:h-15 flex items-center justify-between gap-1.5 sm:gap-6">
+        <div className="max-w-[1400px] mx-auto px-3 sm:px-6 h-14 sm:h-15 flex items-center justify-between gap-2 sm:gap-6">
           <a
             href="#studio"
             onClick={(e) => {
               e.preventDefault();
               setView('studio');
             }}
-            className="group inline-flex items-center gap-1.5 sm:gap-2 font-display text-sm sm:text-xl font-bold tracking-tight text-[#111214] whitespace-nowrap shrink-0"
+            className="group inline-flex items-center gap-2 font-display text-base sm:text-xl font-bold tracking-tight text-[#111214] whitespace-nowrap shrink-0"
           >
             <span className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl bg-gradient-to-br from-[#2563EB] via-[#4F46E5] to-[#EC4899] text-white flex items-center justify-center shadow-[0_4px_12px_rgba(79,70,229,0.3)] animate-spark-emblem">
               <svg viewBox="0 0 24 24" className="w-4 h-4 sm:w-4.5 sm:h-4.5" aria-hidden="true">
@@ -984,7 +988,7 @@ export default function App() {
 
           <nav
             aria-label="Navigation principale"
-            className="flex items-center gap-2 sm:gap-5 text-[11px] sm:text-sm font-medium text-[#5C5E66]"
+            className="hidden md:flex items-center gap-5 text-sm font-medium text-[#5C5E66]"
           >
             <button
               type="button"
@@ -1012,8 +1016,7 @@ export default function App() {
                   : ''
               }`}
             >
-              <span className="hidden sm:inline">Mes QR codes ({savedItems.length})</span>
-              <span className="sm:hidden">Mes QR ({savedItems.length})</span>
+              Mes QR codes ({savedItems.length})
             </button>
 
             <button
@@ -1040,13 +1043,12 @@ export default function App() {
               type="button"
               data-testid="nav-workspace-btn"
               onClick={() => setWorkspaceModalOpen(true)}
-              className="inline-flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-1.5 rounded-xl bg-[#EEF2FF] hover:bg-[#E0E7FF] text-[#4F46E5] text-[11px] sm:text-xs font-semibold transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-[#EEF2FF] hover:bg-[#E0E7FF] text-[#4F46E5] text-xs font-semibold transition-colors whitespace-nowrap shrink-0 cursor-pointer"
             >
               <UserCheck className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
-              <span className="hidden md:inline max-w-[120px] truncate">
+              <span className="max-w-[130px] truncate">
                 {workspace?.name || 'Mon espace'}
               </span>
-              <span className="md:hidden">Espace</span>
             </button>
 
             <button
@@ -1059,19 +1061,77 @@ export default function App() {
             </button>
           </nav>
 
-          <div className="flex items-center shrink-0">
+          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+            <PWAInstallButton />
+            <button
+              type="button"
+              onClick={() => setWorkspaceModalOpen(true)}
+              className="md:hidden inline-flex items-center gap-1 px-2.5 py-1.5 min-h-[36px] rounded-xl bg-[#EEF2FF] hover:bg-[#E0E7FF] text-[#4F46E5] text-xs font-semibold transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+            >
+              <UserCheck className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
+              <span>Espace</span>
+            </button>
             <button
               type="button"
               disabled={!isGenerated}
               onClick={() => isGenerated && setExportModalOpen(true)}
               aria-label="Exporter Pro"
-              className="px-2.5 sm:px-4 py-1.5 sm:py-2 min-h-[36px] sm:min-h-[38px] text-[11px] sm:text-xs font-semibold text-white bg-gradient-to-r from-[#2563EB] to-[#4F46E5] hover:from-[#1D4ED8] hover:to-[#4338CA] shadow-[0_4px_12px_rgba(37,99,235,0.22)] rounded-xl transition-all duration-150 whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed disabled:shadow-none"
+              className="px-3 sm:px-4 py-1.5 sm:py-2 min-h-[36px] sm:min-h-[38px] text-xs font-semibold text-white bg-gradient-to-r from-[#2563EB] to-[#4F46E5] hover:from-[#1D4ED8] hover:to-[#4338CA] shadow-[0_4px_12px_rgba(37,99,235,0.22)] rounded-xl transition-all duration-150 whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed disabled:shadow-none"
             >
               <span className="hidden sm:inline">Exporter Pro</span>
               <span className="sm:hidden">Export</span>
             </button>
           </div>
         </div>
+
+        <nav
+          aria-label="Navigation mobile"
+          className="md:hidden border-t border-[#EEF2F7] px-3 py-1 flex items-center justify-around gap-1 text-xs font-medium text-[#5C5E66]"
+        >
+          <button
+            type="button"
+            onClick={() => setView('studio')}
+            className={`px-2.5 py-2 min-h-[38px] rounded-lg transition-colors whitespace-nowrap cursor-pointer ${
+              view === 'studio'
+                ? 'text-[#111214] font-semibold bg-[#F1F5FF]'
+                : 'hover:text-[#111214]'
+            }`}
+          >
+            Créer
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              void refreshDynamicRecords();
+              void refreshHostedMedia();
+              setView('gallery');
+            }}
+            className={`px-2.5 py-2 min-h-[38px] rounded-lg transition-colors whitespace-nowrap cursor-pointer tabular-nums ${
+              view === 'gallery'
+                ? 'text-[#111214] font-semibold bg-[#F1F5FF]'
+                : 'hover:text-[#111214]'
+            }`}
+          >
+            Mes QR ({savedItems.length})
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              void refreshDynamicRecords();
+              void refreshHostedMedia();
+              setView('conservation');
+            }}
+            className={`px-2.5 py-2 min-h-[38px] rounded-lg transition-colors whitespace-nowrap cursor-pointer tabular-nums ${
+              view === 'conservation'
+                ? 'text-[#111214] font-semibold bg-[#F1F5FF]'
+                : 'hover:text-[#111214]'
+            }`}
+          >
+            Conservation{unreadNotificationsCount > 0 ? ` (${unreadNotificationsCount})` : ''}
+          </button>
+        </nav>
       </header>
 
       <main className="flex-1 max-w-[1400px] w-full mx-auto px-3.5 sm:px-6 py-4 sm:py-6">
@@ -1115,16 +1175,32 @@ export default function App() {
               aria-label="Bienvenue sur SparkQR"
               className="rounded-2xl border border-[#DCE6FF] bg-gradient-to-r from-[#EFF5FF] via-[#F5F3FF] to-[#FFF2F7] px-4 py-3.5 sm:px-6 sm:py-4 shadow-[0_6px_22px_rgba(79,70,229,0.06)] flex flex-col sm:flex-row sm:items-center justify-between gap-3"
             >
-              <div className="flex items-start sm:items-center gap-3 min-w-0 flex-1">
-                <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#2563EB] via-[#7C3AED] to-[#EC4899] text-white flex items-center justify-center shrink-0 shadow-[0_6px_14px_rgba(124,58,237,0.24)]">
-                  <Sparkles className="w-5 h-5" aria-hidden="true" />
+              <div className="flex items-start sm:items-center gap-3.5 min-w-0 flex-1">
+                <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-[#2563EB] via-[#4F46E5] to-[#7C3AED] text-white flex items-center justify-center shrink-0 shadow-[0_8px_18px_rgba(79,70,229,0.25)]">
+                  <svg
+                    viewBox="0 0 24 24"
+                    className="w-6 h-6"
+                    fill="none"
+                    aria-hidden="true"
+                  >
+                    <rect x="3" y="3" width="7" height="7" rx="2" stroke="currentColor" strokeWidth="2.1" />
+                    <rect x="5.4" y="5.4" width="2.2" height="2.2" rx="0.6" fill="currentColor" />
+                    <circle cx="17.5" cy="6.5" r="3.5" stroke="currentColor" strokeWidth="2.1" />
+                    <circle cx="17.5" cy="6.5" r="1.2" fill="currentColor" />
+                    <rect x="3" y="14" width="7" height="7" rx="2" stroke="currentColor" strokeWidth="2.1" />
+                    <rect x="5.4" y="16.4" width="2.2" height="2.2" rx="0.6" fill="currentColor" />
+                    <path
+                      d="M17.5 13L18.7 16.3L22 17.5L18.7 18.7L17.5 22L16.3 18.7L13 17.5L16.3 16.3L17.5 13Z"
+                      fill="currentColor"
+                    />
+                  </svg>
                 </div>
                 <div className="min-w-0">
                   <p className="font-display text-sm sm:text-base font-bold text-[#111214] leading-snug">
-                    Donnez vie à vos idées en un scan
+                    Partagez vos idées en un seul geste
                   </p>
                   <p className="text-xs sm:text-sm text-[#4B4D54] leading-relaxed mt-0.5">
-                    Transformez avec plaisir vos liens, messages, Wi-Fi, photos ou vidéos en QR codes colorés prêts pour tous vos écrans, sur iPhone comme sur ordinateur.
+                    Transformez vos liens, messages, accès Wi-Fi, photos ou vidéos en QR codes colorés et élégants.
                   </p>
                 </div>
               </div>
@@ -1233,7 +1309,6 @@ export default function App() {
             key={dashboardNonce}
             onOpenExtend={(target) => setExtendTarget(target)}
             onOpenPrivacy={() => setPrivacyModalOpen(true)}
-            onOpenAdmin={() => setAdminModalOpen(true)}
             onResourceDeleted={() => {
               void refreshDynamicRecords();
               void refreshHostedMedia();
@@ -1245,7 +1320,7 @@ export default function App() {
 
       <footer className="border-t border-[#E2E6F0] bg-white/75 backdrop-blur-xs">
         <div className="max-w-[1400px] mx-auto px-3.5 sm:px-6 py-3.5 flex flex-wrap items-center justify-between gap-3 text-xs text-[#5C5E66]">
-          <span>SparkQR Studio · Chiffrement E2EE &amp; conservation maîtrisée</span>
+          <span>SparkQR Studio · Confidentialité &amp; conservation maîtrisée</span>
           <div className="flex flex-wrap items-center gap-4">
             <button
               type="button"
@@ -1254,14 +1329,6 @@ export default function App() {
               className="font-medium hover:text-[#111214] hover:underline cursor-pointer"
             >
               Confidentialité &amp; Conditions
-            </button>
-            <button
-              type="button"
-              data-testid="footer-admin-btn"
-              onClick={() => setAdminModalOpen(true)}
-              className="font-medium hover:text-[#111214] hover:underline cursor-pointer"
-            >
-              Administration tarifs
             </button>
           </div>
         </div>

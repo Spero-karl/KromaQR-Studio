@@ -419,11 +419,11 @@ export async function extendRetentionPlan(input: {
 }
 
 export interface AdminStatusResponse {
-  configuredViaEnv: boolean;
+  configuredViaEnv?: boolean;
   needsInitialClaim: boolean;
-  dosya: StorageStatusInfo;
-  emailTransport: 'resend' | 'smtp' | 'none';
-  cronSecretConfigured: boolean;
+  dosya?: StorageStatusInfo;
+  emailTransport?: 'resend' | 'smtp' | 'none';
+  cronSecretConfigured?: boolean;
 }
 
 export async function fetchAdminStatus(): Promise<AdminStatusResponse> {

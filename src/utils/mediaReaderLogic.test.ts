@@ -283,6 +283,16 @@ test('looksLikeFilename & sanitizePublicCaption strip uploaded filenames while k
   assert.equal(buckets.images[0].caption, '');
   assert.equal(buckets.documents[0].caption, '');
   assert.equal(buckets.audios[0].caption, 'Note vocale privée');
+
+  // Redacted E2EE headline falls back to custom config.titleText (Titre), never legend
+  assert.equal(
+    resolvePublicReaderTitle({
+      customHeadline: 'Contenu chiffré',
+      customTitleText: 'Menu Printemps',
+    }),
+    'Menu Printemps'
+  );
+  assert.equal(sanitizePublicCaption('Scannez pour découvrir', ''), '');
 });
 
 
