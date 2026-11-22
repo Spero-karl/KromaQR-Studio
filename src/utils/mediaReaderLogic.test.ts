@@ -213,3 +213,76 @@ test('resolveMediaDownloadUrl converts /api/media/:id/file URLs to download endp
   assert.equal(resolveMediaDownloadUrl('/demo-atelier-1.jpg'), '/demo-atelier-1.jpg');
 });
 
+test('looksLikeFilename & sanitizePublicCaption strip uploaded filenames while keeping custom titles', async () => {
+  const {
+    looksLikeFilename,
+    sanitizePublicCaption,
+    resolvePublicReaderTitle,
+    resolveGenericCategoryTitle,
+  } = await import('./mediaReaderLogic');
+
+  assert.equal(looksLikeFilename('IMG_4821.jpg'), true);
+  assert.equal(looksLikeFilename('passeport_scan_final.pdf'), true);
+  assert.equal(looksLikeFilename('Vacances_Ete.MP4'), true);
+  assert.equal(looksLikeFilename('/uploads/media-123.png'), true);
+  assert.equal(looksLikeFilename('contenu-chiffre.spk1'), true);
+  assert.equal(looksLikeFilename('Exposition Atelier Travers 2026'), false);
+  assert.equal(looksLikeFilename('Contrat client signé'), false);
+
+  assert.equal(sanitizePublicCaption('photo_vacances.webp', ''), '');
+  assert.equal(sanitizePublicCaption('Image externe', ''), '');
+  assert.equal(sanitizePublicCaption('Mon album privé', ''), 'Mon album privé');
+
+  // Custom headline or custom titleText wins; raw filename never appears
+  assert.equal(
+    resolvePublicReaderTitle({
+      customHeadline: 'mon_fichier_secret.pdf',
+      customTitleText: 'Mon Code QR',
+    }),
+    ''
+  );
+  assert.equal(
+    resolvePublicReaderTitle({
+      customHeadline: '',
+      customTitleText: 'Invitation Vernissage',
+    }),
+    'Invitation Vernissage'
+  );
+  assert.equal(
+    resolvePublicReaderTitle({
+      customHeadline: 'Catalogue Automne',
+      customTitleText: 'Mon Code QR',
+      uppercase: true,
+    }),
+    'CATALOGUE AUTOMNE'
+  );
+
+  assert.equal(resolveGenericCategoryTitle('image-single'), 'Image');
+  assert.equal(resolveGenericCategoryTitle('video-single'), 'Vidéo');
+  assert.equal(resolveGenericCategoryTitle('document-single'), 'Document');
+  assert.equal(resolveGenericCategoryTitle('audio-single'), 'Audio');
+
+  // buildReaderMediaBuckets ignores imageName/videoName filenames completely
+  const buckets = buildReaderMediaBuckets(
+    {
+      ...DEFAULT_SOURCE,
+      type: 'image',
+      imageUrl: '/api/media/abc/file',
+      imageName: 'IMG_20261122_secret.png',
+    },
+    {
+      ...DEFAULT_EXPERIENCE,
+      headline: '',
+      template: 'media-gallery',
+      galleryItems: [
+        { id: 'd1', type: 'document', url: '/api/media/doc1/file', caption: 'devis_client_2026.pdf' },
+        { id: 'a1', type: 'audio', url: '/api/media/aud1/file', caption: 'Note vocale privée' },
+      ],
+    }
+  );
+  assert.equal(buckets.images[0].caption, '');
+  assert.equal(buckets.documents[0].caption, '');
+  assert.equal(buckets.audios[0].caption, 'Note vocale privée');
+});
+
+

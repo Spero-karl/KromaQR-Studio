@@ -153,7 +153,7 @@ export const ExperienceSecurityPanel: React.FC<ExperienceSecurityPanelProps> = (
           id: `${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
           type: mediaKind,
           url: uploadedUrl,
-          caption: origName || file.name,
+          caption: '',
           mimeType: origMime || undefined,
           isEncrypted: e2eeEnabled,
           originalSize: origSize,
@@ -778,7 +778,7 @@ export const ExperienceSecurityPanel: React.FC<ExperienceSecurityPanelProps> = (
                               next[idx] = { ...item, caption: e.target.value };
                               updateExp({ galleryItems: next });
                             }}
-                            placeholder="Légende..."
+                            placeholder="Titre personnalisé (optionnel)..."
                             className="flex-1 min-w-0 px-2 py-1 text-xs bg-white border border-[#DBD8CE] rounded-lg"
                           />
                           <button

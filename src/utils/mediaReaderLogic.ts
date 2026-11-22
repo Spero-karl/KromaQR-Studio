@@ -106,6 +106,121 @@ export function resolveReaderCategory(
   return 'text-free';
 }
 
+export function looksLikeFilename(raw?: string | null): boolean {
+  const value = (raw || '').trim();
+  if (!value) return false;
+
+  // Reject filesystem / URL-style paths with segments
+  if (/(?:^|\/|\\)(?:uploads|media|tmp|Users|home|var|Volumes)\b/i.test(value)) {
+    return true;
+  }
+  if (/^[a-zA-Z]:\\/.test(value)) {
+    return true;
+  }
+
+  // Reject explicit file extensions (media, docs, archives, encrypted .spk1)
+  if (
+    /\.(?:png|jpe?g|webp|gif|svg|avif|heic|heif|bmp|tiff?|ico|mp4|mov|m4v|webm|ogv|avi|mkv|wmv|flv|3gp|mp3|wav|m4a|aac|ogg|oga|flac|opus|pdf|docx?|xlsx?|pptx?|odt|ods|rtf|txt|csv|md|json|xml|zip|rar|7z|tar|gz|spk1)$/i.test(
+      value
+    )
+  ) {
+    return true;
+  }
+
+  // Reject common camera / scanner / internal technical generated IDs
+  if (
+    /^(?:IMG|DSC|DCIM|VID|MOV|PXL|MVI|WA\d+|SCREENSHOT|CAPTURE|SCAN|AUDIO|REC)[_-]?\d+/i.test(
+      value
+    ) ||
+    /^(?:media-[a-z0-9_-]{4,}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-)/i.test(value) ||
+    /^contenu-chiffre(?:\.spk1)?$/i.test(value)
+  ) {
+    return true;
+  }
+
+  return false;
+}
+
+const INTERNAL_PLACEHOLDER_CAPTIONS = new Set([
+  'mon code qr',
+  'scannez pour découvrir',
+  'image externe',
+  'vidéo externe',
+  'image principale',
+  'vidéo principale',
+  'contenu chiffré',
+  'contenu protégé de bout en bout',
+  'partagé via sparkqr — lecteur sécurisé',
+  'collection sparkqr',
+  'document sparkqr',
+  'audio sparkqr',
+]);
+
+export function sanitizePublicCaption(
+  raw?: string | null,
+  fallback = ''
+): string {
+  const value = (raw || '').trim();
+  if (!value) return fallback;
+  if (INTERNAL_PLACEHOLDER_CAPTIONS.has(value.toLowerCase())) {
+    return fallback;
+  }
+  if (looksLikeFilename(value)) {
+    return fallback;
+  }
+  return value;
+}
+
+export function resolvePublicReaderTitle(params: {
+  customHeadline?: string | null;
+  customTitleText?: string | null;
+  uppercase?: boolean;
+}): string {
+  const fromHeadline = sanitizePublicCaption(params.customHeadline, '');
+  const fromTitleText = sanitizePublicCaption(params.customTitleText, '');
+  const chosen = fromHeadline || fromTitleText;
+  if (!chosen) return '';
+  return params.uppercase ? chosen.toUpperCase() : chosen;
+}
+
+export function resolveGenericCategoryTitle(
+  category: ReaderContentCategory,
+  counts?: { images?: number; videos?: number; documents?: number; audios?: number }
+): string {
+  switch (category) {
+    case 'image-single':
+      return 'Image';
+    case 'image-gallery':
+      return (counts?.images ?? 0) > 1 ? `Galerie (${counts?.images})` : 'Image';
+    case 'video-single':
+      return 'Vidéo';
+    case 'video-gallery':
+      return (counts?.videos ?? 0) > 1 ? `Vidéos (${counts?.videos})` : 'Vidéo';
+    case 'document-single':
+      return 'Document';
+    case 'audio-single':
+      return 'Audio';
+    case 'mixed-collection':
+      return 'Collection';
+    case 'text-free':
+      return 'Message';
+    case 'wifi':
+      return 'Réseau Wi-Fi';
+    case 'url':
+      return 'Lien web';
+    case 'postcard':
+      return 'Carte postale';
+    case 'event-invite':
+      return 'Invitation';
+    case 'business-card':
+      return 'Carte de visite';
+    case 'private-page':
+      return 'Accès privé';
+    default:
+      return 'SparkQR';
+  }
+}
+
 export function buildReaderMediaBuckets(
   source: QrSourceState,
   experience: PostScanExperience
@@ -118,23 +233,37 @@ export function buildReaderMediaBuckets(
 } {
   const tpl = experience.template || 'standard';
   const gallery = Array.isArray(experience.galleryItems) ? experience.galleryItems : [];
+  const safeHeadline = sanitizePublicCaption(experience.headline, '');
 
   const galleryImages = gallery
     .filter((item) => item.type === 'image' && item.url.trim())
-    .map((item) => ({ ...item, url: normalizeMediaAssetUrl(item.url) }));
+    .map((item) => ({
+      ...item,
+      url: normalizeMediaAssetUrl(item.url),
+      caption: sanitizePublicCaption(item.caption, ''),
+    }));
   const galleryVideos = gallery
     .filter((item) => item.type === 'video' && item.url.trim())
     .map((item) => ({
       ...item,
       url: normalizeMediaAssetUrl(item.url),
+      caption: sanitizePublicCaption(item.caption, ''),
       posterUrl: item.posterUrl ? normalizeMediaAssetUrl(item.posterUrl) : undefined,
     }));
   const galleryDocs = gallery
     .filter((item) => item.type === 'document' && item.url.trim())
-    .map((item) => ({ ...item, url: normalizeMediaAssetUrl(item.url) }));
+    .map((item) => ({
+      ...item,
+      url: normalizeMediaAssetUrl(item.url),
+      caption: sanitizePublicCaption(item.caption, ''),
+    }));
   const galleryAudios = gallery
     .filter((item) => item.type === 'audio' && item.url.trim())
-    .map((item) => ({ ...item, url: normalizeMediaAssetUrl(item.url) }));
+    .map((item) => ({
+      ...item,
+      url: normalizeMediaAssetUrl(item.url),
+      caption: sanitizePublicCaption(item.caption, ''),
+    }));
 
   const images: PostScanMediaItem[] = [];
   const videos: PostScanMediaItem[] = [];
@@ -146,7 +275,7 @@ export function buildReaderMediaBuckets(
       id: 'source-primary-image',
       type: 'image',
       url: normalizeMediaAssetUrl(source.imageUrl),
-      caption: source.imageName || experience.headline || 'Image principale',
+      caption: safeHeadline,
       mimeType: source.imageMimeType,
       isEncrypted: source.imageEncrypted,
       originalSize: source.imageSize,
@@ -158,7 +287,7 @@ export function buildReaderMediaBuckets(
       id: 'source-primary-video',
       type: 'video',
       url: normalizeMediaAssetUrl(source.videoUrl),
-      caption: source.videoName || experience.headline || 'Vidéo principale',
+      caption: safeHeadline,
       posterUrl: source.videoPosterUrl?.trim()
         ? normalizeMediaAssetUrl(source.videoPosterUrl)
         : undefined,
@@ -202,7 +331,7 @@ export function buildReaderMediaBuckets(
   const textBody =
     (experience.mixedTextBlock && experience.mixedTextBlock.trim()) ||
     (source.type === 'text' && source.textMode === 'text' ? source.textValue : '') ||
-    experience.description ||
+    sanitizePublicCaption(experience.description, '') ||
     '';
 
   return { images, videos, documents, audios, textBody };
@@ -319,46 +448,46 @@ export function buildReaderThemeTokens(
   const baseBackdrop = buildShowcaseBackdrop(config, mood);
   const mode = modeOverride ?? getDefaultReaderColorMode(config, mood);
 
-  // Pick a vivid accent with good contrast in the chosen mode
-  const rawAccent = baseBackdrop.accentColor || '#1D4ED8';
+  // Pick a vivid accent with strong contrast in the chosen mode (defaulting to SparkQR cobalt/violet)
+  const rawAccent = baseBackdrop.accentColor || '#2563EB';
   const accentLum = relativeLuminance(rawAccent);
 
   if (mode === 'dark') {
     const safeAccent = accentLum < 0.14 ? '#60A5FA' : rawAccent;
-    const accentContrastText = relativeLuminance(safeAccent) > 0.45 ? '#0B0D12' : '#FFFFFF';
+    const accentContrastText = relativeLuminance(safeAccent) > 0.45 ? '#090B10' : '#FFFFFF';
     const isMoodDark =
       mood === 'gold-velvet' || mood === 'midnight-neon' || mood === 'cinema-35';
     return {
       mode: 'dark',
       outerBackground: isMoodDark
         ? baseBackdrop.outerBackground
-        : 'radial-gradient(circle at 18% 12%, rgba(29,78,216,0.22), transparent 52%), linear-gradient(160deg, #090B10 0%, #101420 55%, #07080D 100%)',
-      surfaceBackground: isMoodDark ? baseBackdrop.cardBackground : 'rgba(17, 20, 29, 0.94)',
-      surfaceElevated: 'rgba(255, 255, 255, 0.06)',
-      mediaStageBg: '#06070A',
-      borderColor: isMoodDark ? baseBackdrop.cardBorder : 'rgba(255, 255, 255, 0.12)',
+        : 'radial-gradient(ellipse 70% 50% at 15% 0%, rgba(37,99,235,0.22), transparent 58%), radial-gradient(ellipse 60% 45% at 88% 10%, rgba(79,70,229,0.18), transparent 55%), #080A10',
+      surfaceBackground: isMoodDark ? baseBackdrop.cardBackground : '#10131C',
+      surfaceElevated: 'rgba(255, 255, 255, 0.055)',
+      mediaStageBg: '#06080D',
+      borderColor: isMoodDark ? baseBackdrop.cardBorder : 'rgba(255, 255, 255, 0.10)',
       textPrimary: isMoodDark ? baseBackdrop.textPrimary : '#F8FAFC',
-      textMuted: isMoodDark ? baseBackdrop.textMuted : '#9CA3AF',
+      textMuted: isMoodDark ? baseBackdrop.textMuted : '#94A3B8',
       accentColor: safeAccent,
       accentContrastText,
     };
   }
 
-  // Light mode — editorial gallery paper
-  const safeAccent = accentLum > 0.65 ? '#1D4ED8' : rawAccent;
-  const accentContrastText = relativeLuminance(safeAccent) > 0.45 ? '#111214' : '#FFFFFF';
+  // Light mode — crisp SaaS gallery surface with SparkQR atmosphere
+  const safeAccent = accentLum > 0.65 ? '#2563EB' : rawAccent;
+  const accentContrastText = relativeLuminance(safeAccent) > 0.45 ? '#0F172A' : '#FFFFFF';
   return {
     mode: 'light',
     outerBackground:
       mood === 'botanical'
         ? baseBackdrop.outerBackground
-        : 'radial-gradient(circle at 18% 12%, rgba(29,78,216,0.10), transparent 52%), linear-gradient(160deg, #F6F5F0 0%, #ECEAE2 55%, #FAF9F5 100%)',
-    surfaceBackground: 'rgba(255, 255, 255, 0.96)',
-    surfaceElevated: '#F3F2EC',
-    mediaStageBg: '#121318',
-    borderColor: 'rgba(17, 18, 20, 0.11)',
-    textPrimary: '#111214',
-    textMuted: '#5C5E66',
+        : 'radial-gradient(ellipse 75% 55% at 14% 0%, rgba(37,99,235,0.085), transparent 60%), radial-gradient(ellipse 60% 48% at 88% 8%, rgba(79,70,229,0.075), transparent 56%), #F6F7FB',
+    surfaceBackground: '#FFFFFF',
+    surfaceElevated: '#F3F5FA',
+    mediaStageBg: '#ECEFF6',
+    borderColor: 'rgba(15, 23, 42, 0.09)',
+    textPrimary: '#0F172A',
+    textMuted: '#475569',
     accentColor: safeAccent,
     accentContrastText,
   };

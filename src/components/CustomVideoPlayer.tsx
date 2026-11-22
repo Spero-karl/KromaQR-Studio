@@ -189,7 +189,7 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
     <div
       ref={containerRef}
       data-testid="custom-video-player"
-      className={`relative rounded-2xl overflow-hidden bg-[#050608] border select-none flex flex-col ${className}`}
+      className={`relative rounded-xl overflow-hidden bg-[#05060A] border select-none flex flex-col ${className}`}
       style={{ borderColor }}
     >
       {/* Video Viewport */}
@@ -229,14 +229,14 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
               'Le flux vidéo n’a pas pu être lu (format non supporté ou ressource inaccessible).'
             )
           }
-          className="w-full max-h-[65vh] h-auto object-contain bg-black"
+          className="w-full max-h-[70dvh] h-auto object-contain bg-black"
         />
 
         {/* Custom Miniature Poster Overlay before first play */}
         {poster && !hasStarted && !isPlaying && (
           <img
             src={poster}
-            alt={`Miniature — ${title}`}
+            alt={title}
             className="absolute inset-0 w-full h-full object-contain bg-black pointer-events-none"
           />
         )}
@@ -251,12 +251,12 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
               e.stopPropagation();
               void togglePlay();
             }}
-            className="absolute inset-0 flex items-center justify-center bg-black/20 group-hover:bg-black/30 transition-colors cursor-pointer"
+            className="absolute inset-0 flex items-center justify-center bg-black/25 group-hover:bg-black/35 transition-colors cursor-pointer"
           >
             <span
-              className="w-14 h-14 rounded-full flex items-center justify-center shadow-[0_12px_32px_rgba(0,0,0,0.35)] transition-transform group-hover:scale-105"
+              className="w-14 h-14 rounded-full flex items-center justify-center shadow-[0_12px_32px_rgba(0,0,0,0.4)] transition-transform duration-150 group-hover:scale-105 active:scale-95"
               style={{
-                backgroundColor: accentColor,
+                background: `linear-gradient(135deg, ${accentColor}, #4F46E5)`,
                 color: '#FFFFFF',
               }}
             >
@@ -266,13 +266,13 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
         )}
       </div>
 
-      {/* Custom HTML5 Control Bar */}
+      {/* Sleek Responsive Control Bar */}
       <div
-        className="px-4 py-3 bg-[#090B10]/95 backdrop-blur-xs border-t border-white/10 text-white space-y-2"
+        className="px-3 sm:px-4 py-2.5 bg-[#090B11]/95 backdrop-blur-xs border-t border-white/10 text-white space-y-1.5"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Scrubbable Progress Track */}
-        <div className="relative h-4 flex items-center">
+        <div className="relative h-5 flex items-center">
           <div className="w-full h-1.5 rounded-full bg-white/15 overflow-hidden relative">
             <div
               className="absolute inset-y-0 left-0 bg-white/25 transition-all"
@@ -280,7 +280,10 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
             />
             <div
               className="absolute inset-y-0 left-0 rounded-full"
-              style={{ width: `${progressPercent}%`, backgroundColor: accentColor }}
+              style={{
+                width: `${progressPercent}%`,
+                background: `linear-gradient(90deg, ${accentColor}, #4F46E5)`,
+              }}
             />
           </div>
           <input
@@ -298,14 +301,14 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
         </div>
 
         {/* Transport, Volume, Fullscreen */}
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2.5 min-w-0">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 min-w-0">
             <button
               type="button"
               data-testid="video-play-toggle"
               aria-label={isPlaying ? 'Mettre en pause' : 'Lire la vidéo'}
               onClick={() => void togglePlay()}
-              className="p-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white transition-colors cursor-pointer shrink-0"
+              className="w-9 h-9 inline-flex items-center justify-center rounded-lg bg-white/10 hover:bg-white/20 text-white transition-colors cursor-pointer shrink-0"
             >
               {isPlaying ? (
                 <Pause className="w-4 h-4" aria-hidden="true" />
@@ -316,19 +319,19 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
 
             <span
               data-testid="video-time-display"
-              className="text-[11px] font-mono text-[#D1D5DB] tabular-nums whitespace-nowrap"
+              className="text-xs font-mono text-[#E2E8F0] tabular-nums whitespace-nowrap"
             >
               {formatMediaTimestamp(currentTime)} / {formatMediaTimestamp(duration)}
             </span>
           </div>
 
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex items-center gap-1.5 shrink-0">
             <button
               type="button"
               data-testid="video-mute-toggle"
               aria-label={isMuted ? 'Activer le son' : 'Couper le son'}
               onClick={toggleMute}
-              className="p-1.5 rounded-lg hover:bg-white/10 text-[#E5E7EB] transition-colors cursor-pointer"
+              className="w-9 h-9 inline-flex items-center justify-center rounded-lg hover:bg-white/10 text-[#E2E8F0] transition-colors cursor-pointer"
             >
               {isMuted || volume === 0 ? (
                 <VolumeX className="w-4 h-4" aria-hidden="true" />
@@ -346,7 +349,7 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
               step={0.05}
               value={isMuted ? 0 : volume}
               onChange={(e) => handleVolumeChange(Number(e.target.value))}
-              className="w-16 sm:w-20 accent-white cursor-pointer"
+              className="hidden sm:block w-20 accent-white cursor-pointer"
             />
 
             <button
@@ -354,7 +357,7 @@ export const CustomVideoPlayer: React.FC<CustomVideoPlayerProps> = ({
               data-testid="video-fullscreen-btn"
               aria-label={isFullscreen ? 'Quitter le plein écran' : 'Plein écran vidéo'}
               onClick={() => void toggleFullscreen()}
-              className="p-1.5 rounded-lg hover:bg-white/10 text-[#E5E7EB] transition-colors cursor-pointer"
+              className="w-9 h-9 inline-flex items-center justify-center rounded-lg hover:bg-white/10 text-[#E2E8F0] transition-colors cursor-pointer"
             >
               {isFullscreen ? (
                 <Minimize2 className="w-4 h-4" aria-hidden="true" />

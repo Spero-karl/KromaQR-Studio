@@ -24,7 +24,6 @@ interface ReaderApiPayload {
   dynamicHasPin?: boolean;
   isEncrypted?: boolean;
   e2eeKey?: string | null;
-  serverExpiresAt?: string | null;
 }
 
 interface DecryptedEnvelopePayload {
@@ -76,7 +75,7 @@ export const StandaloneReaderPage: React.FC<StandaloneReaderPageProps> = ({
           : DEFAULT_CONFIG;
 
         let rawSource: QrSourceState = body.source
-          ? { ...DEFAULT_SOURCE, ...body.source }
+          ? { ...DEFAULT_SOURCE, ...body.source, imageName: '', videoName: '' }
           : { ...DEFAULT_SOURCE };
 
         let rawExperience: PostScanExperience = body.experience
@@ -98,7 +97,7 @@ export const StandaloneReaderPage: React.FC<StandaloneReaderPageProps> = ({
                 id: `media-${routeId}`,
                 type: body.mediaType,
                 url: `/api/media/${routeId}/file`,
-                caption: rawExperience.headline || (body.mediaType === 'document' ? 'Document' : 'Audio'),
+                caption: '',
                 isEncrypted: Boolean(body.isEncrypted),
               },
             ],
@@ -122,7 +121,12 @@ export const StandaloneReaderPage: React.FC<StandaloneReaderPageProps> = ({
               fragmentKey
             );
             if (decrypted.source) {
-              rawSource = { ...rawSource, ...decrypted.source };
+              rawSource = {
+                ...rawSource,
+                ...decrypted.source,
+                imageName: '',
+                videoName: '',
+              };
             }
             if (decrypted.experience) {
               rawExperience = { ...rawExperience, ...decrypted.experience };
@@ -143,7 +147,6 @@ export const StandaloneReaderPage: React.FC<StandaloneReaderPageProps> = ({
           dynamicHasPin: Boolean(body.locked),
           isEncrypted,
           e2eeKey: fragmentKey,
-          serverExpiresAt: body.serverExpiresAt || null,
         });
       } catch (err) {
         if (cancelled) return;
@@ -166,10 +169,12 @@ export const StandaloneReaderPage: React.FC<StandaloneReaderPageProps> = ({
 
   if (loading) {
     return (
-      <div className="min-h-[100dvh] pb-safe pt-safe spark-canvas-bg text-[#111214] flex flex-col items-center justify-center gap-3 p-6">
-        <Loader2 className="w-7 h-7 animate-spin text-[#2563EB]" aria-hidden="true" />
-        <p className="text-sm font-medium text-[#5C5E66]">
-          Ouverture du lecteur SparkQR...
+      <div className="min-h-[100dvh] pb-safe pt-safe spark-canvas-bg text-[#0F172A] flex flex-col items-center justify-center gap-3 p-6">
+        <div className="w-11 h-11 rounded-2xl bg-white border border-slate-200/80 shadow-xs flex items-center justify-center">
+          <Loader2 className="w-5 h-5 animate-spin text-[#2563EB]" aria-hidden="true" />
+        </div>
+        <p className="text-sm font-medium text-slate-600">
+          Chargement du contenu…
         </p>
       </div>
     );
@@ -177,22 +182,19 @@ export const StandaloneReaderPage: React.FC<StandaloneReaderPageProps> = ({
 
   if (missingKeyError) {
     return (
-      <div className="min-h-[100dvh] pb-safe pt-safe spark-canvas-bg text-[#111214] flex items-center justify-center p-6">
+      <div className="min-h-[100dvh] pb-safe pt-safe spark-canvas-bg text-[#0F172A] flex items-center justify-center p-4 sm:p-6">
         <div
           data-testid="e2ee-missing-key"
-          className="max-w-md w-full rounded-3xl bg-white border border-[#DCE6FF] p-7 shadow-[0_18px_48px_rgba(37,99,235,0.08)] space-y-4"
+          className="max-w-md w-full rounded-2xl bg-white border border-slate-200 p-6 shadow-[0_14px_40px_rgba(15,23,42,0.06)] space-y-3"
         >
-          <div className="flex items-center gap-2.5 text-[#1D4ED8]">
+          <div className="flex items-center gap-2.5 text-[#2563EB]">
             <KeyRound className="w-5 h-5 shrink-0" aria-hidden="true" />
-            <h1 className="font-display text-base font-bold text-[#111214]">
+            <h1 className="font-display text-base font-bold text-[#0F172A]">
               Clé de déchiffrement manquante
             </h1>
           </div>
-          <p className="text-sm text-[#4B4D54] leading-relaxed">
-            Ce contenu est chiffré de bout en bout (AES-256-GCM) avant son envoi. La clé privée doit figurer dans le fragment de l’adresse (<code className="font-mono text-xs bg-[#F1F5F9] px-1.5 py-0.5 rounded">#k=...</code>).
-          </p>
-          <p className="text-xs text-[#6E7078] leading-relaxed">
-            SparkQR ne reçoit et ne stocke jamais cette clé sur le serveur : scannez le QR code original ou utilisez le lien complet reçu de son auteur.
+          <p className="text-sm text-slate-600 leading-relaxed">
+            Ce contenu est chiffré de bout en bout. Utilisez le lien complet incluant sa clé secrète (<code className="font-mono text-xs bg-slate-100 px-1.5 py-0.5 rounded">#k=...</code>) ou scannez le QR code d’origine.
           </p>
         </div>
       </div>
@@ -201,19 +203,19 @@ export const StandaloneReaderPage: React.FC<StandaloneReaderPageProps> = ({
 
   if (error || !data) {
     return (
-      <div className="min-h-[100dvh] pb-safe pt-safe spark-canvas-bg text-[#111214] flex items-center justify-center p-6">
+      <div className="min-h-[100dvh] pb-safe pt-safe spark-canvas-bg text-[#0F172A] flex items-center justify-center p-4 sm:p-6">
         <div
           data-testid="standalone-error-card"
-          className="max-w-md w-full rounded-3xl bg-white border border-[#E2E6F0] p-7 shadow-[0_18px_48px_rgba(37,99,235,0.08)] space-y-4"
+          className="max-w-md w-full rounded-2xl bg-white border border-slate-200 p-6 shadow-[0_14px_40px_rgba(15,23,42,0.06)] space-y-3"
         >
-          <div className="flex items-center gap-2.5 text-[#B91C1C]">
+          <div className="flex items-center gap-2.5 text-[#DC2626]">
             <AlertCircle className="w-5 h-5 shrink-0" aria-hidden="true" />
-            <h1 className="font-display text-base font-bold text-[#111214]">
+            <h1 className="font-display text-base font-bold text-[#0F172A]">
               Contenu inaccessible
             </h1>
           </div>
-          <p className="text-sm text-[#5C5E66] leading-relaxed">
-            {error || 'Ce code QR a expiré ou n’existe plus.'}
+          <p className="text-sm text-slate-600 leading-relaxed">
+            {error || 'Ce code QR n’est plus disponible.'}
           </p>
         </div>
       </div>
@@ -230,7 +232,6 @@ export const StandaloneReaderPage: React.FC<StandaloneReaderPageProps> = ({
       dynamicHasPin={data.dynamicHasPin}
       isEncrypted={data.isEncrypted}
       e2eeKey={data.e2eeKey}
-      serverExpiresAt={data.serverExpiresAt}
       standalone
       onPinUnlocked={() => setRefreshNonce((n) => n + 1)}
     />

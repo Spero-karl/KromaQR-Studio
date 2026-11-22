@@ -455,14 +455,87 @@ function renderStatusHtml(title: string, message: string, codeLabel: string): st
 </html>`;
 }
 
+function sanitizeReaderHeadline(raw?: string | null, fallback = ''): string {
+  const val = (raw || '').trim();
+  if (!val) return fallback;
+  if (
+    /\.(?:png|jpe?g|webp|gif|svg|avif|heic|heif|bmp|tiff?|ico|mp4|mov|m4v|webm|ogv|avi|mkv|wmv|flv|3gp|mp3|wav|m4a|aac|ogg|oga|flac|opus|pdf|docx?|xlsx?|pptx?|odt|ods|rtf|txt|csv|md|json|xml|zip|rar|7z|tar|gz|spk1)$/i.test(
+      val
+    ) ||
+    /^(?:IMG|DSC|DCIM|VID|MOV|PXL|MVI|SCREENSHOT|CAPTURE|SCAN|AUDIO|REC)[_-]?\d+/i.test(val) ||
+    /^(?:media-[a-z0-9_-]{4,}|contenu-chiffre(?:\.spk1)?)$/i.test(val)
+  ) {
+    return fallback;
+  }
+  return val;
+}
+
+function buildGenericServingFilename(record: MediaRecord): string {
+  const rawExt = path.extname(record.originalName || record.filename || '').toLowerCase();
+  const safeExt =
+    rawExt && rawExt !== '.spk1' && /^\.[a-z0-9]{1,8}$/i.test(rawExt)
+      ? rawExt
+      : record.mimeType === 'application/pdf'
+      ? '.pdf'
+      : record.mimeType === 'image/png'
+      ? '.png'
+      : record.mimeType === 'image/jpeg'
+      ? '.jpg'
+      : record.mimeType === 'image/webp'
+      ? '.webp'
+      : record.mimeType === 'video/mp4'
+      ? '.mp4'
+      : record.mimeType === 'video/webm'
+      ? '.webm'
+      : record.mimeType === 'audio/mpeg'
+      ? '.mp3'
+      : record.mimeType === 'audio/wav'
+      ? '.wav'
+      : '';
+  const baseLabel =
+    record.type === 'video'
+      ? 'sparkqr-video'
+      : record.type === 'document'
+      ? 'sparkqr-document'
+      : record.type === 'audio'
+      ? 'sparkqr-audio'
+      : 'sparkqr-image';
+  return `${baseLabel}${safeExt}`;
+}
+
+function sanitizeReaderExperienceForPublic(
+  exp?: Record<string, unknown>
+): Record<string, unknown> {
+  if (!exp || typeof exp !== 'object') return {};
+  const next: Record<string, unknown> = { ...exp };
+  if (typeof next.headline === 'string') {
+    next.headline = sanitizeReaderHeadline(next.headline, '');
+  }
+  if (typeof next.description === 'string') {
+    next.description = sanitizeReaderHeadline(next.description, '');
+  }
+  if (Array.isArray(next.galleryItems)) {
+    next.galleryItems = next.galleryItems.map((rawItem) => {
+      if (!rawItem || typeof rawItem !== 'object') return rawItem;
+      const item = rawItem as Record<string, unknown>;
+      return {
+        ...item,
+        caption: typeof item.caption === 'string' ? sanitizeReaderHeadline(item.caption, '') : '',
+      };
+    });
+  }
+  return next;
+}
+
 function renderPinGateHtml(slug: string, title: string, errorMsg?: string): string {
+  const safeTitle = sanitizeReaderHeadline(title, 'Contenu privé') || 'Contenu privé';
   return `<!doctype html>
 <html lang="fr">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
-    <title>Contenu protégé — ${escapeHtml(title)}</title>
+    <title>Contenu protégé — ${escapeHtml(safeTitle)}</title>
     <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@600;700&family=Plus+Jakarta+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
     <style>
       * { box-sizing: border-box; }
@@ -502,7 +575,7 @@ function renderPinGateHtml(slug: string, title: string, errorMsg?: string): stri
     <main class="card" data-testid="server-pin-gate">
       <div class="kicker">SparkQR · Accès privé</div>
       <h1>Accès protégé</h1>
-      <p>Ce code QR (« ${escapeHtml(title)} ») nécessite un code PIN ou mot de passe vérifié par le serveur pour afficher son contenu.</p>
+      <p>Ce code QR (« ${escapeHtml(safeTitle)} ») nécessite un code PIN ou mot de passe vérifié par le serveur pour afficher son contenu.</p>
       ${errorMsg ? `<div class="error" role="alert">${escapeHtml(errorMsg)}</div>` : ''}
       <form method="POST" action="/d/${escapeHtml(slug)}/unlock">
         <label for="pin">Code PIN / Mot de passe</label>
@@ -1026,9 +1099,13 @@ async function startServer() {
       if (obj.etag) {
         res.setHeader('ETag', `"${obj.etag}"`);
       }
+      const genericServeName = buildGenericServingFilename(record);
       res.setHeader(
         'Content-Disposition',
-        buildContentDisposition(disposition, record.originalName || record.filename)
+        buildContentDisposition(
+          disposition,
+          disposition === 'inline' ? genericServeName : genericServeName
+        )
       );
       res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
 
@@ -1123,7 +1200,11 @@ async function startServer() {
       : `/m/${record.id}`;
 
     if (record.kind === 'collection' && record.source) {
-      const normalizedSource: Record<string, unknown> = { ...record.source };
+      const normalizedSource: Record<string, unknown> = {
+        ...record.source,
+        imageName: '',
+        videoName: '',
+      };
       if (typeof normalizedSource.imageUrl === 'string') {
         normalizedSource.imageUrl = normalizeMediaAssetUrl(normalizedSource.imageUrl);
       }
@@ -1141,9 +1222,8 @@ async function startServer() {
         isEncrypted: Boolean(record.isEncrypted),
         e2eeVersion: record.e2eeVersion,
         encryptedMeta: record.encryptedMeta,
-        serverExpiresAt: record.serverExpiresAt || null,
         source: normalizedSource,
-        experience: record.experience || {},
+        experience: sanitizeReaderExperienceForPublic(record.experience),
         config: record.config || null,
       });
       return;
@@ -1159,22 +1239,21 @@ async function startServer() {
       isEncrypted: Boolean(record.isEncrypted),
       e2eeVersion: record.e2eeVersion,
       mediaType: record.type,
-      serverExpiresAt: record.serverExpiresAt || null,
       source: {
         type: isVideo ? 'video' : isDocument ? 'document' : isAudio ? 'audio' : 'image',
         textMode: 'url',
         imageUrl: !isVideo && !isDocument && !isAudio ? cleanAssetUrl : '',
-        imageName: !isVideo && !isDocument && !isAudio ? record.originalName : '',
+        imageName: '',
         imagePageUrl: !isVideo && !isDocument && !isAudio ? `/m/${record.id}` : '',
         videoUrl: isVideo ? cleanAssetUrl : '',
-        videoName: isVideo ? record.originalName : '',
+        videoName: '',
         videoPageUrl: isVideo ? `/m/${record.id}` : '',
         videoPosterUrl: record.posterUrl ? normalizeMediaAssetUrl(record.posterUrl) : '',
       },
       experience: {
         template: 'standard',
-        headline: record.isEncrypted ? 'Contenu protégé de bout en bout' : record.originalName,
-        description: 'Partagé via SparkQR — Lecteur sécurisé',
+        headline: '',
+        description: '',
         accentMood: 'auto',
       },
       config: record.config || null,
@@ -1496,7 +1575,7 @@ async function startServer() {
         source: { type: 'text', textMode: 'text', textValue: '' },
         experience: {
           template: 'private-page',
-          headline: rec.destination.title || 'Contenu protégé',
+          headline: sanitizeReaderHeadline(rec.destination.title, 'Contenu protégé') || 'Contenu protégé',
           description: 'Entrez votre code PIN pour accéder au contenu SparkQR.',
         },
         cardTheme: rec.destination.cardTheme,
@@ -1518,16 +1597,21 @@ async function startServer() {
     store[rec.slug] = rec;
     writeDynamicStore(store);
 
+    const sanitizedDynamicSource = {
+      ...(rec.destination.sourceSnapshot || {}),
+      imageName: '',
+      videoName: '',
+    };
+
     res.json({
       locked: false,
       dynamicSlug: rec.slug,
       hasPin: Boolean(rec.pinHash),
       isEncrypted: Boolean(rec.isEncrypted),
       encryptedMeta: (rec.destination as { encryptedMeta?: unknown }).encryptedMeta,
-      serverExpiresAt: rec.expiresAt || null,
       payload: rec.destination.payload,
-      source: rec.destination.sourceSnapshot || {},
-      experience: rec.destination.experience || {},
+      source: sanitizedDynamicSource,
+      experience: sanitizeReaderExperienceForPublic(rec.destination.experience),
       cardTheme: rec.destination.cardTheme,
       config: rec.destination.config || null,
     });

@@ -97,7 +97,12 @@ async function buildE2eeTransmissionBundle(params: {
   key: string;
 }) {
   const { src, exp, title, payload, key } = params;
-  const cleanSrc: QrSourceState = { ...src, e2eeKeyFragment: undefined };
+  const cleanSrc: QrSourceState = {
+    ...src,
+    imageName: '',
+    videoName: '',
+    e2eeKeyFragment: undefined,
+  };
   const encryptedMeta = await encryptJsonWithKey(
     {
       source: cleanSrc,
@@ -116,8 +121,8 @@ async function buildE2eeTransmissionBundle(params: {
     wifiPassword: '',
     imagePageUrl: '',
     videoPageUrl: '',
-    imageName: src.imageEncrypted ? 'Image chiffrée' : src.imageName,
-    videoName: src.videoEncrypted ? 'Vidéo chiffrée' : src.videoName,
+    imageName: '',
+    videoName: '',
     e2eeEnabled: true,
   };
 
@@ -1271,7 +1276,6 @@ export default function App() {
         experience={activeExperience}
         dynamicSlug={generatedSnapshot?.dynamicSlug ?? null}
         dynamicHasPin={generatedSnapshot?.dynamicHasPin ?? false}
-        serverExpiresAt={generatedSnapshot?.serverExpiresAt ?? null}
       />
 
       <ExportModal

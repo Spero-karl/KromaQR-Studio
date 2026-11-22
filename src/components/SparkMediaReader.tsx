@@ -11,7 +11,6 @@ import {
   FileText,
   Film,
   Globe,
-  Image as ImageIcon,
   Loader2,
   Lock,
   Mail,
@@ -33,7 +32,6 @@ import {
   DEFAULT_CONFIG,
   DEFAULT_EXPERIENCE,
   FONT_CATALOG,
-  POST_SCAN_TEMPLATES,
 } from '../data/presets';
 import type { PostScanExperience, PostScanMediaItem, QrConfig, QrSourceState } from '../types/qr';
 import { verifyDynamicPinOnServer } from '../utils/dynamicApi';
@@ -46,12 +44,14 @@ import {
   buildReaderMediaBuckets,
   buildReaderThemeTokens,
   getDefaultReaderColorMode,
+  resolveGenericCategoryTitle,
   resolveMediaDownloadUrl,
+  resolvePublicReaderTitle,
   resolveReaderCategory,
+  sanitizePublicCaption,
   type ReaderColorMode,
 } from '../utils/mediaReaderLogic';
-import { extractHostname } from '../utils/qrLogic';
-import { formatExactFrenchDateTime } from '../utils/retentionPricing';
+import { extractHostname, relativeLuminance } from '../utils/qrLogic';
 import { extractPrimaryFontName, resolveEncodedTextStyle } from '../utils/textStyle';
 import { CustomVideoPlayer } from './CustomVideoPlayer';
 
@@ -65,7 +65,6 @@ interface SparkMediaReaderProps {
   standalone?: boolean;
   isEncrypted?: boolean;
   e2eeKey?: string | null;
-  serverExpiresAt?: string | null;
   onPinUnlocked?: () => void;
   onClose?: () => void;
 }
@@ -81,37 +80,29 @@ function inferMimeFromMagicBytes(
   fallbackType: PostScanMediaItem['type']
 ): string {
   if (bytes.length >= 4) {
-    // %PDF
     if (bytes[0] === 0x25 && bytes[1] === 0x50 && bytes[2] === 0x44 && bytes[3] === 0x46) {
       return 'application/pdf';
     }
-    // PNG
     if (bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47) {
       return 'image/png';
     }
-    // JPEG
     if (bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) {
       return 'image/jpeg';
     }
-    // GIF
     if (bytes[0] === 0x47 && bytes[1] === 0x49 && bytes[2] === 0x46 && bytes[3] === 0x38) {
       return 'image/gif';
     }
-    // WebM / EBML
     if (bytes[0] === 0x1a && bytes[1] === 0x45 && bytes[2] === 0xdf && bytes[3] === 0xa3) {
       return 'video/webm';
     }
-    // OGG
     if (bytes[0] === 0x4f && bytes[1] === 0x67 && bytes[2] === 0x67 && bytes[3] === 0x53) {
       return 'audio/ogg';
     }
-    // ID3 (MP3)
     if (bytes[0] === 0x49 && bytes[1] === 0x44 && bytes[2] === 0x33) {
       return 'audio/mpeg';
     }
   }
   if (bytes.length >= 12) {
-    // RIFF....WEBP or RIFF....WAVE
     if (bytes[0] === 0x52 && bytes[1] === 0x49 && bytes[2] === 0x46 && bytes[3] === 0x46) {
       if (bytes[8] === 0x57 && bytes[9] === 0x45 && bytes[10] === 0x42 && bytes[11] === 0x50) {
         return 'image/webp';
@@ -120,7 +111,6 @@ function inferMimeFromMagicBytes(
         return 'audio/wav';
       }
     }
-    // MP4 ftyp
     if (bytes[4] === 0x66 && bytes[5] === 0x74 && bytes[6] === 0x79 && bytes[7] === 0x70) {
       return 'video/mp4';
     }
@@ -150,7 +140,6 @@ export const SparkMediaReader: React.FC<SparkMediaReaderProps> = ({
   standalone = false,
   isEncrypted = false,
   e2eeKey = null,
-  serverExpiresAt = null,
   onPinUnlocked,
   onClose,
 }) => {
@@ -161,8 +150,10 @@ export const SparkMediaReader: React.FC<SparkMediaReaderProps> = ({
   const [activeVideoIdx, setActiveVideoIdx] = useState(0);
   const [imageZoom, setImageZoom] = useState(1);
   const [imageFullscreen, setImageFullscreen] = useState(false);
+  const [pdfExpanded, setPdfExpanded] = useState(false);
 
   const [copiedPayload, setCopiedPayload] = useState(false);
+  const [copiedDocId, setCopiedDocId] = useState<string | null>(null);
   const [postcardFlipped, setPostcardFlipped] = useState(false);
   const [imageLoadError, setImageLoadError] = useState(false);
   const [pinAttempt, setPinAttempt] = useState('');
@@ -205,6 +196,7 @@ export const SparkMediaReader: React.FC<SparkMediaReaderProps> = ({
     setActiveVideoIdx(0);
     setImageZoom(1);
     setImageFullscreen(false);
+    setPdfExpanded(false);
     setImageLoadError(false);
     setPostcardFlipped(false);
   }, [payload, dynamicHasPin, config]);
@@ -303,7 +295,7 @@ export const SparkMediaReader: React.FC<SparkMediaReaderProps> = ({
           }
           if (!resolvedE2eeKey) {
             throw new Error(
-              'Clé de déchiffrement manquante dans le lien (#...) pour lire ce fichier protégé.'
+              'Clé de déchiffrement manquante dans le lien (#...) pour lire ce contenu protégé.'
             );
           }
           const plain = await decryptBufferChunked(bytes, resolvedE2eeKey);
@@ -340,7 +332,7 @@ export const SparkMediaReader: React.FC<SparkMediaReaderProps> = ({
           setMediaDecryptError(
             err instanceof Error
               ? err.message
-              : 'Impossible de déchiffrer le média avec cette clé.'
+              : 'Impossible de déchiffrer le contenu avec cette clé.'
           );
         }
       } finally {
@@ -385,7 +377,7 @@ export const SparkMediaReader: React.FC<SparkMediaReaderProps> = ({
     [config, tokens.textPrimary]
   );
 
-  // Preload exact Google Font so cursive/display fonts render crisply upon opening /m/:id or /d/:slug
+  // Preload exact Google Font so cursive/display fonts render crisply upon opening
   useEffect(() => {
     if (typeof document === 'undefined' || !('fonts' in document)) return;
     const primaryFont = extractPrimaryFontName(exactTextStyle.fontFamily);
@@ -467,11 +459,16 @@ export const SparkMediaReader: React.FC<SparkMediaReaderProps> = ({
     }
   };
 
-  const handleCopyText = async (value: string) => {
+  const handleCopyText = async (value: string, docId?: string) => {
     try {
       await navigator.clipboard.writeText(value);
-      setCopiedPayload(true);
-      setTimeout(() => setCopiedPayload(false), 1800);
+      if (docId) {
+        setCopiedDocId(docId);
+        setTimeout(() => setCopiedDocId(null), 1800);
+      } else {
+        setCopiedPayload(true);
+        setTimeout(() => setCopiedPayload(false), 1800);
+      }
     } catch {
       // Ignore clipboard failures
     }
@@ -507,50 +504,26 @@ export const SparkMediaReader: React.FC<SparkMediaReaderProps> = ({
 
   const isWebLink = /^https?:\/\//i.test(payload);
   const hostname = isWebLink ? extractHostname(payload) : '';
-  const tpl = experience.template || 'standard';
-  const tplMeta = POST_SCAN_TEMPLATES.find((t) => t.id === tpl);
 
-  const rawTitle =
-    experience.headline.trim() ||
-    (category === 'text-free' && config.titleText === 'Mon Code QR'
-      ? ''
-      : config.titleText.trim()) ||
-    source.imageName ||
-    source.videoName ||
-    '';
+  // Strict title rule: show custom user title when configured, else clean generic category label (never raw filenames)
+  const customTitle = resolvePublicReaderTitle({
+    customHeadline: experience.headline,
+    customTitleText: config.titleText,
+    uppercase: config.titleUppercase,
+  });
+  const genericTitle = resolveGenericCategoryTitle(category, {
+    images: buckets.images.length,
+    videos: buckets.videos.length,
+    documents: buckets.documents.length,
+    audios: buckets.audios.length,
+  });
+  const displayTitle = customTitle || genericTitle;
 
-  const headline = config.titleUppercase ? rawTitle.toUpperCase() : rawTitle;
-
-  const rawDescription =
-    experience.description.trim() ||
-    (config.subtitleText !== 'Scannez pour découvrir' ? config.subtitleText.trim() : '');
-
-  const categoryLabel = (() => {
-    switch (category) {
-      case 'image-single':
-        return 'Image';
-      case 'image-gallery':
-        return `Galerie (${buckets.images.length})`;
-      case 'text-free':
-        return 'Message';
-      case 'video-single':
-        return 'Vidéo';
-      case 'video-gallery':
-        return `Collection vidéo (${buckets.videos.length})`;
-      case 'document-single':
-        return 'Document';
-      case 'audio-single':
-        return 'Audio';
-      case 'mixed-collection':
-        return 'Collection multimédia';
-      case 'wifi':
-        return 'Réseau Wi-Fi';
-      case 'url':
-        return 'Lien web';
-      default:
-        return tplMeta?.label || 'SparkQR';
-    }
-  })();
+  const customDescription =
+    sanitizePublicCaption(experience.description, '') ||
+    (config.subtitleText !== 'Scannez pour découvrir'
+      ? sanitizePublicCaption(config.subtitleText, '')
+      : '');
 
   const showImageSection =
     (category === 'image-single' ||
@@ -572,13 +545,19 @@ export const SparkMediaReader: React.FC<SparkMediaReaderProps> = ({
     category === 'text-free' ||
     (category === 'mixed-collection' && Boolean(buckets.textBody.trim()));
 
+  // Preserve exact typography while protecting legibility if user switches reader to Dark mode
+  const safeTextColor =
+    colorMode === 'dark' && relativeLuminance(exactTextStyle.color) < 0.09
+      ? tokens.textPrimary
+      : exactTextStyle.color;
+
   const displayedTextStyle: React.CSSProperties = {
     fontFamily: exactTextStyle.fontFamily,
     fontSize: `${exactTextStyle.fontSizePx}px`,
     fontWeight: exactTextStyle.fontWeight,
     fontStyle: exactTextStyle.fontStyle,
     textAlign: exactTextStyle.textAlign,
-    color: exactTextStyle.color,
+    color: safeTextColor,
     letterSpacing: exactTextStyle.letterSpacing,
     textDecoration: exactTextStyle.textDecoration,
   };
@@ -588,6 +567,19 @@ export const SparkMediaReader: React.FC<SparkMediaReaderProps> = ({
     return resolveMediaDownloadUrl(url);
   };
 
+  const hasDedicatedPageAction = isWebLink && !standalone;
+  const showCopyInFooter =
+    category === 'text-free' || category === 'url' || category === 'mixed-collection';
+
+  const showFooter =
+    pinUnlocked && (showCopyInFooter || hasDedicatedPageAction);
+
+  // Subtle reader-width adjustment: documents/mixed collections/long text enjoy comfortable breadth
+  const standaloneMaxWidth =
+    category === 'text-free' || showDocumentSection || category === 'mixed-collection'
+      ? 'max-w-4xl'
+      : 'max-w-3xl';
+
   return (
     <div
       data-testid="spark-media-reader"
@@ -595,27 +587,33 @@ export const SparkMediaReader: React.FC<SparkMediaReaderProps> = ({
       data-reader-category={category}
       className={
         standalone
-          ? 'min-h-[100dvh] w-full flex flex-col justify-center px-3 py-5 pb-safe pt-safe sm:px-6 sm:py-6 transition-colors duration-200'
-          : 'relative w-full rounded-3xl px-3.5 py-4 sm:px-6 sm:py-5 border transition-colors duration-200'
+          ? 'min-h-[100dvh] w-full flex flex-col px-3 py-4 pb-safe pt-safe sm:px-6 sm:py-6 transition-colors duration-200'
+          : 'relative w-full transition-colors duration-200'
       }
       style={{
-        background: tokens.outerBackground,
-        borderColor: standalone ? 'transparent' : tokens.borderColor,
+        background: standalone ? tokens.outerBackground : tokens.surfaceBackground,
         color: tokens.textPrimary,
       }}
     >
       <div
         className={
           standalone
-            ? `${category === 'text-free' ? 'max-w-6xl' : 'max-w-4xl'} w-full mx-auto space-y-4 my-auto`
-            : 'w-full space-y-3.5'
+            ? `${standaloneMaxWidth} w-full mx-auto sm:my-auto space-y-3`
+            : 'w-full'
         }
       >
-        {/* Minimalist Smartphone-First Header */}
-        <header className="flex flex-wrap items-center justify-between gap-2">
+        {/* Top Brand + Theme Toggle Bar */}
+        <header
+          className={
+            standalone
+              ? 'flex items-center justify-between gap-2 px-1'
+              : 'flex items-center justify-between gap-2 px-4 sm:px-5 py-3 border-b'
+          }
+          style={standalone ? undefined : { borderColor: tokens.borderColor }}
+        >
           <div className="flex items-center gap-2 min-w-0">
             <div
-              className="w-8 h-8 rounded-xl flex items-center justify-center border shrink-0"
+              className="w-7 h-7 rounded-lg flex items-center justify-center border shrink-0"
               style={{
                 backgroundColor: tokens.surfaceBackground,
                 borderColor: tokens.borderColor,
@@ -661,34 +659,26 @@ export const SparkMediaReader: React.FC<SparkMediaReaderProps> = ({
                 <rect x="19" y="19" width="3.5" height="3.5" rx="1" fill="currentColor" />
               </svg>
             </div>
-            <div className="flex items-center gap-1.5 text-xs font-semibold tracking-tight min-w-0">
-              <span className="truncate font-display font-bold">
-                SparkQR
-              </span>
-              <span aria-hidden="true" style={{ color: tokens.textMuted }}>
-                ·
-              </span>
-              <span className="font-medium truncate" style={{ color: tokens.textMuted }}>
-                {categoryLabel}
-              </span>
+            <div className="flex items-center gap-1.5 text-xs tracking-tight min-w-0">
+              <span className="font-display font-bold truncate">SparkQR</span>
               {(isEncrypted || Boolean(resolvedE2eeKey)) && (
                 <>
                   <span aria-hidden="true" style={{ color: tokens.textMuted }}>
                     ·
                   </span>
                   <span
-                    className="inline-flex items-center gap-1 text-[11px] font-medium"
+                    className="inline-flex items-center gap-1 text-[11px] font-medium whitespace-nowrap"
                     style={{ color: tokens.accentColor }}
                   >
                     <ShieldCheck className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
-                    <span className="hidden sm:inline">Chiffré E2EE</span>
+                    <span>Chiffré</span>
                   </span>
                 </>
               )}
             </div>
           </div>
 
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex items-center gap-1.5 shrink-0">
             <button
               type="button"
               data-testid="reader-theme-toggle"
@@ -696,9 +686,9 @@ export const SparkMediaReader: React.FC<SparkMediaReaderProps> = ({
               aria-label={
                 colorMode === 'dark' ? 'Passer en mode clair' : 'Passer en mode sombre'
               }
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-semibold transition-colors whitespace-nowrap cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-3 min-h-[38px] rounded-lg border text-xs font-semibold transition-colors whitespace-nowrap cursor-pointer"
               style={{
-                backgroundColor: tokens.surfaceBackground,
+                backgroundColor: standalone ? tokens.surfaceBackground : tokens.surfaceElevated,
                 borderColor: tokens.borderColor,
                 color: tokens.textPrimary,
               }}
@@ -721,9 +711,9 @@ export const SparkMediaReader: React.FC<SparkMediaReaderProps> = ({
                 type="button"
                 onClick={onClose}
                 aria-label="Fermer le lecteur"
-                className="p-2 rounded-xl border transition-colors cursor-pointer"
+                className="w-[38px] h-[38px] inline-flex items-center justify-center rounded-lg border transition-colors cursor-pointer"
                 style={{
-                  backgroundColor: tokens.surfaceBackground,
+                  backgroundColor: tokens.surfaceElevated,
                   borderColor: tokens.borderColor,
                   color: tokens.textPrimary,
                 }}
@@ -734,61 +724,89 @@ export const SparkMediaReader: React.FC<SparkMediaReaderProps> = ({
           </div>
         </header>
 
-        {/* Main Editorial Card */}
+        {/* Unified Content Surface (Single Card — Zero Double Nesting) */}
         <article
-          className={`rounded-3xl border shadow-[0_20px_56px_rgba(0,0,0,0.12)] space-y-5 animate-spark-enter ${
-            category === 'text-free'
-              ? 'px-5 py-5 sm:px-10 sm:py-8'
-              : 'p-5 sm:p-7'
-          }`}
+          className={
+            standalone
+              ? 'rounded-2xl border shadow-[0_14px_44px_rgba(15,23,42,0.08)] p-3.5 sm:p-5 space-y-4 animate-spark-enter'
+              : 'p-3.5 sm:p-5 space-y-4'
+          }
           style={{
             backgroundColor: tokens.surfaceBackground,
-            borderColor: tokens.borderColor,
+            borderColor: standalone ? tokens.borderColor : 'transparent',
           }}
         >
-          {/* Editorial Title & Description (only shown when meaningful) */}
-          {(headline || rawDescription) && (
-            <div className="space-y-1.5">
-              {headline && (
+          {/* Editorial Heading & Optional Custom Subtitle */}
+          {category === 'text-free' && !customTitle && !customDescription ? (
+            <h1 id="target-preview-title" className="sr-only">
+              {displayTitle}
+            </h1>
+          ) : (
+            <div className="flex flex-wrap items-baseline justify-between gap-2">
+              <div className="space-y-0.5 min-w-0">
                 <h1
                   id="target-preview-title"
-                  className="tracking-tight leading-tight"
+                  className="tracking-tight leading-snug break-words"
                   style={{
                     fontFamily: titleFontCss,
-                    fontSize: `${Math.max(22, (config.titleSize || 21) + 4)}px`,
-                    fontWeight: config.titleWeight || 700,
-                    fontStyle: config.titleItalic ? 'italic' : 'normal',
+                    fontSize: customTitle
+                      ? `${Math.max(20, Math.min(28, (config.titleSize || 20) + 2))}px`
+                      : '18px',
+                    fontWeight: customTitle ? config.titleWeight || 700 : 700,
+                    fontStyle: customTitle && config.titleItalic ? 'italic' : 'normal',
                     color: tokens.textPrimary,
                   }}
                 >
-                  {headline}
+                  {displayTitle}
                 </h1>
-              )}
-              {rawDescription && (
-                <p
-                  className="leading-relaxed"
-                  style={{
-                    fontFamily: subtitleFontCss,
-                    fontSize: `${Math.max(13, config.subtitleSize || 13)}px`,
-                    color: tokens.textMuted,
-                  }}
-                >
-                  {rawDescription}
-                </p>
-              )}
-            </div>
-          )}
+                {customDescription && (
+                  <p
+                    className="leading-relaxed"
+                    style={{
+                      fontFamily: subtitleFontCss,
+                      fontSize: `${Math.max(13, config.subtitleSize || 13)}px`,
+                      color: tokens.textMuted,
+                    }}
+                  >
+                    {customDescription}
+                  </p>
+                )}
+              </div>
 
-          {serverExpiresAt && (
-            <p
-              className="text-[11px] tabular-nums"
-              style={{ color: tokens.textMuted }}
-            >
-              Suppression automatique programmée le{' '}
-              <strong style={{ color: tokens.textPrimary }}>
-                {formatExactFrenchDateTime(serverExpiresAt)}
-              </strong>
-            </p>
+              <div className="flex items-center gap-2 shrink-0">
+                {showImageSection && buckets.images.length > 1 && (
+                  <span
+                    className="text-xs font-mono tabular-nums shrink-0"
+                    style={{ color: tokens.textMuted }}
+                  >
+                    {safeImageIdx + 1} / {buckets.images.length}
+                  </span>
+                )}
+                {showVideoSection && buckets.videos.length > 1 && !showImageSection && (
+                  <span
+                    className="text-xs font-mono tabular-nums shrink-0"
+                    style={{ color: tokens.textMuted }}
+                  >
+                    {safeVideoIdx + 1} / {buckets.videos.length}
+                  </span>
+                )}
+                {currentVideo && showVideoSection && !showImageSection && !showDocumentSection && !showAudioSection && (
+                  <a
+                    href={resolveSafeDownloadHref(currentVideo.url)}
+                    download="video-sparkqr"
+                    className="inline-flex items-center gap-1.5 px-3 min-h-[34px] text-xs font-semibold rounded-lg border transition-colors whitespace-nowrap shrink-0"
+                    style={{
+                      color: tokens.textPrimary,
+                      backgroundColor: tokens.surfaceElevated,
+                      borderColor: tokens.borderColor,
+                    }}
+                  >
+                    <Download className="w-3.5 h-3.5" aria-hidden="true" />
+                    <span>Télécharger</span>
+                  </a>
+                )}
+              </div>
+            </div>
           )}
 
           {/* Server PIN Gate if dynamic QR has PIN */}
@@ -796,7 +814,7 @@ export const SparkMediaReader: React.FC<SparkMediaReaderProps> = ({
             <form
               onSubmit={(e) => void handleServerPinCheck(e)}
               data-testid="modal-pin-gate"
-              className="rounded-2xl p-6 border space-y-4"
+              className="rounded-xl p-5 border space-y-3.5"
               style={{
                 borderColor: tokens.borderColor,
                 backgroundColor: tokens.surfaceElevated,
@@ -810,7 +828,7 @@ export const SparkMediaReader: React.FC<SparkMediaReaderProps> = ({
                 <span>Accès protégé par code PIN</span>
               </div>
               <p className="text-xs leading-relaxed" style={{ color: tokens.textMuted }}>
-                Entrez le code PIN configuré pour afficher ce contenu confidentiel.
+                Entrez le code PIN configuré pour afficher ce contenu.
               </p>
               <div className="flex flex-wrap gap-2">
                 <input
@@ -844,62 +862,116 @@ export const SparkMediaReader: React.FC<SparkMediaReaderProps> = ({
             <>
               {decryptingMedia && (
                 <div
-                  className="flex items-center gap-2.5 px-4 py-3 rounded-2xl border text-xs"
+                  className="flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl border text-xs"
                   style={{
                     borderColor: tokens.borderColor,
                     backgroundColor: tokens.surfaceElevated,
                     color: tokens.textMuted,
                   }}
                 >
-                  <Loader2 className="w-4 h-4 animate-spin shrink-0" style={{ color: tokens.accentColor }} aria-hidden="true" />
-                  <span>Déchiffrement local en cours dans votre navigateur…</span>
+                  <Loader2
+                    className="w-4 h-4 animate-spin shrink-0"
+                    style={{ color: tokens.accentColor }}
+                    aria-hidden="true"
+                  />
+                  <span>Déchiffrement en cours…</span>
                 </div>
               )}
 
               {mediaDecryptError && (
                 <div
                   role="alert"
-                  className="flex items-start gap-2.5 px-4 py-3 rounded-2xl border border-red-400/40 bg-red-500/10 text-xs text-red-500"
+                  className="flex items-start gap-2.5 px-3.5 py-3 rounded-xl border border-red-400/40 bg-red-500/10 text-xs text-red-500"
                 >
                   <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" aria-hidden="true" />
                   <span>{mediaDecryptError}</span>
                 </div>
               )}
 
-              {/* 1. IMAGE READER */}
+              {/* 1. IMAGE VIEWER */}
               {showImageSection && currentImage && (
                 <section
-                  aria-label="Lecteur d’images"
+                  aria-label="Visionneuse d’image"
                   data-testid="reader-image-section"
-                  className="space-y-3.5"
+                  className="space-y-2.5"
                 >
+                  {currentImage.caption && currentImage.caption !== displayTitle && (
+                    <p className="text-xs font-semibold" style={{ color: tokens.textMuted }}>
+                      {currentImage.caption}
+                    </p>
+                  )}
+
+                  {/* Edge-clean visual viewport (preserves original proportions cleanly) */}
                   <div
-                    className="flex flex-wrap items-center justify-between gap-2 px-3.5 py-2 rounded-2xl border text-xs"
+                    className="relative rounded-xl overflow-hidden border flex items-center justify-center"
                     style={{
-                      backgroundColor: tokens.surfaceElevated,
+                      backgroundColor: tokens.mediaStageBg,
                       borderColor: tokens.borderColor,
                     }}
                   >
-                    <div className="flex items-center gap-2 min-w-0">
-                      <ImageIcon
-                        className="w-3.5 h-3.5 shrink-0"
-                        style={{ color: tokens.accentColor }}
-                        aria-hidden="true"
-                      />
-                      <span className="font-semibold truncate max-w-[200px]">
-                        {currentImage.caption || `Image ${safeImageIdx + 1}`}
-                      </span>
-                      {buckets.images.length > 1 && (
-                        <span
-                          className="font-mono text-[11px] tabular-nums"
-                          style={{ color: tokens.textMuted }}
-                        >
-                          · {safeImageIdx + 1} / {buckets.images.length}
-                        </span>
+                    <div className="w-full max-h-[72dvh] overflow-auto flex items-center justify-center">
+                      {imageLoadError ? (
+                        <div className="p-6 text-center space-y-1.5" style={{ color: tokens.textPrimary }}>
+                          <p className="text-sm font-semibold">Impossible de charger cette image</p>
+                          <p className="text-xs" style={{ color: tokens.textMuted }}>
+                            Vérifiez que l’image est accessible ou que le lien complet est conservé.
+                          </p>
+                        </div>
+                      ) : (
+                        <img
+                          data-testid="reader-active-image"
+                          src={currentImage.url}
+                          alt={currentImage.caption || customTitle || 'Image'}
+                          referrerPolicy="no-referrer"
+                          onLoad={() => setImageLoadError(false)}
+                          onError={() => {
+                            if (!decryptingMedia) setImageLoadError(true);
+                          }}
+                          onClick={() => {
+                            if (imageZoom === 1) {
+                              void toggleImageFullscreen();
+                            }
+                          }}
+                          onDoubleClick={() => setImageZoom((z) => (z > 1 ? 1 : 2))}
+                          style={{
+                            transform: `scale(${imageZoom})`,
+                            transformOrigin: 'center center',
+                            transition: 'transform 160ms ease',
+                          }}
+                          className={`max-w-full max-h-[70dvh] w-auto h-auto object-contain select-none ${
+                            imageZoom === 1 ? 'cursor-zoom-in' : 'cursor-grab'
+                          }`}
+                        />
                       )}
                     </div>
 
-                    <div className="flex items-center gap-1.5">
+                    {buckets.images.length > 1 && (
+                      <>
+                        <button
+                          type="button"
+                          data-testid="reader-img-prev"
+                          aria-label="Image précédente"
+                          onClick={handlePrevImage}
+                          className="absolute left-2.5 top-1/2 -translate-y-1/2 w-10 h-10 inline-flex items-center justify-center rounded-full bg-black/55 text-white hover:bg-black/75 transition-colors cursor-pointer"
+                        >
+                          <ArrowLeft className="w-4 h-4" />
+                        </button>
+                        <button
+                          type="button"
+                          data-testid="reader-img-next"
+                          aria-label="Image suivante"
+                          onClick={handleNextImage}
+                          className="absolute right-2.5 top-1/2 -translate-y-1/2 w-10 h-10 inline-flex items-center justify-center rounded-full bg-black/55 text-white hover:bg-black/75 transition-colors cursor-pointer"
+                        >
+                          <ArrowRight className="w-4 h-4" />
+                        </button>
+                      </>
+                    )}
+                  </div>
+
+                  {/* Slim Unified Image Toolbar */}
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex items-center gap-1">
                       <button
                         type="button"
                         data-testid="reader-zoom-out"
@@ -909,11 +981,11 @@ export const SparkMediaReader: React.FC<SparkMediaReaderProps> = ({
                         }
                         disabled={imageZoom <= 1}
                         style={{
-                          backgroundColor: tokens.surfaceBackground,
+                          backgroundColor: tokens.surfaceElevated,
                           borderColor: tokens.borderColor,
                           color: tokens.textPrimary,
                         }}
-                        className="p-1.5 rounded-lg border disabled:opacity-40 transition-opacity cursor-pointer"
+                        className="w-9 h-9 inline-flex items-center justify-center rounded-lg border disabled:opacity-40 transition-opacity cursor-pointer"
                       >
                         <ZoomOut className="w-3.5 h-3.5" aria-hidden="true" />
                       </button>
@@ -922,11 +994,11 @@ export const SparkMediaReader: React.FC<SparkMediaReaderProps> = ({
                         data-testid="reader-zoom-reset"
                         onClick={() => setImageZoom(1)}
                         style={{
-                          backgroundColor: tokens.surfaceBackground,
+                          backgroundColor: tokens.surfaceElevated,
                           borderColor: tokens.borderColor,
                           color: tokens.textPrimary,
                         }}
-                        className="px-2.5 py-1 rounded-lg border font-mono text-[11px] tabular-nums cursor-pointer"
+                        className="px-2.5 h-9 rounded-lg border font-mono text-xs tabular-nums cursor-pointer"
                       >
                         {Math.round(imageZoom * 100)}%
                       </button>
@@ -939,120 +1011,74 @@ export const SparkMediaReader: React.FC<SparkMediaReaderProps> = ({
                         }
                         disabled={imageZoom >= 3}
                         style={{
-                          backgroundColor: tokens.surfaceBackground,
+                          backgroundColor: tokens.surfaceElevated,
                           borderColor: tokens.borderColor,
                           color: tokens.textPrimary,
                         }}
-                        className="p-1.5 rounded-lg border disabled:opacity-40 transition-opacity cursor-pointer"
+                        className="w-9 h-9 inline-flex items-center justify-center rounded-lg border disabled:opacity-40 transition-opacity cursor-pointer"
                       >
                         <ZoomIn className="w-3.5 h-3.5" aria-hidden="true" />
                       </button>
+                    </div>
 
+                    <div className="flex items-center gap-1.5">
                       <button
                         type="button"
                         data-testid="reader-fullscreen-btn"
                         aria-label="Plein écran image"
                         onClick={() => void toggleImageFullscreen()}
                         style={{
-                          backgroundColor: tokens.surfaceBackground,
+                          backgroundColor: tokens.surfaceElevated,
                           borderColor: tokens.borderColor,
                           color: tokens.textPrimary,
                         }}
-                        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border font-semibold cursor-pointer"
+                        className="inline-flex items-center gap-1.5 px-3 h-9 rounded-lg border text-xs font-semibold whitespace-nowrap cursor-pointer"
                       >
                         {imageFullscreen ? (
                           <Minimize2 className="w-3.5 h-3.5" aria-hidden="true" />
                         ) : (
                           <Maximize2 className="w-3.5 h-3.5" aria-hidden="true" />
                         )}
-                        <span className="hidden sm:inline">Plein écran</span>
+                        <span>Plein écran</span>
                       </button>
-                    </div>
-                  </div>
 
-                  {/* Editorial Gallery Mat (preserves aspect ratio strictly) */}
-                  <div
-                    className="relative rounded-2xl overflow-hidden border flex items-center justify-center min-h-[260px]"
-                    style={{
-                      backgroundColor:
-                        colorMode === 'dark' ? '#0B0D12' : '#F4F2EC',
-                      borderColor: tokens.borderColor,
-                    }}
-                  >
-                    <div className="w-full max-h-[65vh] overflow-auto flex items-center justify-center p-3 sm:p-5">
-                      {imageLoadError ? (
-                        <div className="p-6 text-center space-y-1.5" style={{ color: tokens.textPrimary }}>
-                          <p className="text-sm font-semibold">Impossible de charger cette image</p>
-                          <p className="text-xs" style={{ color: tokens.textMuted }}>
-                            Vérifiez que l’image est accessible ou que le lien de déchiffrement (#k=...) est complet.
-                          </p>
-                        </div>
-                      ) : (
-                        <img
-                          data-testid="reader-active-image"
-                          src={currentImage.url}
-                          alt={currentImage.caption || headline || 'Image SparkQR'}
-                          referrerPolicy="no-referrer"
-                          onLoad={() => setImageLoadError(false)}
-                          onError={() => {
-                            if (!decryptingMedia) setImageLoadError(true);
-                          }}
-                          onDoubleClick={() => setImageZoom((z) => (z > 1 ? 1 : 2))}
-                          style={{
-                            transform: `scale(${imageZoom})`,
-                            transformOrigin: 'center center',
-                            transition: 'transform 160ms ease',
-                          }}
-                          className="max-w-full max-h-[58vh] w-auto h-auto object-contain rounded-xl shadow-[0_8px_28px_rgba(0,0,0,0.12)] select-none"
-                        />
-                      )}
+                      <a
+                        href={resolveSafeDownloadHref(currentImage.url)}
+                        download="image-sparkqr"
+                        className="inline-flex items-center gap-1.5 px-3 h-9 rounded-lg text-xs font-semibold whitespace-nowrap transition-opacity hover:opacity-90"
+                        style={{
+                          backgroundColor: tokens.accentColor,
+                          color: tokens.accentContrastText,
+                        }}
+                      >
+                        <Download className="w-3.5 h-3.5" aria-hidden="true" />
+                        <span>Télécharger</span>
+                      </a>
                     </div>
-
-                    {buckets.images.length > 1 && (
-                      <>
-                        <button
-                          type="button"
-                          data-testid="reader-img-prev"
-                          aria-label="Image précédente"
-                          onClick={handlePrevImage}
-                          className="absolute left-3 top-1/2 -translate-y-1/2 p-2.5 rounded-full bg-black/60 text-white hover:bg-black/80 transition-colors cursor-pointer"
-                        >
-                          <ArrowLeft className="w-4 h-4" />
-                        </button>
-                        <button
-                          type="button"
-                          data-testid="reader-img-next"
-                          aria-label="Image suivante"
-                          onClick={handleNextImage}
-                          className="absolute right-3 top-1/2 -translate-y-1/2 p-2.5 rounded-full bg-black/60 text-white hover:bg-black/80 transition-colors cursor-pointer"
-                        >
-                          <ArrowRight className="w-4 h-4" />
-                        </button>
-                      </>
-                    )}
                   </div>
 
                   {buckets.images.length > 1 && (
-                    <div className="flex items-center gap-2 overflow-x-auto pb-1">
+                    <div className="flex items-center gap-2 overflow-x-auto pt-0.5 pb-1 no-scrollbar">
                       {buckets.images.map((img, idx) => {
                         const active = idx === safeImageIdx;
                         return (
                           <button
                             key={img.id}
                             type="button"
+                            aria-label={`Afficher l’image ${idx + 1}`}
                             onClick={() => {
                               setImageZoom(1);
                               setActiveImageIdx(idx);
                             }}
-                            className="relative w-16 h-16 rounded-xl overflow-hidden border-2 shrink-0 transition-opacity cursor-pointer"
+                            className="relative w-14 h-14 sm:w-16 sm:h-16 rounded-lg overflow-hidden border-2 shrink-0 transition-opacity cursor-pointer"
                             style={{
                               borderColor: active ? tokens.accentColor : tokens.borderColor,
-                              opacity: active ? 1 : 0.6,
+                              opacity: active ? 1 : 0.65,
                             }}
                           >
                             <img
                               src={img.url}
-                              alt={img.caption || `Miniature ${idx + 1}`}
+                              alt={`Image ${idx + 1}`}
                               className="w-full h-full object-cover"
                             />
                           </button>
@@ -1063,36 +1089,23 @@ export const SparkMediaReader: React.FC<SparkMediaReaderProps> = ({
                 </section>
               )}
 
-              {/* 2. NATIVE HTML5 VIDEO READER */}
+              {/* 2. VIDEO PLAYER */}
               {showVideoSection && currentVideo && (
                 <section
-                  aria-label="Lecteur vidéo natif"
+                  aria-label="Lecteur vidéo"
                   data-testid="reader-video-section"
                   className="space-y-3"
                 >
-                  <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
-                    <div className="flex items-center gap-1.5 font-semibold">
-                      <Film
-                        className="w-4 h-4 shrink-0"
-                        style={{ color: tokens.accentColor }}
-                        aria-hidden="true"
-                      />
-                      <span>{currentVideo.caption || 'Lecture vidéo intégrée'}</span>
-                    </div>
-                    {buckets.videos.length > 1 && (
-                      <span
-                        className="font-mono text-[11px] tabular-nums"
-                        style={{ color: tokens.textMuted }}
-                      >
-                        Vidéo {safeVideoIdx + 1} / {buckets.videos.length}
-                      </span>
-                    )}
-                  </div>
+                  {currentVideo.caption && currentVideo.caption !== displayTitle && (
+                    <p className="text-xs font-semibold" style={{ color: tokens.textMuted }}>
+                      {currentVideo.caption}
+                    </p>
+                  )}
 
                   <CustomVideoPlayer
                     src={currentVideo.url}
                     poster={currentVideo.posterUrl || source.videoPosterUrl}
-                    title={currentVideo.caption || headline || 'Vidéo SparkQR'}
+                    title={currentVideo.caption || customTitle || 'Vidéo'}
                     accentColor={tokens.accentColor}
                     borderColor={tokens.borderColor}
                   />
@@ -1107,7 +1120,7 @@ export const SparkMediaReader: React.FC<SparkMediaReaderProps> = ({
                             type="button"
                             data-testid={`reader-video-item-${idx}`}
                             onClick={() => setActiveVideoIdx(idx)}
-                            className="flex items-center gap-2.5 p-2.5 rounded-xl border text-left transition-colors cursor-pointer"
+                            className="flex items-center gap-2.5 p-2 rounded-xl border text-left transition-colors cursor-pointer"
                             style={{
                               borderColor: active ? tokens.accentColor : tokens.borderColor,
                               backgroundColor: active
@@ -1131,10 +1144,10 @@ export const SparkMediaReader: React.FC<SparkMediaReaderProps> = ({
                                 {vid.caption || `Séquence ${idx + 1}`}
                               </span>
                               <span
-                                className="block text-[10px]"
+                                className="block text-[11px]"
                                 style={{ color: tokens.textMuted }}
                               >
-                                {active ? 'En lecture' : 'Cliquer pour lire'}
+                                {active ? 'En lecture' : 'Lire'}
                               </span>
                             </div>
                           </button>
@@ -1145,90 +1158,193 @@ export const SparkMediaReader: React.FC<SparkMediaReaderProps> = ({
                 </section>
               )}
 
-              {/* 2b. AUDIO READER */}
+              {/* 2b. AUDIO PLAYER */}
               {showAudioSection && (
                 <section aria-label="Lecteur audio" className="space-y-2.5">
-                  {buckets.audios.map((aud) => (
+                  {buckets.audios.map((aud, idx) => (
                     <div
                       key={aud.id}
-                      className="rounded-2xl p-4 border space-y-2.5"
+                      className="rounded-xl p-3.5 sm:p-4 border space-y-3"
                       style={{
                         borderColor: tokens.borderColor,
                         backgroundColor: tokens.surfaceElevated,
                       }}
                     >
                       <div className="flex items-center justify-between gap-2">
-                        <div className="flex items-center gap-2 text-xs font-semibold min-w-0">
-                          <Music className="w-4 h-4 shrink-0" style={{ color: tokens.accentColor }} aria-hidden="true" />
-                          <span className="truncate">{aud.caption || 'Piste audio'}</span>
-                        </div>
-                        <a
-                          href={resolveSafeDownloadHref(aud.url)}
-                          download={aud.caption || 'audio-sparkqr'}
-                          className="inline-flex items-center gap-1 text-xs font-semibold hover:underline shrink-0"
-                          style={{ color: tokens.accentColor }}
-                        >
-                          <Download className="w-3.5 h-3.5" aria-hidden="true" />
-                          <span>Télécharger</span>
-                        </a>
-                      </div>
-                      <audio controls src={aud.url} className="w-full" />
-                    </div>
-                  ))}
-                </section>
-              )}
-
-              {/* 2c. DOCUMENT READER (PDF, TXT, CSV, DOCX) */}
-              {showDocumentSection && (
-                <section aria-label="Documents partagés" className="space-y-3">
-                  {buckets.documents.map((doc) => {
-                    const isPdf = doc.resolvedMime === 'application/pdf';
-                    return (
-                      <div
-                        key={doc.id}
-                        className="rounded-2xl p-4 border space-y-3"
-                        style={{
-                          borderColor: tokens.borderColor,
-                          backgroundColor: tokens.surfaceElevated,
-                        }}
-                      >
-                        <div className="flex flex-wrap items-center justify-between gap-2">
-                          <div className="flex items-center gap-2 text-xs font-semibold min-w-0">
-                            <FileText className="w-4 h-4 shrink-0" style={{ color: tokens.accentColor }} aria-hidden="true" />
-                            <span className="truncate">{doc.caption || 'Document'}</span>
-                          </div>
-                          <a
-                            href={resolveSafeDownloadHref(doc.url)}
-                            download={doc.caption || 'document-sparkqr'}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-opacity"
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <span
+                            className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
                             style={{
                               backgroundColor: tokens.accentColor,
                               color: tokens.accentContrastText,
                             }}
                           >
-                            <Download className="w-3.5 h-3.5" aria-hidden="true" />
-                            <span>Télécharger</span>
-                          </a>
+                            <Music className="w-4 h-4" aria-hidden="true" />
+                          </span>
+                          <span className="text-sm font-semibold truncate">
+                            {aud.caption || (buckets.audios.length > 1 ? `Audio ${idx + 1}` : 'Audio')}
+                          </span>
                         </div>
-                        {doc.textPreview !== undefined && (
+                        <a
+                          href={resolveSafeDownloadHref(aud.url)}
+                          download="audio-sparkqr"
+                          className="inline-flex items-center gap-1.5 px-3 min-h-[36px] rounded-lg border text-xs font-semibold whitespace-nowrap shrink-0 transition-opacity hover:opacity-85"
+                          style={{
+                            borderColor: tokens.borderColor,
+                            backgroundColor: tokens.surfaceBackground,
+                            color: tokens.textPrimary,
+                          }}
+                        >
+                          <Download className="w-3.5 h-3.5" aria-hidden="true" />
+                          <span>Télécharger</span>
+                        </a>
+                      </div>
+                      <audio controls src={aud.url} className="w-full h-11" />
+                    </div>
+                  ))}
+                </section>
+              )}
+
+              {/* 2c. DOCUMENT & PDF VIEWER */}
+              {showDocumentSection && (
+                <section aria-label="Lecteur de documents" className="space-y-3">
+                  {buckets.documents.map((doc, idx) => {
+                    const isPdf = doc.resolvedMime === 'application/pdf';
+                    const isTextDoc = doc.textPreview !== undefined;
+                    const canRenderPdfFrame = isPdf && (doc.url.startsWith('blob:') || !doc.isEncrypted);
+                    const label =
+                      doc.caption ||
+                      (isPdf
+                        ? buckets.documents.length > 1
+                          ? `Document PDF ${idx + 1}`
+                          : 'Document PDF'
+                        : buckets.documents.length > 1
+                        ? `Document ${idx + 1}`
+                        : 'Document');
+
+                    return (
+                      <div
+                        key={doc.id}
+                        className="rounded-xl border overflow-hidden"
+                        style={{
+                          borderColor: tokens.borderColor,
+                          backgroundColor: tokens.surfaceElevated,
+                        }}
+                      >
+                        <div
+                          className="flex flex-wrap items-center justify-between gap-2 px-3.5 py-2.5 border-b"
+                          style={{ borderColor: tokens.borderColor }}
+                        >
+                          <div className="flex items-center gap-2 text-xs font-semibold min-w-0">
+                            <FileText
+                              className="w-4 h-4 shrink-0"
+                              style={{ color: tokens.accentColor }}
+                              aria-hidden="true"
+                            />
+                            <span className="truncate">{label}</span>
+                          </div>
+
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            {isTextDoc && (
+                              <button
+                                type="button"
+                                onClick={() => void handleCopyText(doc.textPreview || '', doc.id)}
+                                className="inline-flex items-center gap-1.5 px-2.5 min-h-[34px] rounded-lg border text-xs font-semibold whitespace-nowrap cursor-pointer"
+                                style={{
+                                  backgroundColor: tokens.surfaceBackground,
+                                  borderColor: tokens.borderColor,
+                                  color: tokens.textPrimary,
+                                }}
+                              >
+                                {copiedDocId === doc.id ? (
+                                  <>
+                                    <Check className="w-3.5 h-3.5 text-emerald-500" aria-hidden="true" />
+                                    <span>Copié</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Copy className="w-3.5 h-3.5" aria-hidden="true" />
+                                    <span>Copier</span>
+                                  </>
+                                )}
+                              </button>
+                            )}
+
+                            {canRenderPdfFrame && (
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={() => setPdfExpanded((v) => !v)}
+                                  className="hidden sm:inline-flex items-center gap-1 px-2.5 min-h-[34px] rounded-lg border text-xs font-semibold whitespace-nowrap cursor-pointer"
+                                  style={{
+                                    backgroundColor: tokens.surfaceBackground,
+                                    borderColor: tokens.borderColor,
+                                    color: tokens.textPrimary,
+                                  }}
+                                >
+                                  {pdfExpanded ? (
+                                    <Minimize2 className="w-3.5 h-3.5" aria-hidden="true" />
+                                  ) : (
+                                    <Maximize2 className="w-3.5 h-3.5" aria-hidden="true" />
+                                  )}
+                                  <span>{pdfExpanded ? 'Réduire' : 'Agrandir'}</span>
+                                </button>
+                                <a
+                                  href={doc.url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center gap-1.5 px-2.5 min-h-[34px] rounded-lg border text-xs font-semibold whitespace-nowrap"
+                                  style={{
+                                    backgroundColor: tokens.surfaceBackground,
+                                    borderColor: tokens.borderColor,
+                                    color: tokens.textPrimary,
+                                  }}
+                                >
+                                  <ExternalLink className="w-3.5 h-3.5" aria-hidden="true" />
+                                  <span>Ouvrir</span>
+                                </a>
+                              </>
+                            )}
+
+                            <a
+                              href={resolveSafeDownloadHref(doc.url)}
+                              download={isPdf ? 'document-sparkqr.pdf' : 'document-sparkqr'}
+                              className="inline-flex items-center gap-1.5 px-3 min-h-[34px] rounded-lg text-xs font-semibold whitespace-nowrap transition-opacity hover:opacity-90"
+                              style={{
+                                backgroundColor: tokens.accentColor,
+                                color: tokens.accentContrastText,
+                              }}
+                            >
+                              <Download className="w-3.5 h-3.5" aria-hidden="true" />
+                              <span>Télécharger</span>
+                            </a>
+                          </div>
+                        </div>
+
+                        {isTextDoc ? (
                           <pre
-                            className="p-3.5 rounded-xl border text-xs font-mono whitespace-pre-wrap break-words max-h-72 overflow-y-auto"
+                            className="p-4 text-xs sm:text-sm font-mono whitespace-pre-wrap break-words max-h-[62dvh] overflow-y-auto leading-relaxed"
                             style={{
                               backgroundColor: tokens.surfaceBackground,
-                              borderColor: tokens.borderColor,
                               color: tokens.textPrimary,
                             }}
                           >
                             {doc.textPreview}
                           </pre>
-                        )}
-                        {isPdf && (doc.url.startsWith('blob:') || !doc.isEncrypted) && (
+                        ) : canRenderPdfFrame ? (
                           <iframe
                             src={doc.url}
-                            title={doc.caption || 'Aperçu PDF'}
-                            className="w-full h-[55vh] rounded-xl border bg-white"
-                            style={{ borderColor: tokens.borderColor }}
+                            title={label}
+                            className={`w-full bg-white transition-all duration-200 ${
+                              pdfExpanded ? 'h-[82dvh]' : 'h-[62dvh] sm:h-[70dvh]'
+                            }`}
                           />
+                        ) : (
+                          <div className="p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                            <p className="text-xs leading-relaxed" style={{ color: tokens.textMuted }}>
+                              Ce document est prêt à être consulté sur votre appareil via le bouton Télécharger.
+                            </p>
+                          </div>
                         )}
                       </div>
                     );
@@ -1239,12 +1355,12 @@ export const SparkMediaReader: React.FC<SparkMediaReaderProps> = ({
               {/* 3. EXACT TYPOGRAPHIC TEXT READER */}
               {showTextSection && (
                 <section
-                  aria-label="Lecteur de texte"
+                  aria-label="Message"
                   data-testid="reader-text-section"
                   className={
                     category === 'text-free'
-                      ? 'w-full py-2 sm:py-3 min-h-[130px] flex items-center'
-                      : 'w-full pt-4 border-t'
+                      ? 'w-full py-2 sm:py-4'
+                      : 'w-full pt-3.5 border-t'
                   }
                   style={
                     category === 'text-free'
@@ -1266,7 +1382,7 @@ export const SparkMediaReader: React.FC<SparkMediaReaderProps> = ({
               {category === 'postcard' && (
                 <div
                   data-testid="exp-postcard-view"
-                  className="rounded-2xl p-5 sm:p-6 border space-y-4"
+                  className="rounded-xl p-4 sm:p-5 border space-y-3.5"
                   style={{
                     borderColor: tokens.borderColor,
                     backgroundColor: tokens.surfaceElevated,
@@ -1281,13 +1397,13 @@ export const SparkMediaReader: React.FC<SparkMediaReaderProps> = ({
                       type="button"
                       data-testid="flip-postcard-btn"
                       onClick={() => setPostcardFlipped((v) => !v)}
-                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-[11px] font-semibold cursor-pointer"
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-semibold cursor-pointer"
                       style={{
                         borderColor: tokens.borderColor,
                         color: tokens.accentColor,
                       }}
                     >
-                      <RotateCw className="w-3 h-3" aria-hidden="true" />
+                      <RotateCw className="w-3.5 h-3.5" aria-hidden="true" />
                       <span>
                         {postcardFlipped ? 'Voir le recto' : 'Retourner (verso)'}
                       </span>
@@ -1299,27 +1415,27 @@ export const SparkMediaReader: React.FC<SparkMediaReaderProps> = ({
                       {source.imageUrl && (
                         <img
                           src={decryptedAssets[source.imageUrl]?.blobUrl || source.imageUrl}
-                          alt={headline || 'Carte postale'}
-                          className="w-full max-h-[300px] object-contain rounded-xl bg-black/15"
+                          alt={customTitle || 'Carte postale'}
+                          className="w-full max-h-[320px] object-contain rounded-lg bg-black/10"
                         />
                       )}
                       <p
                         className="leading-relaxed whitespace-pre-wrap"
                         style={{
                           fontFamily: FONT_CATALOG.dancing.cssFamily,
-                          fontSize: '26px',
+                          fontSize: '24px',
                           color: tokens.textPrimary,
                         }}
                       >
                         {source.textValue ||
-                          experience.description ||
-                          'Souvenir précieux envoyé depuis SparkQR.'}
+                          customDescription ||
+                          'Souvenir envoyé via SparkQR.'}
                       </p>
                     </div>
                   ) : (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
                       <div
-                        className="space-y-2 border-b sm:border-b-0 sm:border-r pb-3 sm:pb-0 sm:pr-4"
+                        className="space-y-1.5 border-b sm:border-b-0 sm:border-r pb-3 sm:pb-0 sm:pr-4"
                         style={{ borderColor: tokens.borderColor }}
                       >
                         <span
@@ -1332,7 +1448,7 @@ export const SparkMediaReader: React.FC<SparkMediaReaderProps> = ({
                           className="text-sm leading-relaxed whitespace-pre-wrap"
                           style={{ color: tokens.textPrimary }}
                         >
-                          {experience.description ||
+                          {customDescription ||
                             source.textValue ||
                             'Merci de votre visite.'}
                         </p>
@@ -1363,7 +1479,7 @@ export const SparkMediaReader: React.FC<SparkMediaReaderProps> = ({
               {category === 'event-invite' && (
                 <div
                   data-testid="exp-event-view"
-                  className="rounded-2xl p-5 border grid grid-cols-1 sm:grid-cols-2 gap-4"
+                  className="rounded-xl p-4 sm:p-5 border grid grid-cols-1 sm:grid-cols-2 gap-4"
                   style={{
                     borderColor: tokens.borderColor,
                     backgroundColor: tokens.surfaceElevated,
@@ -1410,7 +1526,7 @@ export const SparkMediaReader: React.FC<SparkMediaReaderProps> = ({
                     </div>
                   </div>
                   <div
-                    className="sm:col-span-2 pt-2 border-t text-xs"
+                    className="sm:col-span-2 pt-2.5 border-t text-xs"
                     style={{
                       borderColor: tokens.borderColor,
                       color: tokens.textMuted,
@@ -1428,7 +1544,7 @@ export const SparkMediaReader: React.FC<SparkMediaReaderProps> = ({
               {category === 'business-card' && (
                 <div
                   data-testid="exp-business-view"
-                  className="rounded-2xl p-5 border space-y-3"
+                  className="rounded-xl p-4 sm:p-5 border space-y-3"
                   style={{
                     borderColor: tokens.borderColor,
                     backgroundColor: tokens.surfaceElevated,
@@ -1436,7 +1552,7 @@ export const SparkMediaReader: React.FC<SparkMediaReaderProps> = ({
                 >
                   <div>
                     <div
-                      className="text-lg font-bold"
+                      className="text-base sm:text-lg font-bold"
                       style={{ color: tokens.textPrimary }}
                     >
                       {experience.personName}
@@ -1455,14 +1571,14 @@ export const SparkMediaReader: React.FC<SparkMediaReaderProps> = ({
                     {experience.contactEmail && (
                       <a
                         href={`mailto:${experience.contactEmail}`}
-                        className="inline-flex items-center gap-1.5 hover:underline"
+                        className="inline-flex items-center gap-1.5 hover:underline min-w-0 truncate"
                         style={{ color: tokens.textPrimary }}
                       >
                         <Mail
-                          className="w-3.5 h-3.5"
+                          className="w-3.5 h-3.5 shrink-0"
                           style={{ color: tokens.accentColor }}
                         />
-                        <span>{experience.contactEmail}</span>
+                        <span className="truncate">{experience.contactEmail}</span>
                       </a>
                     )}
                     {experience.contactPhone && (
@@ -1472,7 +1588,7 @@ export const SparkMediaReader: React.FC<SparkMediaReaderProps> = ({
                         style={{ color: tokens.textPrimary }}
                       >
                         <Phone
-                          className="w-3.5 h-3.5"
+                          className="w-3.5 h-3.5 shrink-0"
                           style={{ color: tokens.accentColor }}
                         />
                         <span>{experience.contactPhone}</span>
@@ -1486,7 +1602,7 @@ export const SparkMediaReader: React.FC<SparkMediaReaderProps> = ({
               {category === 'private-page' && (
                 <div
                   data-testid="exp-private-view"
-                  className="rounded-2xl p-5 border space-y-2"
+                  className="rounded-xl p-4 sm:p-5 border space-y-2"
                   style={{
                     borderColor: tokens.borderColor,
                     backgroundColor: tokens.surfaceElevated,
@@ -1511,7 +1627,7 @@ export const SparkMediaReader: React.FC<SparkMediaReaderProps> = ({
               {/* 8. URL CARD */}
               {category === 'url' && (
                 <div
-                  className="rounded-2xl p-4 sm:p-5 border flex flex-col gap-2"
+                  className="rounded-xl p-4 border space-y-3"
                   style={{
                     borderColor: tokens.borderColor,
                     backgroundColor: tokens.surfaceElevated,
@@ -1519,7 +1635,7 @@ export const SparkMediaReader: React.FC<SparkMediaReaderProps> = ({
                 >
                   <div className="flex items-center gap-2 text-xs font-semibold" style={{ color: tokens.accentColor }}>
                     <Globe className="w-4 h-4 shrink-0" aria-hidden="true" />
-                    <span>{hostname}</span>
+                    <span className="truncate">{hostname || 'Lien externe'}</span>
                   </div>
                   <p
                     className="text-xs sm:text-sm font-mono break-all select-all"
@@ -1527,32 +1643,47 @@ export const SparkMediaReader: React.FC<SparkMediaReaderProps> = ({
                   >
                     {payload}
                   </p>
+                  {isWebLink && (
+                    <a
+                      href={payload}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 px-4 min-h-[40px] rounded-xl text-xs font-semibold transition-opacity hover:opacity-90"
+                      style={{
+                        backgroundColor: tokens.accentColor,
+                        color: tokens.accentContrastText,
+                      }}
+                    >
+                      <ExternalLink className="w-3.5 h-3.5" aria-hidden="true" />
+                      <span>Ouvrir le lien</span>
+                    </a>
+                  )}
                 </div>
               )}
 
               {/* 9. WI-FI CARD */}
               {category === 'wifi' && (
                 <div
-                  className="rounded-2xl p-4 sm:p-5 border space-y-2.5"
+                  className="rounded-xl p-4 border space-y-3"
                   style={{
                     borderColor: tokens.borderColor,
                     backgroundColor: tokens.surfaceElevated,
                   }}
                 >
                   <div className="flex items-center justify-between gap-4">
-                    <div className="flex items-center gap-2.5">
-                      <Wifi className="w-5 h-5" style={{ color: tokens.accentColor }} aria-hidden="true" />
-                      <div>
-                        <p className="text-xs" style={{ color: tokens.textMuted }}>
-                          Réseau sans fil
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <Wifi className="w-5 h-5 shrink-0" style={{ color: tokens.accentColor }} aria-hidden="true" />
+                      <div className="min-w-0">
+                        <p className="text-[11px]" style={{ color: tokens.textMuted }}>
+                          Nom du réseau
                         </p>
-                        <p className="text-base font-bold" style={{ color: tokens.textPrimary }}>
+                        <p className="text-base font-bold truncate" style={{ color: tokens.textPrimary }}>
                           {source.wifiSsid}
                         </p>
                       </div>
                     </div>
                     <span
-                      className="text-xs font-mono font-medium"
+                      className="text-xs font-mono font-semibold shrink-0"
                       style={{ color: tokens.accentColor }}
                     >
                       {source.wifiSecurity === 'nopass' ? 'Ouvert' : source.wifiSecurity}
@@ -1560,17 +1691,22 @@ export const SparkMediaReader: React.FC<SparkMediaReaderProps> = ({
                   </div>
                   {source.wifiSecurity !== 'nopass' && source.wifiPassword && (
                     <div
-                      className="pt-2.5 border-t flex items-center justify-between gap-3"
+                      className="pt-2.5 border-t flex flex-wrap items-center justify-between gap-2"
                       style={{ borderColor: tokens.borderColor }}
                     >
-                      <span className="text-xs font-mono" style={{ color: tokens.textMuted }}>
-                        Mot de passe : {source.wifiPassword}
+                      <span className="text-xs font-mono break-all" style={{ color: tokens.textMuted }}>
+                        Mot de passe :{' '}
+                        <strong style={{ color: tokens.textPrimary }}>{source.wifiPassword}</strong>
                       </span>
                       <button
                         type="button"
                         onClick={() => void handleCopyText(source.wifiPassword)}
-                        className="inline-flex items-center gap-1.5 text-xs font-semibold cursor-pointer"
-                        style={{ color: tokens.accentColor }}
+                        className="inline-flex items-center gap-1.5 px-3 min-h-[36px] rounded-lg border text-xs font-semibold cursor-pointer"
+                        style={{
+                          borderColor: tokens.borderColor,
+                          backgroundColor: tokens.surfaceBackground,
+                          color: tokens.accentColor,
+                        }}
                       >
                         {copiedPayload ? (
                           <>
@@ -1591,71 +1727,78 @@ export const SparkMediaReader: React.FC<SparkMediaReaderProps> = ({
             </>
           )}
 
-          {/* Clean Footer Actions */}
-          <footer
-            className="pt-4 border-t flex flex-wrap items-center justify-between gap-3"
-            style={{ borderColor: tokens.borderColor }}
-          >
-            <button
-              type="button"
-              onClick={() =>
-                void handleCopyText(
-                  category === 'text-free'
-                    ? buckets.textBody || source.textValue || payload
-                    : payload
-                )
-              }
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold rounded-xl transition-colors whitespace-nowrap shrink-0 cursor-pointer"
-              style={{
-                color: tokens.textPrimary,
-                backgroundColor: tokens.surfaceElevated,
-              }}
+          {/* Contextual Utility Footer */}
+          {showFooter && (
+            <footer
+              className="pt-3 border-t flex flex-wrap items-center justify-between gap-2"
+              style={{ borderColor: tokens.borderColor }}
             >
-              {copiedPayload ? (
-                <>
-                  <Check className="w-3.5 h-3.5 text-emerald-500" aria-hidden="true" />
-                  <span>Copié</span>
-                </>
-              ) : (
-                <>
-                  <Copy className="w-3.5 h-3.5" aria-hidden="true" />
-                  <span>Copier</span>
-                </>
-              )}
-            </button>
+              <div className="flex flex-wrap items-center gap-2">
+                {showCopyInFooter && (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      void handleCopyText(
+                        category === 'text-free'
+                          ? buckets.textBody || source.textValue || payload
+                          : payload
+                      )
+                    }
+                    className="inline-flex items-center gap-1.5 px-3.5 min-h-[38px] text-xs font-semibold rounded-xl border transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+                    style={{
+                      color: tokens.textPrimary,
+                      backgroundColor: tokens.surfaceElevated,
+                      borderColor: tokens.borderColor,
+                    }}
+                  >
+                    {copiedPayload ? (
+                      <>
+                        <Check className="w-3.5 h-3.5 text-emerald-500" aria-hidden="true" />
+                        <span>Copié</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-3.5 h-3.5" aria-hidden="true" />
+                        <span>Copier</span>
+                      </>
+                    )}
+                  </button>
+                )}
 
-            <div className="flex flex-wrap items-center gap-2">
-              {currentImage && showImageSection && (
-                <a
-                  href={resolveSafeDownloadHref(currentImage.url)}
-                  download={currentImage.caption || 'sparkqr-image'}
-                  className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold rounded-xl transition-colors whitespace-nowrap shrink-0"
-                  style={{
-                    color: tokens.textPrimary,
-                    backgroundColor: tokens.surfaceElevated,
-                  }}
-                >
-                  <Download className="w-3.5 h-3.5" aria-hidden="true" />
-                  <span>Télécharger</span>
-                </a>
-              )}
+                {currentImage && showImageSection && !showDocumentSection && !showAudioSection && (
+                  <a
+                    href={resolveSafeDownloadHref(currentImage.url)}
+                    download="image-sparkqr"
+                    className="inline-flex items-center gap-1.5 px-3.5 min-h-[38px] text-xs font-semibold rounded-xl border transition-colors whitespace-nowrap shrink-0"
+                    style={{
+                      color: tokens.textPrimary,
+                      backgroundColor: tokens.surfaceElevated,
+                      borderColor: tokens.borderColor,
+                    }}
+                  >
+                    <Download className="w-3.5 h-3.5" aria-hidden="true" />
+                    <span>Télécharger</span>
+                  </a>
+                )}
 
-              {currentVideo && showVideoSection && (
-                <a
-                  href={resolveSafeDownloadHref(currentVideo.url)}
-                  download={currentVideo.caption || 'sparkqr-video'}
-                  className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold rounded-xl transition-colors whitespace-nowrap shrink-0"
-                  style={{
-                    color: tokens.textPrimary,
-                    backgroundColor: tokens.surfaceElevated,
-                  }}
-                >
-                  <Download className="w-3.5 h-3.5" aria-hidden="true" />
-                  <span>Télécharger</span>
-                </a>
-              )}
+                {currentVideo && showVideoSection && !showDocumentSection && !showAudioSection && (
+                  <a
+                    href={resolveSafeDownloadHref(currentVideo.url)}
+                    download="video-sparkqr"
+                    className="inline-flex items-center gap-1.5 px-3.5 min-h-[38px] text-xs font-semibold rounded-xl border transition-colors whitespace-nowrap shrink-0"
+                    style={{
+                      color: tokens.textPrimary,
+                      backgroundColor: tokens.surfaceElevated,
+                      borderColor: tokens.borderColor,
+                    }}
+                  >
+                    <Download className="w-3.5 h-3.5" aria-hidden="true" />
+                    <span>Télécharger</span>
+                  </a>
+                )}
+              </div>
 
-              {isWebLink && !standalone && (() => {
+              {hasDedicatedPageAction && (() => {
                 let dedicatedHref = payload;
                 try {
                   const u = new URL(payload);
@@ -1670,7 +1813,7 @@ export const SparkMediaReader: React.FC<SparkMediaReaderProps> = ({
                     href={dedicatedHref}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-semibold rounded-xl transition-colors whitespace-nowrap shrink-0"
+                    className="inline-flex items-center gap-1.5 px-4 min-h-[38px] text-xs font-semibold rounded-xl transition-opacity hover:opacity-90 whitespace-nowrap shrink-0"
                     style={{
                       backgroundColor: tokens.accentColor,
                       color: tokens.accentContrastText,
@@ -1681,45 +1824,45 @@ export const SparkMediaReader: React.FC<SparkMediaReaderProps> = ({
                   </a>
                 );
               })()}
-            </div>
-          </footer>
+            </footer>
+          )}
         </article>
       </div>
 
-      {/* Immersive Image Lightbox Fullscreen Overlay */}
+      {/* Fullscreen Image Lightbox */}
       {imageFullscreen && currentImage && (
         <div
           role="dialog"
           aria-modal="true"
           aria-label="Visionneuse plein écran"
           data-testid="reader-image-lightbox"
-          className="fixed inset-0 z-[70] bg-black/95 flex flex-col justify-between p-4 sm:p-6 text-white"
+          className="fixed inset-0 z-[70] bg-black/95 flex flex-col justify-between p-3.5 sm:p-6 text-white"
           onClick={() => void toggleImageFullscreen()}
         >
           <div
-            className="flex items-center justify-between gap-4"
+            className="flex items-center justify-between gap-3"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="text-xs font-semibold truncate">
-              {currentImage.caption || headline || 'SparkQR'}
+              {currentImage.caption || customTitle || 'Image'}
               {buckets.images.length > 1 && ` · ${safeImageIdx + 1} / ${buckets.images.length}`}
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5 shrink-0">
               <button
                 type="button"
                 onClick={() => setImageZoom((z) => Math.max(1, Number((z - 0.5).toFixed(2))))}
-                className="p-2 rounded-xl bg-white/10 hover:bg-white/20 cursor-pointer"
+                className="w-10 h-10 inline-flex items-center justify-center rounded-xl bg-white/10 hover:bg-white/20 cursor-pointer"
                 aria-label="Dézoomer"
               >
                 <ZoomOut className="w-4 h-4" />
               </button>
-              <span className="text-xs font-mono tabular-nums">
+              <span className="text-xs font-mono tabular-nums px-1">
                 {Math.round(imageZoom * 100)}%
               </span>
               <button
                 type="button"
                 onClick={() => setImageZoom((z) => Math.min(3, Number((z + 0.5).toFixed(2))))}
-                className="p-2 rounded-xl bg-white/10 hover:bg-white/20 cursor-pointer"
+                className="w-10 h-10 inline-flex items-center justify-center rounded-xl bg-white/10 hover:bg-white/20 cursor-pointer"
                 aria-label="Zoomer"
               >
                 <ZoomIn className="w-4 h-4" />
@@ -1728,7 +1871,7 @@ export const SparkMediaReader: React.FC<SparkMediaReaderProps> = ({
                 type="button"
                 data-testid="reader-lightbox-close"
                 onClick={() => void toggleImageFullscreen()}
-                className="p-2 rounded-xl bg-white/15 hover:bg-white/25 cursor-pointer"
+                className="w-10 h-10 inline-flex items-center justify-center rounded-xl bg-white/15 hover:bg-white/25 cursor-pointer"
                 aria-label="Fermer le plein écran"
               >
                 <X className="w-4 h-4" />
@@ -1737,17 +1880,17 @@ export const SparkMediaReader: React.FC<SparkMediaReaderProps> = ({
           </div>
 
           <div
-            className="flex-1 flex items-center justify-center overflow-auto my-4"
+            className="flex-1 flex items-center justify-center overflow-auto my-3"
             onClick={(e) => e.stopPropagation()}
           >
             <img
               src={currentImage.url}
-              alt={currentImage.caption || headline || 'Image plein écran'}
+              alt={currentImage.caption || customTitle || 'Image plein écran'}
               style={{
                 transform: `scale(${imageZoom})`,
                 transition: 'transform 160ms ease',
               }}
-              className="max-w-full max-h-[82vh] w-auto h-auto object-contain rounded-lg"
+              className="max-w-full max-h-[82dvh] w-auto h-auto object-contain rounded-lg"
             />
           </div>
 
@@ -1759,7 +1902,7 @@ export const SparkMediaReader: React.FC<SparkMediaReaderProps> = ({
               <button
                 type="button"
                 onClick={handlePrevImage}
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-xs font-semibold cursor-pointer"
+                className="inline-flex items-center gap-1.5 px-4 min-h-[40px] rounded-xl bg-white/10 hover:bg-white/20 text-xs font-semibold cursor-pointer"
               >
                 <ArrowLeft className="w-4 h-4" />
                 <span>Précédent</span>
@@ -1767,7 +1910,7 @@ export const SparkMediaReader: React.FC<SparkMediaReaderProps> = ({
               <button
                 type="button"
                 onClick={handleNextImage}
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-xs font-semibold cursor-pointer"
+                className="inline-flex items-center gap-1.5 px-4 min-h-[40px] rounded-xl bg-white/10 hover:bg-white/20 text-xs font-semibold cursor-pointer"
               >
                 <span>Suivant</span>
                 <ArrowRight className="w-4 h-4" />

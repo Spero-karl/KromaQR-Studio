@@ -13,7 +13,6 @@ interface TargetPreviewModalProps {
   experience?: PostScanExperience;
   dynamicSlug?: string | null;
   dynamicHasPin?: boolean;
-  serverExpiresAt?: string | null;
 }
 
 export const TargetPreviewModal: React.FC<TargetPreviewModalProps> = ({
@@ -25,7 +24,6 @@ export const TargetPreviewModal: React.FC<TargetPreviewModalProps> = ({
   experience = DEFAULT_EXPERIENCE,
   dynamicSlug = null,
   dynamicHasPin = false,
-  serverExpiresAt = null,
 }) => {
   useEffect(() => {
     if (!open) return;
@@ -50,12 +48,12 @@ export const TargetPreviewModal: React.FC<TargetPreviewModalProps> = ({
       role="dialog"
       aria-modal="true"
       aria-labelledby="target-preview-title"
-      className="fixed inset-0 z-50 flex items-center justify-center bg-[#111214]/70 backdrop-blur-xs p-3 sm:p-6"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-[#090B12]/70 backdrop-blur-xs p-2.5 sm:p-5"
       onClick={onClose}
     >
       <div
         data-testid="scan-showcase-backdrop"
-        className="relative w-[95vw] max-w-5xl max-h-[92dvh] overflow-y-auto rounded-3xl pb-safe shadow-[0_32px_90px_rgba(0,0,0,0.42)] animate-modal-enter"
+        className="relative w-full max-w-4xl max-h-[92dvh] overflow-y-auto rounded-2xl shadow-[0_28px_80px_rgba(9,11,18,0.45)] animate-modal-enter"
         onClick={(e) => e.stopPropagation()}
       >
         <SparkMediaReader
@@ -67,7 +65,6 @@ export const TargetPreviewModal: React.FC<TargetPreviewModalProps> = ({
           dynamicHasPin={dynamicHasPin}
           isEncrypted={Boolean(source.e2eeEnabled && keyFromPayload)}
           e2eeKey={keyFromPayload}
-          serverExpiresAt={serverExpiresAt}
           standalone={false}
           onClose={onClose}
         />

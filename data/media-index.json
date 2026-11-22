@@ -2470,5 +2470,419 @@
     },
     "serverExpiresAt": "2027-05-29T10:12:22.591Z",
     "createdAt": "2026-11-22T10:12:22.591Z"
+  },
+  "dgdgxzk": {
+    "id": "dgdgxzk",
+    "ownerWorkspaceId": "ws_NemccDxIMVz9",
+    "kind": "collection",
+    "type": "collection",
+    "filename": "dgdgxzk",
+    "originalName": "IMG_9999_passeport_confidentiel.jpg",
+    "mimeType": "application/json",
+    "size": 0,
+    "url": "/m/dgdgxzk",
+    "isEncrypted": false,
+    "retentionPlanMonths": null,
+    "sentMilestones": [],
+    "storage": {
+      "provider": "collection"
+    },
+    "source": {
+      "type": "image",
+      "imageUrl": "/demo-atelier-1.jpg",
+      "imageName": "IMG_9999_passeport_confidentiel.jpg",
+      "e2eeEnabled": false
+    },
+    "experience": {
+      "template": "standard",
+      "headline": "",
+      "description": "",
+      "readerThemeMode": "light"
+    },
+    "config": {},
+    "serverExpiresAt": "2026-11-29T11:07:48.579Z",
+    "createdAt": "2026-11-22T11:07:48.579Z"
+  },
+  "vjmuydd": {
+    "id": "vjmuydd",
+    "ownerWorkspaceId": "ws_uUOr6PS5poVk",
+    "kind": "collection",
+    "type": "collection",
+    "filename": "vjmuydd",
+    "originalName": "Collection Printemps — Studio",
+    "mimeType": "application/json",
+    "size": 0,
+    "url": "/m/vjmuydd",
+    "isEncrypted": false,
+    "retentionPlanMonths": null,
+    "sentMilestones": [],
+    "storage": {
+      "provider": "collection"
+    },
+    "source": {
+      "type": "image",
+      "imageUrl": "/demo-atelier-2.jpg",
+      "imageName": "DSC_0412.JPG",
+      "e2eeEnabled": false
+    },
+    "experience": {
+      "template": "standard",
+      "headline": "Collection Printemps — Studio",
+      "description": "Édition limitée",
+      "readerThemeMode": "light"
+    },
+    "config": {},
+    "serverExpiresAt": "2026-11-29T11:07:48.642Z",
+    "createdAt": "2026-11-22T11:07:48.642Z"
+  },
+  "jr9eykq": {
+    "id": "jr9eykq",
+    "ownerWorkspaceId": "ws_302kv2VroMVi",
+    "kind": "collection",
+    "type": "collection",
+    "filename": "jr9eykq",
+    "originalName": "video_privee_2026.mp4",
+    "mimeType": "application/json",
+    "size": 0,
+    "url": "/m/jr9eykq",
+    "isEncrypted": false,
+    "retentionPlanMonths": null,
+    "sentMilestones": [],
+    "storage": {
+      "provider": "collection"
+    },
+    "posterUrl": "/demo-atelier-1.jpg",
+    "source": {
+      "type": "video",
+      "videoUrl": "/demo-atelier.mp4",
+      "videoName": "video_privee_2026.mp4",
+      "videoPosterUrl": "/demo-atelier-1.jpg",
+      "e2eeEnabled": false
+    },
+    "experience": {
+      "template": "standard",
+      "headline": "",
+      "description": "",
+      "readerThemeMode": "dark"
+    },
+    "config": {},
+    "serverExpiresAt": "2026-11-29T11:07:48.714Z",
+    "createdAt": "2026-11-22T11:07:48.714Z"
+  },
+  "vpx95zn": {
+    "id": "vpx95zn",
+    "ownerWorkspaceId": "ws_Uz9qjYmx5GH7",
+    "kind": "collection",
+    "type": "collection",
+    "filename": "vpx95zn",
+    "originalName": "Texte",
+    "mimeType": "application/json",
+    "size": 0,
+    "url": "/m/vpx95zn",
+    "isEncrypted": false,
+    "retentionPlanMonths": null,
+    "sentMilestones": [],
+    "storage": {
+      "provider": "collection"
+    },
+    "source": {
+      "type": "text",
+      "textMode": "text",
+      "textValue": "Bienvenue à notre présentation privée SparkQR.\n\nCe texte utilise exactement la typographie choisie par son auteur, sans aucune boîte superflue ni information technique.",
+      "e2eeEnabled": false
+    },
+    "experience": {
+      "template": "standard",
+      "headline": "",
+      "description": "",
+      "readerThemeMode": "light"
+    },
+    "config": {
+      "messageFontSize": 20,
+      "messageAlign": "left"
+    },
+    "serverExpiresAt": "2026-11-29T11:07:48.788Z",
+    "createdAt": "2026-11-22T11:07:48.788Z"
+  },
+  "2uve35b": {
+    "id": "2uve35b",
+    "ownerWorkspaceId": "ws_59SsDcWWDi87",
+    "kind": "collection",
+    "type": "collection",
+    "filename": "2uve35b",
+    "originalName": "IMG_4821_confidentiel.jpg",
+    "mimeType": "application/json",
+    "size": 0,
+    "url": "/m/2uve35b",
+    "isEncrypted": false,
+    "retentionPlanMonths": null,
+    "sentMilestones": [],
+    "storage": {
+      "provider": "collection"
+    },
+    "source": {
+      "type": "image",
+      "imageUrl": "/demo-atelier-1.jpg",
+      "imageName": "IMG_4821_confidentiel.jpg",
+      "e2eeEnabled": false
+    },
+    "experience": {
+      "template": "standard",
+      "headline": "",
+      "description": "",
+      "readerThemeMode": "light"
+    },
+    "config": {},
+    "serverExpiresAt": "2026-11-29T11:09:15.714Z",
+    "createdAt": "2026-11-22T11:09:15.714Z"
+  },
+  "kfbkja7": {
+    "id": "kfbkja7",
+    "ownerWorkspaceId": "ws_1VZOb0SW9uyN",
+    "kind": "collection",
+    "type": "collection",
+    "filename": "kfbkja7",
+    "originalName": "rush_prive.mp4",
+    "mimeType": "application/json",
+    "size": 0,
+    "url": "/m/kfbkja7",
+    "isEncrypted": false,
+    "retentionPlanMonths": null,
+    "sentMilestones": [],
+    "storage": {
+      "provider": "collection"
+    },
+    "posterUrl": "/demo-atelier-1.jpg",
+    "source": {
+      "type": "video",
+      "videoUrl": "/demo-atelier.mp4",
+      "videoName": "rush_prive.mp4",
+      "videoPosterUrl": "/demo-atelier-1.jpg",
+      "e2eeEnabled": false
+    },
+    "experience": {
+      "template": "standard",
+      "headline": "",
+      "description": "",
+      "readerThemeMode": "dark"
+    },
+    "config": {},
+    "serverExpiresAt": "2026-11-29T11:09:15.761Z",
+    "createdAt": "2026-11-22T11:09:15.761Z"
+  },
+  "ftxswud": {
+    "id": "ftxswud",
+    "ownerWorkspaceId": "ws_VArj3B75gYRS",
+    "kind": "collection",
+    "type": "collection",
+    "filename": "ftxswud",
+    "originalName": "Dossier Client",
+    "mimeType": "application/json",
+    "size": 0,
+    "url": "/m/ftxswud",
+    "isEncrypted": false,
+    "retentionPlanMonths": null,
+    "sentMilestones": [],
+    "storage": {
+      "provider": "collection"
+    },
+    "source": {
+      "type": "image",
+      "imageUrl": "/demo-atelier-2.jpg",
+      "imageName": "DSC_001.jpg",
+      "e2eeEnabled": false
+    },
+    "experience": {
+      "template": "mixed-collection",
+      "headline": "Dossier Client",
+      "description": "",
+      "mixedTextBlock": "Voici les éléments validés pour votre projet ✨",
+      "readerThemeMode": "light",
+      "galleryItems": [
+        {
+          "id": "d1",
+          "type": "document",
+          "url": "/demo-atelier-1.jpg",
+          "mimeType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+          "caption": "contrat_confidentiel_2026.docx"
+        },
+        {
+          "id": "a1",
+          "type": "audio",
+          "url": "/demo-atelier.mp4",
+          "mimeType": "audio/mp4",
+          "caption": "memo_vocal_secret.mp3"
+        }
+      ]
+    },
+    "config": {},
+    "serverExpiresAt": "2026-11-29T11:09:15.846Z",
+    "createdAt": "2026-11-22T11:09:15.846Z"
+  },
+  "hbf383n": {
+    "id": "hbf383n",
+    "ownerWorkspaceId": "ws_YmVS5e96RZ_I",
+    "kind": "collection",
+    "type": "collection",
+    "filename": "hbf383n",
+    "originalName": "Contenu chiffré #hbf383n",
+    "mimeType": "application/json",
+    "size": 1925,
+    "url": "/m/hbf383n",
+    "isEncrypted": true,
+    "e2eeVersion": 1,
+    "encryptedMeta": {
+      "v": 1,
+      "alg": "AES-256-GCM",
+      "iv": "fFo34F0Ss2OsW6WT",
+      "ct": "eYZ1uLy79X4japT-TLkF3IbRBR6FLJ_c2lsGtcXSydN1XkRxrE_TIMp91J0I-M9olLkSsHg167Edr61aR5NaOnNiT69r7Po0gObAgyXnDlP45x8kzFO9jQGeGHTWMbGiTAREWEEcAvxpqKLnrDpQUurhmfhibft-MiO9sWFCh2mKiDB3QTHWxTV16M6pLl8G3nVv9LgYn4Ho45budWIqjy1rAx4VyDBVsZScS6nLG3rQ16r7qMmowlBGw2Qn3UHKjtFPWwbUygloDlsJ3I_FOX54X2LGa0qPGlCO_9Sz0lO1cpFt_IhhWuP_-xaeOIFuPTbvnVVRlGkxvs6fXqiGNWRu8793MdOOs-9Zivwwgr3KsNn8m202-oCvr1rX19MXSPWC_w7WukEJAB-9BU5HEFsiuDA-WMxw9CFiobwZK1JJ2z61yAC-LDTDehychnP3Yt8DsSXWgjFlWRDUww7wBuxrllpDazw7dYQUyqK4PK4cGayRK8RvlpKWTbBfFhL-TLjCDYuGtk3Rg0AKVDIFwLFcBGAiTBVxdN-9ht931o997Igi9t6cEcVZDCp_p-9L-zCZezzVkExY1Cl-sVnIdIWEed__d3pj6QCnN3O4WzgVunkNuHUjFdaTlqgecQx51S5Vfbs42qWvQ8sgHMzKo7I0sZ1qSu9BBwC9uFgFBNsDNWpzTx3ACJMcKlpHvKTb4u63-XtQtV3mPtMPCN-2OIB_1WYavHEhtk_GJhKxZUb1-aXjr6jwI4ahbbC_nk-BGKyT-VHNQ9bwwTOphuyGEtqze2m6uqkY9rb8mxfggqiWfiyRVg7tv6cg19zQaGmWs58ZRuD1WdQbbInbk3CDMwbvhMg14ExuvYaRpC4ZU7a2AbT4mm3_EOdKLs5VDZ26fhCwzxVzAsQR24aLbZ4YwsQlCyWo0Bd8IKOHGijxjlGJoqkVh2vR-HEyX3zJygWpksOoGbAah1mNCwnD5njTCLv_6l6Lj9F98Mh-Bx5ASi0pjXEPiFANsFoL8u2B-lwhtxqavDSkNfT5B72aOvNqGsnTItcnY-ZEt-3Tr_It61cDZvkeH_kzVT12j4-W69CTtFnz1atTckrKJ34buUIt3xumHYTKxNz-DqWroY52d2XGjrGY14peuJCq4krvpMcj2TOpNIyteWK2lV-ySmRvWO7l8sTCHxr3XZnj6QuGeD-Qt7vAAQY0O9l_qxFuzZ_wsLc555SgsVta6u3KYZHLvN2ED79h26hD-hnJizIxN-eCyY7gkSL6WjIc3y0l4ED4-nQYnDl27Kp4KqY6JPprs-MZV8zvwEpNuX-uoBHbOf95X7yRdONKfz3O_sMehfWAUnDfruEUClQewMx5ujRVjHY7IQhbiCU9Ndgy79cNRAI-xbo8LIf8Kz0WPcxOxOWKrrRKJdxCGOHRk9g6FSud4W3i_KbGBOiwEYBAuGYIE3xfgL1b60JLdZs1qL_5SLCj3oHLzuJcrHXqHdrjxqnOzLd4xTskWnMulh4d-4cxHq86fBi-nqd3zZwYW_qgkzhvXY8KznOyIxm8uBw4fCS8A6LSVePWigKPEF-1LzLgZ384fpUHT3kwcNKZYjIkiEvJ36XztMKXI4uIxag5UwBI9xruzJWlhsMpHmobgXT3HUftSLRNHly8W7t1md27ivFOvvkxXUfdqyvrjFU3GgwNgchMLgZf3Zuu1Lfvdc0vIyFjSqMiRPesHFfdEvUUJZooaq2zJj1lKwzkDvuacewJgcQU6rOikKhvO2rtfvmzZyFgBL74nNVtAs0xFLyvOfHkvQDSk8r3768bL0bZ1zP_cLTRbU6xCNCjUEi4Mnu4_NeOQzgk7t_VYZFsI4wtfxxHPFWXrGYppg"
+    },
+    "retentionPlanMonths": null,
+    "sentMilestones": [],
+    "storage": {
+      "provider": "collection"
+    },
+    "source": {
+      "type": "text",
+      "textMode": "text",
+      "urlValue": "",
+      "textValue": "",
+      "wifiSsid": "",
+      "wifiPassword": "",
+      "wifiSecurity": "WPA",
+      "imageUrl": "",
+      "imageName": "",
+      "imagePageUrl": "",
+      "useSourceImageAsLogo": true,
+      "videoUrl": "",
+      "videoName": "",
+      "videoPageUrl": "",
+      "videoPosterUrl": "",
+      "e2eeEnabled": true
+    },
+    "experience": {
+      "template": "standard",
+      "headline": "Contenu chiffré",
+      "description": "",
+      "mixedTextBlock": "",
+      "accentMood": "auto",
+      "readerThemeMode": "light",
+      "eventDate": "18 juin 2026",
+      "eventTime": "19h30",
+      "eventLocation": "Palais de Tokyo — Salle 4, Paris",
+      "eventDressCode": "Tenue de soirée · Accès VIP",
+      "personName": "Camille Laurent",
+      "personRole": "Directrice Artistique",
+      "companyName": "Atelier Travers Studio",
+      "contactEmail": "bonjour@atelier-travers.fr",
+      "contactPhone": "+33 1 42 68 55 10",
+      "websiteUrl": "https://atelier-travers.fr",
+      "postcardFrom": "Atelier Lumière, Paris",
+      "postcardTo": "Pour vous",
+      "postcardStampText": "PAR AVION · ÉDITION 2026",
+      "privateBadgeLabel": "Accès confidentiel vérifié",
+      "privateSecretNote": "Ce message réservé s’affiche uniquement après validation sécurisée.",
+      "galleryItems": [
+        {
+          "id": "demo-g1",
+          "type": "image",
+          "url": "/demo-atelier-1.jpg",
+          "caption": ""
+        }
+      ],
+      "ctaLabel": "",
+      "ctaUrl": ""
+    },
+    "config": {
+      "themeId": "monolithe-cobalt",
+      "foregroundColor": "#111318",
+      "foregroundSecondaryColor": "#1D4ED8",
+      "gradientType": "linear",
+      "gradientAngle": 135,
+      "useCustomEyeColor": true,
+      "eyeColor": "#1D4ED8",
+      "qrBackgroundColor": "#FFFFFF",
+      "cardBackgroundColor": "#FFFFFF",
+      "cardTextColor": "#111318",
+      "moduleShape": "capsule",
+      "eyeShape": "frame",
+      "filter": "none",
+      "filterIntensity": 55,
+      "frameStyle": "signature",
+      "cardTexture": "none",
+      "metallicSheen": false,
+      "borderWidth": 0,
+      "borderColor": "#D4AF37",
+      "editionLabel": "ÉDITION LIMITÉE · N° 01",
+      "fontId": "bricolage",
+      "subtitleFontId": "jakarta",
+      "titleSize": 21,
+      "subtitleSize": 13,
+      "messageFontSize": 18,
+      "titleWeight": 700,
+      "titleItalic": false,
+      "titleUppercase": false,
+      "textAlign": "center",
+      "messageWeight": 400,
+      "messageItalic": false,
+      "messageAlign": "center",
+      "messageColor": "",
+      "messageLetterSpacing": 0,
+      "messageTextDecoration": "none",
+      "titleText": "Mon Code QR",
+      "subtitleText": "Scannez pour découvrir",
+      "titleOffsetY": 0,
+      "logoId": "aperture",
+      "centerEmoji": null,
+      "monogramText": "SQ",
+      "customLogoDataUrl": null,
+      "logoSize": 0.16,
+      "logoOffsetX": 0,
+      "logoOffsetY": 0,
+      "logoRotation": 0,
+      "logoKnockout": "squircle",
+      "logoColor": "#1D4ED8",
+      "cornerStickerPlacement": "none",
+      "cornerStickerKind": "vector",
+      "cornerStickerVectorId": "star",
+      "cornerStickerEmoji": "✨",
+      "cornerStickerColor": "#1D4ED8",
+      "cornerStickerScale": 1,
+      "cornerStickerRotation": 0,
+      "cornerStickerOffset": 0,
+      "layers": [
+        {
+          "id": "frame",
+          "label": "Cadre & Texture",
+          "visible": true
+        },
+        {
+          "id": "modules",
+          "label": "Modules & Repères QR",
+          "visible": true
+        },
+        {
+          "id": "centerLogo",
+          "label": "Emblème central",
+          "visible": true
+        },
+        {
+          "id": "cornerStickers",
+          "label": "Stickers d’angle",
+          "visible": true
+        },
+        {
+          "id": "typography",
+          "label": "Textes & Titres",
+          "visible": true
+        }
+      ],
+      "extraTexts": [],
+      "errorCorrection": "H",
+      "margin": 3,
+      "cornerRadius": 24
+    },
+    "serverExpiresAt": "2026-11-29T11:09:26.765Z",
+    "createdAt": "2026-11-22T11:09:26.765Z"
   }
 }
