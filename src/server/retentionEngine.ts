@@ -997,6 +997,7 @@ export class RetentionEngine {
     }
 
     if (updatedCount > 0) {
+      const durationLabel = params.months === 12 ? '1 an' : `${params.months} mois`;
       this.appendNotification({
         workspaceId: params.workspaceId,
         targetKind: params.targetKind === 'workspace' ? 'collection' : params.targetKind,
@@ -1006,7 +1007,7 @@ export class RetentionEngine {
             ? 'Abonnement espace'
             : `#${params.targetId.slice(0, 6)}`,
         milestone: 'extended',
-        message: `Conservation prolongée de ${params.months} mois sans perte de données.`,
+        message: `Conservation prolongée de ${durationLabel} sans perte de données.`,
         expiresAt: latestExpiry,
       });
     }
@@ -1170,7 +1171,7 @@ export class RetentionEngine {
               const title = this.safeNotificationTitle(rec.isEncrypted, kind, rec.id);
               const msg =
                 milestone === '48h'
-                  ? `${title} sera supprimé dans moins de 48 heures. Vous pouvez prolonger sa conservation de 1 à 12 mois.`
+                  ? `${title} sera supprimé dans moins de 48 heures. Vous pouvez prolonger sa conservation (1 mois, 3 mois, 6 mois ou 1 an).`
                   : `${title} sera supprimé définitivement dans moins de 24 heures.`;
               this.appendNotification({
                 workspaceId: rec.ownerWorkspaceId,
@@ -1244,7 +1245,19 @@ export class RetentionEngine {
         kind,
         title: rec.isEncrypted
           ? `Contenu chiffré #${rec.id.slice(0, 6)}`
-          : rec.originalName || `SparkQR #${rec.id.slice(0, 6)}`,
+          : kind === 'collection'
+          ? rec.originalName && !/^Collection SparkQR$/i.test(rec.originalName)
+            ? rec.originalName
+            : `Collection #${rec.id.slice(0, 6)}`
+          : `${
+              rec.type === 'video'
+                ? 'Vidéo'
+                : rec.type === 'document'
+                ? 'Document'
+                : rec.type === 'audio'
+                ? 'Audio'
+                : 'Image'
+            } #${rec.id.slice(0, 6)}`,
         mediaType:
           kind === 'collection'
             ? 'collection'

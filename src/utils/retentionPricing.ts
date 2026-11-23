@@ -1,24 +1,26 @@
 export const FREE_RETENTION_DAYS = 7;
 export const MIN_PAID_MONTHS = 1;
 export const MAX_PAID_MONTHS = 12;
+export const PAID_PLAN_MONTHS = [1, 3, 6, 12] as const;
+export type PaidPlanMonths = (typeof PAID_PLAN_MONTHS)[number];
+
+const LEGACY_UNHALVED_PRICES_CENTS: Record<number, number> = {
+  1: 290,
+  3: 690,
+  6: 1190,
+  12: 1990,
+};
 
 export const DEFAULT_MONTHLY_PRICES_CENTS: Record<number, number> = {
-  1: 290,
-  2: 490,
-  3: 690,
-  4: 890,
-  5: 1090,
-  6: 1190,
-  7: 1350,
-  8: 1490,
-  9: 1650,
-  10: 1790,
-  11: 1890,
-  12: 1990,
+  1: 145, // 1,45 € (anciennement 2,90 €)
+  3: 345, // 3,45 € (anciennement 6,90 €)
+  6: 595, // 5,95 € (anciennement 11,90 €)
+  12: 995, // 9,95 € (anciennement 19,90 €)
 };
 
 export interface PricingConfig {
   currency: 'EUR';
+  pricingVersion?: number;
   monthsCents: Record<number, number>;
   updatedAt: string;
 }
@@ -32,30 +34,60 @@ export type RetentionStatus =
   | 'expired'
   | 'deleted';
 
+function isLegacyDefaultGrid(raw?: Partial<PricingConfig> | null): boolean {
+  if (!raw || !raw.monthsCents || (typeof raw.pricingVersion === 'number' && raw.pricingVersion >= 2)) {
+    return false;
+  }
+  const entries = PAID_PLAN_MONTHS.map((m) => {
+    const val =
+      raw.monthsCents?.[m] ??
+      (raw.monthsCents as Record<string, number> | undefined)?.[String(m)];
+    return { m, val };
+  });
+  const hasAnyLegacyMatch = entries.some(({ m, val }) => val === LEGACY_UNHALVED_PRICES_CENTS[m]);
+  const allMatchLegacyOrEmpty = entries.every(
+    ({ m, val }) => val === undefined || val === LEGACY_UNHALVED_PRICES_CENTS[m]
+  );
+  return hasAnyLegacyMatch && allMatchLegacyOrEmpty;
+}
+
 export function normalizePricingConfig(raw?: Partial<PricingConfig> | null): PricingConfig {
+  const migrateLegacyDefaults = isLegacyDefaultGrid(raw);
   const monthsCents: Record<number, number> = {};
-  for (let m = MIN_PAID_MONTHS; m <= MAX_PAID_MONTHS; m++) {
-    const candidate = raw?.monthsCents?.[m] ?? (raw?.monthsCents as Record<string, number> | undefined)?.[String(m)];
+  for (const m of PAID_PLAN_MONTHS) {
+    const candidate =
+      raw?.monthsCents?.[m] ??
+      (raw?.monthsCents as Record<string, number> | undefined)?.[String(m)];
     const valid =
-      typeof candidate === 'number' && Number.isFinite(candidate) && candidate >= 50
+      !migrateLegacyDefaults &&
+      typeof candidate === 'number' &&
+      Number.isFinite(candidate) &&
+      candidate >= 50
         ? Math.round(candidate)
         : DEFAULT_MONTHLY_PRICES_CENTS[m];
     monthsCents[m] = valid;
   }
   return {
     currency: 'EUR',
+    pricingVersion: 2,
     monthsCents,
-    updatedAt: typeof raw?.updatedAt === 'string' && raw.updatedAt ? raw.updatedAt : new Date().toISOString(),
+    updatedAt:
+      typeof raw?.updatedAt === 'string' && raw.updatedAt
+        ? raw.updatedAt
+        : new Date().toISOString(),
   };
 }
 
-export function isValidPaidMonths(months: unknown): months is number {
+export function isValidPaidMonths(months: unknown): months is PaidPlanMonths {
   return (
     typeof months === 'number' &&
     Number.isInteger(months) &&
-    months >= MIN_PAID_MONTHS &&
-    months <= MAX_PAID_MONTHS
+    (PAID_PLAN_MONTHS as readonly number[]).includes(months)
   );
+}
+
+export function formatPaidDurationLabel(months: number): string {
+  return months === 12 ? '1 an' : `${months} mois`;
 }
 
 export function computeFreeRetentionExpiry(

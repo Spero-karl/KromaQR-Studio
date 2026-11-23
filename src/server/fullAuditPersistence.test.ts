@@ -605,3 +605,125 @@ test('Audit Tests 9-11 & Render State Recovery: Manual deletion, S3 failure retr
     fs.rmSync(tmpDir, { recursive: true, force: true });
   }
 });
+
+test('Server Public Config (PUBLIC_APP_URL & RENDER_EXTERNAL_URL) and Halved 4-Plan Pricing API', async () => {
+  const tmpDir = makeTempDir();
+  const simS3 = new InMemoryS3Simulator();
+  const prevPublicUrl = process.env.PUBLIC_APP_URL;
+  const prevRenderUrl = process.env.RENDER_EXTERNAL_URL;
+
+  try {
+    delete process.env.PUBLIC_APP_URL;
+    process.env.RENDER_EXTERNAL_URL = 'https://kromaqr-studio.onrender.com';
+
+    const srv = await startTestServer(tmpDir, simS3);
+    try {
+      // 1. RENDER_EXTERNAL_URL fallback resolves valid HTTPS origin automatically
+      const pubRes = await fetch(`${srv.baseUrl}/api/public-config`);
+      assert.equal(pubRes.status, 200);
+      const pubJson = (await pubRes.json()) as {
+        valid: boolean;
+        configuredUrl: string;
+        source: string;
+      };
+      assert.equal(pubJson.valid, true);
+      assert.equal(pubJson.source, 'render-env');
+      assert.equal(pubJson.configuredUrl, 'https://kromaqr-studio.onrender.com');
+
+      // 2. Quoted PUBLIC_APP_URL overrides cleanly & produces public /m/:id URL on upload
+      process.env.PUBLIC_APP_URL = '"https://kromaqr-studio.onrender.com/"';
+      const pubQuoted = (await (await fetch(`${srv.baseUrl}/api/public-config`)).json()) as {
+        valid: boolean;
+        configuredUrl: string;
+        source: string;
+      };
+      assert.equal(pubQuoted.valid, true);
+      assert.equal(pubQuoted.source, 'env');
+      assert.equal(pubQuoted.configuredUrl, 'https://kromaqr-studio.onrender.com');
+
+      const wsId = await createWorkspace(srv.baseUrl);
+      const uploaded = await uploadMedia(
+        srv.baseUrl,
+        wsId,
+        'render-check.png',
+        'image/png',
+        Buffer.from('PNG_DATA'),
+        'image'
+      );
+      const mediaInfoRes = await fetch(`${srv.baseUrl}/api/media/${uploaded.id}`, {
+        headers: { 'X-Workspace-Id': wsId },
+      });
+      const mediaInfo = (await mediaInfoRes.json()) as { publicUrl?: string };
+      assert.equal(
+        mediaInfo.publicUrl,
+        `https://kromaqr-studio.onrender.com/m/${uploaded.id}`
+      );
+
+      // 3. Pricing API returns ONLY 1, 3, 6, 12 months at halved defaults
+      const pricingRes = await fetch(`${srv.baseUrl}/api/pricing`);
+      assert.equal(pricingRes.status, 200);
+      const pricingJson = (await pricingRes.json()) as {
+        pricing: { monthsCents: Record<string, number> };
+      };
+      assert.deepEqual(pricingJson.pricing.monthsCents, {
+        '1': 145,
+        '3': 345,
+        '6': 595,
+        '12': 995,
+      });
+
+      // 4. Reject removed intermediate durations (e.g., 2 months, 4 months) with HTTP 400
+      for (const badMonths of [2, 4, 5, 11]) {
+        const badExt = await fetch(`${srv.baseUrl}/api/retention/extend`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-Workspace-Id': wsId },
+          body: JSON.stringify({
+            months: badMonths,
+            targetKind: 'media',
+            targetId: uploaded.id,
+          }),
+        });
+        assert.equal(badExt.status, 400);
+      }
+
+      // 5. Accept 12 months ("1 an") and return exact halved priceCents (995)
+      const okExt = await fetch(`${srv.baseUrl}/api/retention/extend`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Workspace-Id': wsId },
+        body: JSON.stringify({
+          months: 12,
+          targetKind: 'media',
+          targetId: uploaded.id,
+        }),
+      });
+      assert.equal(okExt.status, 200);
+      const okJson = (await okExt.json()) as {
+        ok: boolean;
+        months: number;
+        durationLabel: string;
+        priceCents: number;
+        updatedCount: number;
+      };
+      assert.equal(okJson.ok, true);
+      assert.equal(okJson.months, 12);
+      assert.equal(okJson.durationLabel, '1 an');
+      assert.equal(okJson.priceCents, 995);
+      assert.equal(okJson.updatedCount, 1);
+    } finally {
+      await srv.close();
+    }
+  } finally {
+    if (prevPublicUrl === undefined) {
+      delete process.env.PUBLIC_APP_URL;
+    } else {
+      process.env.PUBLIC_APP_URL = prevPublicUrl;
+    }
+    if (prevRenderUrl === undefined) {
+      delete process.env.RENDER_EXTERNAL_URL;
+    } else {
+      process.env.RENDER_EXTERNAL_URL = prevRenderUrl;
+    }
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
+

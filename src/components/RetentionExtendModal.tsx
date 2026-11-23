@@ -1,13 +1,14 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { CalendarClock, CheckCircle2, Loader2, ShieldCheck, X } from 'lucide-react';
 import { extendRetentionPlan, fetchPricingInfo, type PricingApiResponse } from '../utils/dynamicApi';
 import {
   addMonthsToIso,
   DEFAULT_MONTHLY_PRICES_CENTS,
   formatExactFrenchDateTime,
+  formatPaidDurationLabel,
   formatPriceEur,
-  MAX_PAID_MONTHS,
-  MIN_PAID_MONTHS,
+  PAID_PLAN_MONTHS,
+  type PaidPlanMonths,
 } from '../utils/retentionPricing';
 
 interface RetentionExtendModalProps {
@@ -33,7 +34,7 @@ export const RetentionExtendModal: React.FC<RetentionExtendModalProps> = ({
   currentExpiresAt,
   onExtended,
 }) => {
-  const [selectedMonths, setSelectedMonths] = useState<number>(3);
+  const [selectedMonths, setSelectedMonths] = useState<PaidPlanMonths>(3);
   const [pricingInfo, setPricingInfo] = useState<PricingApiResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -60,15 +61,12 @@ export const RetentionExtendModal: React.FC<RetentionExtendModalProps> = ({
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [open, onClose]);
 
-  const monthsList = useMemo(() => {
-    const arr: number[] = [];
-    for (let m = MIN_PAID_MONTHS; m <= MAX_PAID_MONTHS; m++) arr.push(m);
-    return arr;
-  }, []);
-
   if (!open) return null;
 
   const pricesMap = pricingInfo?.pricing.monthsCents || DEFAULT_MONTHLY_PRICES_CENTS;
+  const selectedPriceCents =
+    pricesMap[selectedMonths] ?? DEFAULT_MONTHLY_PRICES_CENTS[selectedMonths];
+  const selectedLabel = formatPaidDurationLabel(selectedMonths);
   const projectedExpiryIso = addMonthsToIso(currentExpiresAt, selectedMonths);
 
   const handleConfirmExtension = async () => {
@@ -105,7 +103,7 @@ export const RetentionExtendModal: React.FC<RetentionExtendModalProps> = ({
     >
       <div
         data-testid="retention-extend-modal"
-        className="w-full max-w-2xl bg-white border border-[#E2E6F0] rounded-t-3xl sm:rounded-2xl p-5 sm:p-6 pb-safe shadow-2xl space-y-5 max-h-[92dvh] overflow-y-auto animate-modal-enter"
+        className="w-full max-w-xl bg-white border border-[#E2E6F0] rounded-t-3xl sm:rounded-2xl p-5 sm:p-6 pb-safe shadow-2xl space-y-5 max-h-[92dvh] overflow-y-auto animate-modal-enter"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-start justify-between gap-3 pb-3 border-b border-[#EFEFF5]">
@@ -133,34 +131,34 @@ export const RetentionExtendModal: React.FC<RetentionExtendModalProps> = ({
         {loading ? (
           <div className="py-10 flex items-center justify-center gap-2 text-xs text-[#5C5E66]">
             <Loader2 className="w-4 h-4 animate-spin text-[#2563EB]" aria-hidden="true" />
-            <span>Chargement des durées de conservation…</span>
+            <span>Chargement des formules…</span>
           </div>
         ) : (
           <>
             <div>
               <p className="text-xs font-semibold text-[#111214] mb-2.5">
-                Choisissez la durée supplémentaire (1 à 12 mois)
+                Choisissez la formule supplémentaire
               </p>
-              <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
-                {monthsList.map((m) => {
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                {PAID_PLAN_MONTHS.map((m) => {
                   const active = selectedMonths === m;
-                  const cents = pricesMap[m] || DEFAULT_MONTHLY_PRICES_CENTS[m];
+                  const cents = pricesMap[m] ?? DEFAULT_MONTHLY_PRICES_CENTS[m];
                   return (
                     <button
                       key={m}
                       type="button"
                       data-testid={`extend-month-${m}`}
                       onClick={() => setSelectedMonths(m)}
-                      className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
+                      className={`p-3.5 rounded-xl border text-left transition-all cursor-pointer ${
                         active
-                          ? 'border-[#2563EB] bg-[#EFF4FF] shadow-[0_6px_16px_rgba(37,99,235,0.12)]'
+                          ? 'border-[#2563EB] bg-[#EFF4FF] shadow-[0_6px_16px_rgba(37,99,235,0.14)]'
                           : 'border-[#E2E6F0] bg-[#FAF9F5] hover:bg-white'
                       }`}
                     >
                       <span className="block text-xs font-bold text-[#111214]">
-                        {m} mois
+                        {formatPaidDurationLabel(m)}
                       </span>
-                      <span className="block text-xs font-semibold text-[#2563EB] tabular-nums mt-0.5">
+                      <span className="block text-sm font-bold text-[#2563EB] tabular-nums mt-1">
                         {formatPriceEur(cents)}
                       </span>
                     </button>
@@ -170,7 +168,7 @@ export const RetentionExtendModal: React.FC<RetentionExtendModalProps> = ({
             </div>
 
             <div className="rounded-2xl border border-[#DCE6FF] bg-[#F5F8FF] p-4 space-y-2">
-              <div className="flex items-center justify-between gap-2 text-xs">
+              <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
                 <span className="inline-flex items-center gap-1.5 font-semibold text-[#111214]">
                   <CalendarClock className="w-4 h-4 text-[#2563EB]" aria-hidden="true" />
                   <span>Nouvelle date de suppression prévue</span>
@@ -223,7 +221,7 @@ export const RetentionExtendModal: React.FC<RetentionExtendModalProps> = ({
                   <span>
                     {submitting
                       ? 'Application…'
-                      : `Prolonger (+${selectedMonths} mois)`}
+                      : `Prolonger (+${selectedLabel} · ${formatPriceEur(selectedPriceCents)})`}
                   </span>
                 </button>
               </div>
@@ -234,3 +232,4 @@ export const RetentionExtendModal: React.FC<RetentionExtendModalProps> = ({
     </div>
   );
 };
+

@@ -72,12 +72,14 @@ import {
 import { needsHostedMediaCollection } from './utils/mediaReaderLogic';
 import {
   buildPublicReaderUrl,
+  cleanEnvUrlInput,
   isAiStudioOrPreviewHost,
   isLocalOrPrivateHost,
   validateGalleryUrls,
   validatePublicAppUrl,
 } from './utils/publicUrl';
 import { buildPayload, evaluateScannability } from './utils/qrLogic';
+import { formatPaidDurationLabel } from './utils/retentionPricing';
 import { computeDefaultServerExpiry } from './utils/serverAvailability';
 
 function parseViewerRoute(
@@ -214,8 +216,8 @@ function deriveAutoTitle(
   if (exp.headline.trim()) return exp.headline.trim();
   const customCardTitle = cfg.titleText.trim();
   if (customCardTitle && customCardTitle !== 'Mon Code QR') return customCardTitle;
-  if (src.type === 'image') return src.imageName.trim() || 'Photo partagée';
-  if (src.type === 'video') return src.videoName.trim() || 'Vidéo partagée';
+  if (src.type === 'image') return 'Image';
+  if (src.type === 'video') return 'Vidéo';
   if (src.textMode === 'wifi') return src.wifiSsid.trim() || 'Accès Wi-Fi';
   if (src.textMode === 'url') {
     const cleaned = src.urlValue
@@ -623,12 +625,43 @@ export default function App() {
 
     const hostedRequired =
       dynamicSecurity.enabled || needsHostedMediaCollection(source, experience);
-    const configuredOrigin = publicConfig?.configuredUrl || '';
-    const publicCheck = validatePublicAppUrl(configuredOrigin);
+
+    let latestPublicConfig = publicConfig;
+    if (hostedRequired && !latestPublicConfig?.valid) {
+      try {
+        latestPublicConfig = await fetchPublicAppConfig();
+        setPublicConfig(latestPublicConfig);
+      } catch {
+        // Non-blocking fallback handled below
+      }
+    }
+
+    const browserOrigin = typeof window !== 'undefined' ? window.location.origin : '';
+    const viteEnvUrl = cleanEnvUrlInput(
+      (import.meta as { env?: Record<string, string | undefined> }).env?.VITE_PUBLIC_APP_URL
+    );
+
+    const candidateOrigins = [
+      latestPublicConfig?.configuredUrl || '',
+      viteEnvUrl,
+      browserOrigin,
+    ];
+    let publicCheck = validatePublicAppUrl(candidateOrigins[0]);
+    if (!publicCheck.valid) {
+      for (const candidate of candidateOrigins.slice(1)) {
+        if (!candidate) continue;
+        const candidateCheck = validatePublicAppUrl(candidate);
+        if (candidateCheck.valid) {
+          publicCheck = candidateCheck;
+          break;
+        }
+      }
+    }
 
     if (hostedRequired && !publicCheck.valid) {
       setValidationError(
-        publicCheck.error ||
+        latestPublicConfig?.error ||
+          publicCheck.error ||
           'Ce QR code nécessite un domaine public actif pour être scanné à distance.'
       );
       setGeneratedSnapshot(null);
@@ -1421,7 +1454,7 @@ export default function App() {
             type: res.updatedCount > 0 ? 'success' : 'error',
             text:
               res.updatedCount > 0
-                ? `Conservation prolongée de ${res.months} mois (${res.updatedCount} ressource${res.updatedCount > 1 ? 's' : ''} mise${res.updatedCount > 1 ? 's' : ''} à jour).`
+                ? `Conservation prolongée de ${formatPaidDurationLabel(res.months)} (${res.updatedCount} ressource${res.updatedCount > 1 ? 's' : ''} mise${res.updatedCount > 1 ? 's' : ''} à jour).`
                 : 'Aucune ressource hébergée ou dynamique active à prolonger pour cette sélection.',
           });
           void Promise.all([

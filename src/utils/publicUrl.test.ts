@@ -2,10 +2,14 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   buildPublicReaderUrl,
+  cleanEnvUrlInput,
   detectEnvironmentIssue,
   inspectMediaUrlForQr,
   isAiStudioOrPreviewHost,
+  isInternalMediaPath,
+  isLocalOrPrivateHost,
   normalizeMediaAssetUrl,
+  resolveBestPublicAppConfig,
   validateGalleryUrls,
   validatePublicAppUrl,
 } from './publicUrl';
@@ -119,4 +123,71 @@ test('normalizeMediaAssetUrl strips stale AI Studio or localhost origin prefixes
     validateGalleryUrls(['/uploads/a.jpg', 'C:\\Users\\test\\b.jpg']).safe,
     false
   );
+});
+
+test('cleanEnvUrlInput strips outer quotes and whitespace cleanly', () => {
+  assert.equal(
+    cleanEnvUrlInput('  "https://kromaqr-studio.onrender.com/"  '),
+    'https://kromaqr-studio.onrender.com/'
+  );
+  assert.equal(
+    cleanEnvUrlInput("'https://kromaqr-studio.onrender.com'"),
+    'https://kromaqr-studio.onrender.com'
+  );
+  assert.equal(cleanEnvUrlInput(undefined), '');
+});
+
+test('isInternalMediaPath detects internal server paths vs external URLs', () => {
+  assert.equal(isInternalMediaPath('/api/media/abc123/file'), true);
+  assert.equal(isInternalMediaPath('/uploads/x.png'), true);
+  assert.equal(isInternalMediaPath('/m/abc123'), true);
+  assert.equal(isInternalMediaPath('/demo-atelier-1.jpg'), true);
+  assert.equal(isInternalMediaPath('https://cdn.example.com/photo.jpg'), false);
+  assert.equal(isInternalMediaPath(''), false);
+});
+
+test('resolveBestPublicAppConfig prioritizes PUBLIC_APP_URL and RENDER_EXTERNAL_URL while never masking invalid local/preview origins', () => {
+  const fromQuotedEnv = resolveBestPublicAppConfig({
+    envPublicAppUrl: '"https://kromaqr-studio.onrender.com/"',
+    detectedOrigin: 'http://localhost:3000',
+  });
+  assert.equal(fromQuotedEnv.valid, true);
+  assert.equal(fromQuotedEnv.source, 'env');
+  assert.equal(fromQuotedEnv.configuredUrl, 'https://kromaqr-studio.onrender.com');
+
+  const fromRenderEnv = resolveBestPublicAppConfig({
+    renderExternalUrl: 'https://kromaqr-studio.onrender.com',
+    detectedOrigin: 'http://localhost:3000',
+  });
+  assert.equal(fromRenderEnv.valid, true);
+  assert.equal(fromRenderEnv.source, 'render-env');
+  assert.equal(fromRenderEnv.configuredUrl, 'https://kromaqr-studio.onrender.com');
+
+  const fromDetectedHttps = resolveBestPublicAppConfig({
+    detectedOrigin: 'https://kromaqr-studio.onrender.com',
+  });
+  assert.equal(fromDetectedHttps.valid, true);
+  assert.equal(fromDetectedHttps.source, 'detected');
+  assert.equal(fromDetectedHttps.configuredUrl, 'https://kromaqr-studio.onrender.com');
+
+  const localWithoutEnv = resolveBestPublicAppConfig({
+    detectedOrigin: 'http://localhost:3000',
+  });
+  assert.equal(localWithoutEnv.valid, false);
+  assert.equal(localWithoutEnv.source, 'none');
+
+  const aiStudioWithoutEnv = resolveBestPublicAppConfig({
+    detectedOrigin: 'https://ais-dev-test123.europe-west3.run.app',
+  });
+  assert.equal(aiStudioWithoutEnv.valid, false);
+  assert.equal(aiStudioWithoutEnv.source, 'none');
+  assert.ok(aiStudioWithoutEnv.error?.includes('403'));
+
+  const invalidExplicitEnv = resolveBestPublicAppConfig({
+    envPublicAppUrl: 'http://kromaqr-studio.onrender.com',
+    detectedOrigin: 'https://kromaqr-studio.onrender.com',
+  });
+  assert.equal(invalidExplicitEnv.valid, false);
+  assert.equal(invalidExplicitEnv.source, 'env');
+  assert.ok(invalidExplicitEnv.error?.includes('HTTPS'));
 });

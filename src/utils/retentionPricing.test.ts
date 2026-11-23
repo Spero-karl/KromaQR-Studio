@@ -6,10 +6,12 @@ import {
   computeFreeRetentionExpiry,
   DEFAULT_MONTHLY_PRICES_CENTS,
   FREE_RETENTION_DAYS,
+  formatPaidDurationLabel,
   formatPriceEur,
   getDueNotificationMilestones,
   isValidPaidMonths,
   normalizePricingConfig,
+  PAID_PLAN_MONTHS,
 } from './retentionPricing';
 
 test('free tier defaults to exact 7 days retention', () => {
@@ -27,8 +29,8 @@ test('addMonthsToIso extends cumulatively without shortening already paid time',
 
   // If already expired, extension starts from now
   const expired = '2026-10-01T10:00:00.000Z';
-  const renewed = addMonthsToIso(expired, 2, now);
-  assert.equal(renewed, '2027-01-01T10:00:00.000Z');
+  const renewed = addMonthsToIso(expired, 6, now);
+  assert.equal(renewed, '2027-05-01T10:00:00.000Z');
 
   // Month-end clamping (Jan 31 + 1 month -> Feb 28)
   const jan31 = '2026-01-31T12:00:00.000Z';
@@ -36,20 +38,44 @@ test('addMonthsToIso extends cumulatively without shortening already paid time',
   assert.equal(febClamped.startsWith('2026-02-28'), true);
 });
 
-test('pricing validation covers 1 to 12 months with progressive defaults', () => {
-  assert.equal(isValidPaidMonths(1), true);
-  assert.equal(isValidPaidMonths(12), true);
-  assert.equal(isValidPaidMonths(0), false);
-  assert.equal(isValidPaidMonths(13), false);
-  assert.equal(isValidPaidMonths(1.5), false);
+test('pricing validation covers only 1 mois, 3 mois, 6 mois, 1 an with 50% halved defaults', () => {
+  assert.deepEqual([...PAID_PLAN_MONTHS], [1, 3, 6, 12]);
+  assert.deepEqual(DEFAULT_MONTHLY_PRICES_CENTS, {
+    1: 145,
+    3: 345,
+    6: 595,
+    12: 995,
+  });
 
+  for (const m of [1, 3, 6, 12]) {
+    assert.equal(isValidPaidMonths(m), true);
+  }
+  for (const invalid of [0, 2, 4, 5, 7, 8, 9, 10, 11, 13, 1.5]) {
+    assert.equal(isValidPaidMonths(invalid), false);
+  }
+
+  assert.equal(formatPaidDurationLabel(1), '1 mois');
+  assert.equal(formatPaidDurationLabel(3), '3 mois');
+  assert.equal(formatPaidDurationLabel(6), '6 mois');
+  assert.equal(formatPaidDurationLabel(12), '1 an');
+
+  // Legacy un-halved pricing files migrate cleanly to halved defaults
+  const migrated = normalizePricingConfig({
+    monthsCents: { 1: 290, 2: 490, 3: 690, 6: 1190, 12: 1990 },
+  });
+  assert.deepEqual(migrated.monthsCents, DEFAULT_MONTHLY_PRICES_CENTS);
+  assert.equal(migrated.pricingVersion, 2);
+
+  // Genuine custom admin overrides remain intact and exclude intermediate months
   const cfg = normalizePricingConfig({
-    monthsCents: { 1: 350, 12: 2400 },
+    monthsCents: { 1: 350, 2: 500, 12: 2400 },
   });
   assert.equal(cfg.monthsCents[1], 350);
-  assert.equal(cfg.monthsCents[2], DEFAULT_MONTHLY_PRICES_CENTS[2]);
+  assert.equal(cfg.monthsCents[3], DEFAULT_MONTHLY_PRICES_CENTS[3]);
+  assert.equal(cfg.monthsCents[6], DEFAULT_MONTHLY_PRICES_CENTS[6]);
   assert.equal(cfg.monthsCents[12], 2400);
-  assert.ok(formatPriceEur(350).includes('3,50'));
+  assert.equal(cfg.monthsCents[2], undefined);
+  assert.ok(formatPriceEur(145).includes('1,45'));
 });
 
 test('retention classification and 48h/24h/expired notification milestones work accurately', () => {

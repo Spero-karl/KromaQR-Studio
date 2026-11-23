@@ -303,7 +303,16 @@ export const CustomizePanel: React.FC<CustomizePanelProps> = ({
     config.centerEmoji && !config.logoId && !config.customLogoDataUrl ? 'emoji' : 'vector'
   );
   const [collectionTab, setCollectionTab] = useState<'all' | 'studio' | 'prestige'>('all');
+  const [confirmResetOpen, setConfirmResetOpen] = useState(false);
+  const [resetNotice, setResetNotice] = useState(false);
   const customLogoInputRef = useRef<HTMLInputElement>(null);
+
+  const handleConfirmEditorReset = () => {
+    onReset();
+    setConfirmResetOpen(false);
+    setResetNotice(true);
+    window.setTimeout(() => setResetNotice(false), 3200);
+  };
 
   const update = (patch: Partial<QrConfig>) => {
     onChange({ ...config, ...patch });
@@ -425,14 +434,52 @@ export const CustomizePanel: React.FC<CustomizePanelProps> = ({
           <button
             type="button"
             data-testid="reset-style-btn"
-            onClick={onReset}
-            className="inline-flex items-center gap-1.5 px-3 py-2 min-h-[38px] text-xs font-medium text-[#5C5E66] hover:text-[#111214] bg-white border border-[#E2E6F0] rounded-xl transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+            onClick={() => setConfirmResetOpen((prev) => !prev)}
+            className="inline-flex items-center gap-1.5 px-3 py-2 min-h-[38px] text-xs font-semibold text-[#5C5E66] hover:text-[#111214] bg-white border border-[#E2E6F0] hover:border-[#CBD5E1] rounded-xl transition-colors whitespace-nowrap shrink-0 cursor-pointer"
           >
             <RotateCcw className="w-3.5 h-3.5" aria-hidden="true" />
-            <span>Réinitialiser</span>
+            <span>Réinitialiser l&apos;éditeur</span>
           </button>
         </div>
       </div>
+
+      {confirmResetOpen && (
+        <div
+          data-testid="reset-editor-confirm-bar"
+          className="px-5 sm:px-6 py-3 bg-[#FFFBEB] border-b border-[#FDE68A] flex flex-wrap items-center justify-between gap-2.5 text-xs"
+        >
+          <span className="font-medium text-[#78350F]">
+            Réinitialiser uniquement le style visuel (couleurs, formes, logo, texte décoratif) ? Votre contenu, vos fichiers et vos QR enregistrés seront conservés.
+          </span>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              type="button"
+              data-testid="cancel-reset-editor-btn"
+              onClick={() => setConfirmResetOpen(false)}
+              className="px-3 py-1.5 text-xs font-semibold text-[#5C5E66] bg-white border border-[#E2E6F0] hover:text-[#111214] rounded-lg cursor-pointer"
+            >
+              Annuler
+            </button>
+            <button
+              type="button"
+              data-testid="confirm-reset-editor-btn"
+              onClick={handleConfirmEditorReset}
+              className="px-3 py-1.5 text-xs font-semibold text-white bg-[#111214] hover:bg-[#27292E] rounded-lg cursor-pointer"
+            >
+              Confirmer la réinitialisation
+            </button>
+          </div>
+        </div>
+      )}
+
+      {resetNotice && !confirmResetOpen && (
+        <div
+          data-testid="reset-editor-notice"
+          className="px-5 sm:px-6 py-2 bg-[#F0FDF4] border-b border-[#BBF7D0] text-xs font-semibold text-[#15803D]"
+        >
+          Éditeur visuel réinitialisé. Votre contenu QR reste intact.
+        </div>
+      )}
 
       {/* 5 Clean Ordered Menus */}
       <div className="px-4 sm:px-6 pt-2.5 bg-[#F8F7FC] border-b border-[#ECEAF4] flex items-center gap-1 overflow-x-auto no-scrollbar">

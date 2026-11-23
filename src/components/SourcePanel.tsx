@@ -26,7 +26,7 @@ import {
   encryptFileForUpload,
   generateE2eeKeyBase64Url,
 } from '../utils/e2eeCrypto';
-import { inspectMediaUrlForQr } from '../utils/publicUrl';
+import { inspectMediaUrlForQr, isInternalMediaPath } from '../utils/publicUrl';
 import { resolveEncodedTextStyle } from '../utils/textStyle';
 
 interface SourcePanelProps {
@@ -124,6 +124,7 @@ export const SourcePanel: React.FC<SourcePanelProps> = ({
   const [uploading, setUploading] = useState<'image' | 'video' | 'poster' | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [dragActive, setDragActive] = useState(false);
+  const [showExternalUrlInput, setShowExternalUrlInput] = useState<'image' | 'video' | null>(null);
   const [localPreviews, setLocalPreviews] = useState<Record<string, string>>({});
   const localPreviewsRef = useRef<Record<string, string>>({});
 
@@ -207,12 +208,13 @@ export const SourcePanel: React.FC<SourcePanelProps> = ({
       }
 
       if (expectedType === 'image') {
+        setShowExternalUrlInput(null);
         onChange({
           ...source,
           type: 'image',
           imageUrl: uploadedUrl,
           imagePageUrl: data.pageUrl,
-          imageName: encryptedMeta?.originalName || data.originalName || file.name,
+          imageName: '',
           imageMimeType: encryptedMeta?.originalMimeType || file.type,
           imageSize: encryptedMeta?.originalSize || file.size,
           imageEncrypted: isE2eeActive,
@@ -226,12 +228,13 @@ export const SourcePanel: React.FC<SourcePanelProps> = ({
           e2eeKeyFragment: isE2eeActive ? activeKey : source.e2eeKeyFragment,
         });
       } else {
+        setShowExternalUrlInput(null);
         onChange({
           ...source,
           type: 'video',
           videoUrl: uploadedUrl,
           videoPageUrl: data.pageUrl,
-          videoName: encryptedMeta?.originalName || data.originalName || file.name,
+          videoName: '',
           videoMimeType: encryptedMeta?.originalMimeType || file.type,
           videoSize: encryptedMeta?.originalSize || file.size,
           videoEncrypted: isE2eeActive,
@@ -262,20 +265,22 @@ export const SourcePanel: React.FC<SourcePanelProps> = ({
         }),
       });
       const data = await res.json();
+      setShowExternalUrlInput(null);
       onChange({
         ...source,
         type: 'image',
         imageUrl: DEMO_IMAGE_PATH,
         imagePageUrl: data.pageUrl || DEMO_IMAGE_PATH,
-        imageName: 'Exposition Formes Géométriques.jpg',
+        imageName: '',
       });
     } catch {
+      setShowExternalUrlInput(null);
       onChange({
         ...source,
         type: 'image',
         imageUrl: DEMO_IMAGE_PATH,
         imagePageUrl: DEMO_IMAGE_PATH,
-        imageName: 'Exposition Formes Géométriques.jpg',
+        imageName: '',
       });
     } finally {
       setUploading(null);
@@ -296,20 +301,22 @@ export const SourcePanel: React.FC<SourcePanelProps> = ({
         }),
       });
       const data = await res.json();
+      setShowExternalUrlInput(null);
       onChange({
         ...source,
         type: 'video',
         videoUrl: DEMO_VIDEO_PATH,
         videoPageUrl: data.pageUrl || DEMO_VIDEO_PATH,
-        videoName: 'Teaser Atelier.mp4',
+        videoName: '',
       });
     } catch {
+      setShowExternalUrlInput(null);
       onChange({
         ...source,
         type: 'video',
         videoUrl: DEMO_VIDEO_PATH,
         videoPageUrl: DEMO_VIDEO_PATH,
-        videoName: 'Teaser Atelier.mp4',
+        videoName: '',
       });
     } finally {
       setUploading(null);
@@ -628,134 +635,234 @@ export const SourcePanel: React.FC<SourcePanelProps> = ({
 
       {/* IMAGE */}
       {selectedIntent === 'image' && (
-        <div className="pt-5 space-y-3 animate-[fadeIn_160ms_ease-out]">
-          <div
-            onDragOver={(e) => {
-              e.preventDefault();
-              setDragActive(true);
+        <div className="pt-4 space-y-2.5 animate-[fadeIn_160ms_ease-out]">
+          <input
+            ref={imageInputRef}
+            type="file"
+            accept="image/*"
+            aria-label="Importer un fichier image"
+            className="sr-only"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) void handleFileUpload(file, 'image');
+              e.target.value = '';
             }}
-            onDragLeave={() => setDragActive(false)}
-            onDrop={(e) => handleDrop(e, 'image')}
-            className={`rounded-xl border border-dashed px-4 py-4 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
-              dragActive
-                ? 'border-[#1D4ED8] bg-[#F4F7FF]'
-                : 'border-[#DAD7CD] bg-[#FAF9F5]'
-            }`}
-          >
-            <input
-              ref={imageInputRef}
-              type="file"
-              accept="image/*"
-              aria-label="Importer un fichier image"
-              className="sr-only"
-              onChange={(e) => {
-                const file = e.target.files?.[0];
-                if (file) void handleFileUpload(file, 'image');
+          />
+
+          {source.imageUrl && isInternalMediaPath(source.imageUrl) ? (
+            <div
+              data-testid="image-loaded-card"
+              onDragOver={(e) => {
+                e.preventDefault();
+                setDragActive(true);
               }}
-            />
-
-            <div className="flex items-center gap-3 min-w-0">
-              <div className="w-10 h-10 rounded-xl bg-white border border-[#E6E4DC] flex items-center justify-center shrink-0">
-                <ImageIcon className="w-4 h-4 text-[#1D4ED8]" aria-hidden="true" />
-              </div>
-              <div className="min-w-0">
-                <p className="text-sm font-semibold text-[#111214] truncate">
-                  {uploading === 'image'
-                    ? 'Hébergement sécurisé...'
-                    : 'Déposez une image (PNG, JPG, WebP)'}
-                </p>
-                <p className="text-xs text-[#6E7078] truncate">
-                  Proportions d’origine préservées avec zoom &amp; plein écran.
-                </p>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2 shrink-0">
-              <button
-                type="button"
-                disabled={uploading === 'image'}
-                onClick={() => imageInputRef.current?.click()}
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-white bg-[#111214] hover:bg-[#27292E] rounded-xl transition-colors whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-60"
-              >
-                <Upload className="w-3.5 h-3.5" aria-hidden="true" />
-                <span>Importer</span>
-              </button>
-              <button
-                type="button"
-                disabled={uploading === 'image'}
-                onClick={handleUseDemoImage}
-                className="inline-flex items-center px-3.5 py-2 text-xs font-semibold text-[#1D4ED8] bg-[#EFF4FF] hover:bg-[#E0EAFF] rounded-xl transition-colors whitespace-nowrap shrink-0 cursor-pointer"
-              >
-                <span>Démo</span>
-              </button>
-            </div>
-          </div>
-
-          <div className="flex flex-col sm:flex-row gap-2.5 items-stretch sm:items-center">
-            <label htmlFor="qr-image-url" className="sr-only">
-              Lien direct vers une image (URL)
-            </label>
-            <input
-              id="qr-image-url"
-              type="text"
-              value={source.imageUrl}
-              onChange={(e) =>
-                onChange({
-                  ...source,
-                  type: 'image',
-                  imageUrl: e.target.value,
-                  imagePageUrl: '',
-                  imageName: 'Image externe',
-                })
-              }
-              placeholder="Ou collez l’URL directe d’une image…"
-              className="flex-1 px-3.5 py-2.5 text-xs bg-[#FAF9F5] border border-[#DFDDD4] rounded-xl focus:outline-none focus:border-[#1D4ED8]"
-            />
-
-            {source.imageUrl && (
-              <div className="flex items-center gap-2.5 px-3 py-1.5 bg-[#F4F2EC] rounded-xl shrink-0">
+              onDragLeave={() => setDragActive(false)}
+              onDrop={(e) => handleDrop(e, 'image')}
+              className={`rounded-xl border px-3.5 py-2.5 transition-colors flex flex-wrap items-center justify-between gap-3 ${
+                dragActive
+                  ? 'border-[#1D4ED8] bg-[#F4F7FF]'
+                  : 'border-[#DCE6FF] bg-[#F8FAFF]'
+              }`}
+            >
+              <div className="flex items-center gap-3 min-w-0">
                 <img
                   src={localPreviews[source.imageUrl] || source.imageUrl}
-                  alt={source.imageName || 'Aperçu'}
+                  alt="Aperçu de l’image"
                   referrerPolicy="no-referrer"
-                  className="w-7 h-7 rounded-md object-cover border border-black/10"
+                  data-testid="image-source-thumbnail"
+                  className="w-12 h-12 rounded-lg object-cover border border-[#DCE2EE] bg-white shrink-0"
                 />
-                <span className="text-xs font-medium text-[#15803D] inline-flex items-center gap-1">
-                  <CheckCircle2 className="w-3.5 h-3.5" aria-hidden="true" />
-                  <span>{source.imageEncrypted ? 'Chiffrée' : 'Prête'}</span>
-                </span>
-                <label className="inline-flex items-center gap-1.5 text-xs font-medium text-[#2C2E33] cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={source.useSourceImageAsLogo}
-                    onChange={(e) =>
-                      onChange({
-                        ...source,
-                        useSourceImageAsLogo: e.target.checked,
-                      })
-                    }
-                    className="w-3.5 h-3.5 rounded accent-[#1D4ED8]"
-                  />
-                  <span>Au centre</span>
-                </label>
+                <div className="min-w-0 space-y-0.5">
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <span className="text-xs font-bold text-[#111214] inline-flex items-center gap-1">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-[#15803D]" aria-hidden="true" />
+                      <span>{uploading === 'image' ? 'Envoi en cours…' : 'Image prête'}</span>
+                    </span>
+                    {source.imageEncrypted && (
+                      <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-[#1D4ED8] bg-[#EFF4FF] px-1.5 py-0.5 rounded-md">
+                        <Lock className="w-2.5 h-2.5" aria-hidden="true" />
+                        <span>E2EE</span>
+                      </span>
+                    )}
+                    {source.imageUrl === DEMO_IMAGE_PATH && (
+                      <span className="text-[10px] font-semibold text-[#7C3AED] bg-[#F5F3FF] px-1.5 py-0.5 rounded-md">
+                        Démo
+                      </span>
+                    )}
+                  </div>
+                  <label className="inline-flex items-center gap-1.5 text-[11px] font-medium text-[#475569] cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={source.useSourceImageAsLogo}
+                      onChange={(e) =>
+                        onChange({
+                          ...source,
+                          useSourceImageAsLogo: e.target.checked,
+                        })
+                      }
+                      className="w-3.5 h-3.5 rounded accent-[#1D4ED8]"
+                    />
+                    <span>Afficher aussi au centre du QR</span>
+                  </label>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-1.5 shrink-0">
+                <button
+                  type="button"
+                  disabled={uploading === 'image'}
+                  onClick={() => imageInputRef.current?.click()}
+                  className="inline-flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-semibold text-[#111214] bg-white border border-[#DCE2EE] hover:bg-[#EFF4FF] rounded-lg transition-colors cursor-pointer disabled:opacity-60"
+                >
+                  <Upload className="w-3 h-3" aria-hidden="true" />
+                  <span>Remplacer</span>
+                </button>
                 <button
                   type="button"
                   aria-label="Retirer l’image sélectionnée"
-                  onClick={() =>
+                  onClick={() => {
+                    setShowExternalUrlInput(null);
                     onChange({
                       ...source,
                       imageUrl: '',
                       imageName: '',
                       imagePageUrl: '',
-                    })
-                  }
-                  className="p-1 text-[#6E7078] hover:text-[#111214] rounded-md cursor-pointer"
+                      imageEncrypted: false,
+                    });
+                  }}
+                  className="p-1.5 text-[#6E7078] hover:text-[#B91C1C] hover:bg-white rounded-lg cursor-pointer"
                 >
                   <X className="w-3.5 h-3.5" />
                 </button>
               </div>
-            )}
-          </div>
+            </div>
+          ) : (
+            <div
+              onDragOver={(e) => {
+                e.preventDefault();
+                setDragActive(true);
+              }}
+              onDragLeave={() => setDragActive(false)}
+              onDrop={(e) => handleDrop(e, 'image')}
+              className={`rounded-xl border border-dashed px-3.5 py-3 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 ${
+                dragActive
+                  ? 'border-[#1D4ED8] bg-[#F4F7FF]'
+                  : 'border-[#DAD7CD] bg-[#FAF9F5]'
+              }`}
+            >
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-9 h-9 rounded-lg bg-white border border-[#E6E4DC] flex items-center justify-center shrink-0">
+                  <ImageIcon className="w-4 h-4 text-[#D97706]" aria-hidden="true" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-xs sm:text-sm font-semibold text-[#111214] truncate">
+                    {uploading === 'image'
+                      ? 'Hébergement sécurisé...'
+                      : 'Importer une image (PNG, JPG, WebP)'}
+                  </p>
+                  <p className="text-[11px] text-[#6E7078] truncate">
+                    Qualité d’origine préservée avec zoom &amp; plein écran.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  disabled={uploading === 'image'}
+                  onClick={() => imageInputRef.current?.click()}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-[#111214] hover:bg-[#27292E] rounded-xl transition-colors whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-60"
+                >
+                  <Upload className="w-3.5 h-3.5" aria-hidden="true" />
+                  <span>Importer</span>
+                </button>
+                <button
+                  type="button"
+                  disabled={uploading === 'image'}
+                  onClick={handleUseDemoImage}
+                  className="inline-flex items-center px-3 py-1.5 text-xs font-semibold text-[#1D4ED8] bg-[#EFF4FF] hover:bg-[#E0EAFF] rounded-xl transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+                >
+                  <span>Démo</span>
+                </button>
+              </div>
+            </div>
+          )}
+
+          {(!source.imageUrl || !isInternalMediaPath(source.imageUrl) || showExternalUrlInput === 'image') ? (
+            <div className="flex flex-col sm:flex-row gap-2 items-stretch sm:items-center">
+              <label htmlFor="qr-image-url" className="sr-only">
+                Lien HTTPS externe vers une image
+              </label>
+              <input
+                id="qr-image-url"
+                type="text"
+                value={isInternalMediaPath(source.imageUrl) ? '' : source.imageUrl}
+                onChange={(e) =>
+                  onChange({
+                    ...source,
+                    type: 'image',
+                    imageUrl: e.target.value,
+                    imagePageUrl: '',
+                    imageName: '',
+                    imageEncrypted: false,
+                  })
+                }
+                placeholder="Ou collez un lien HTTPS externe vers une image…"
+                className="flex-1 px-3 py-2 text-xs bg-[#FAF9F5] border border-[#DFDDD4] rounded-xl focus:outline-none focus:border-[#1D4ED8]"
+              />
+
+              {source.imageUrl && !isInternalMediaPath(source.imageUrl) && (
+                <div className="flex items-center gap-2 px-2.5 py-1 bg-[#F4F2EC] rounded-xl shrink-0">
+                  <img
+                    src={source.imageUrl}
+                    alt="Aperçu de l’image"
+                    referrerPolicy="no-referrer"
+                    data-testid="image-source-thumbnail"
+                    className="w-7 h-7 rounded-md object-cover border border-black/10"
+                  />
+                  <label className="inline-flex items-center gap-1.5 text-xs font-medium text-[#2C2E33] cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={source.useSourceImageAsLogo}
+                      onChange={(e) =>
+                        onChange({
+                          ...source,
+                          useSourceImageAsLogo: e.target.checked,
+                        })
+                      }
+                      className="w-3.5 h-3.5 rounded accent-[#1D4ED8]"
+                    />
+                    <span>Au centre</span>
+                  </label>
+                  <button
+                    type="button"
+                    aria-label="Retirer l’image sélectionnée"
+                    onClick={() =>
+                      onChange({
+                        ...source,
+                        imageUrl: '',
+                        imageName: '',
+                        imagePageUrl: '',
+                      })
+                    }
+                    className="p-1 text-[#6E7078] hover:text-[#111214] rounded-md cursor-pointer"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="flex justify-end">
+              <button
+                type="button"
+                onClick={() => setShowExternalUrlInput('image')}
+                className="text-[11px] font-medium text-[#5C5E66] hover:text-[#1D4ED8] hover:underline cursor-pointer"
+              >
+                Utiliser plutôt un lien HTTPS externe
+              </button>
+            </div>
+          )}
 
           {imageUrlWarning && (
             <p role="alert" className="text-xs font-medium text-[#B91C1C]">
@@ -767,93 +874,49 @@ export const SourcePanel: React.FC<SourcePanelProps> = ({
 
       {/* VIDEO */}
       {selectedIntent === 'video' && (
-        <div className="pt-5 space-y-3 animate-[fadeIn_160ms_ease-out]">
-          <div
-            onDragOver={(e) => {
-              e.preventDefault();
-              setDragActive(true);
+        <div className="pt-4 space-y-2.5 animate-[fadeIn_160ms_ease-out]">
+          <input
+            ref={videoInputRef}
+            type="file"
+            accept="video/*"
+            aria-label="Importer un fichier vidéo"
+            className="sr-only"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) void handleFileUpload(file, 'video');
+              e.target.value = '';
             }}
-            onDragLeave={() => setDragActive(false)}
-            onDrop={(e) => handleDrop(e, 'video')}
-            className={`rounded-xl border border-dashed px-4 py-4 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${
-              dragActive
-                ? 'border-[#1D4ED8] bg-[#F4F7FF]'
-                : 'border-[#DAD7CD] bg-[#FAF9F5]'
-            }`}
-          >
-            <input
-              ref={videoInputRef}
-              type="file"
-              accept="video/*"
-              aria-label="Importer un fichier vidéo"
-              className="sr-only"
-              onChange={(e) => {
-                const file = e.target.files?.[0];
-                if (file) void handleFileUpload(file, 'video');
+          />
+          <input
+            ref={posterInputRef}
+            type="file"
+            accept="image/*"
+            aria-label="Importer une miniature vidéo"
+            className="sr-only"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) void handleFileUpload(file, 'poster');
+              e.target.value = '';
+            }}
+          />
+
+          {source.videoUrl && isInternalMediaPath(source.videoUrl) ? (
+            <div
+              data-testid="video-loaded-card"
+              onDragOver={(e) => {
+                e.preventDefault();
+                setDragActive(true);
               }}
-            />
-
-            <div className="flex items-center gap-3 min-w-0">
-              <div className="w-10 h-10 rounded-xl bg-white border border-[#E6E4DC] flex items-center justify-center shrink-0">
-                <Film className="w-4 h-4 text-[#1D4ED8]" aria-hidden="true" />
-              </div>
-              <div className="min-w-0">
-                <p className="text-sm font-semibold text-[#111214] truncate">
-                  {uploading === 'video'
-                    ? 'Téléversement en cours...'
-                    : 'Déposez une vidéo (MP4, WebM, MOV)'}
-                </p>
-                <p className="text-xs text-[#6E7078] truncate">
-                  Lecteur intégré sans redirection externe.
-                </p>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2 shrink-0">
-              <button
-                type="button"
-                disabled={uploading === 'video'}
-                onClick={() => videoInputRef.current?.click()}
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-white bg-[#111214] hover:bg-[#27292E] rounded-xl transition-colors whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-60"
-              >
-                <Upload className="w-3.5 h-3.5" aria-hidden="true" />
-                <span>Importer</span>
-              </button>
-              <button
-                type="button"
-                disabled={uploading === 'video'}
-                onClick={handleUseDemoVideo}
-                className="inline-flex items-center px-3.5 py-2 text-xs font-semibold text-[#1D4ED8] bg-[#EFF4FF] hover:bg-[#E0EAFF] rounded-xl transition-colors whitespace-nowrap shrink-0 cursor-pointer"
-              >
-                <span>Démo</span>
-              </button>
-            </div>
-          </div>
-
-          <div className="flex flex-col sm:flex-row gap-2.5 items-stretch sm:items-center">
-            <label htmlFor="qr-video-url" className="sr-only">
-              Lien vidéo externe
-            </label>
-            <input
-              id="qr-video-url"
-              type="text"
-              value={source.videoUrl}
-              onChange={(e) =>
-                onChange({
-                  ...source,
-                  type: 'video',
-                  videoUrl: e.target.value,
-                  videoPageUrl: '',
-                  videoName: 'Vidéo externe',
-                })
-              }
-              placeholder="Ou collez une URL vidéo directe (MP4, WebM, MOV)…"
-              className="flex-1 px-3.5 py-2.5 text-xs bg-[#FAF9F5] border border-[#DFDDD4] rounded-xl focus:outline-none focus:border-[#1D4ED8]"
-            />
-
-            {source.videoUrl && (
-              <div className="flex items-center gap-2.5 px-3 py-1.5 bg-[#F4F2EC] rounded-xl shrink-0">
-                <div className="w-10 h-7 rounded overflow-hidden bg-black shrink-0">
+              onDragLeave={() => setDragActive(false)}
+              onDrop={(e) => handleDrop(e, 'video')}
+              className={`rounded-xl border px-3.5 py-2.5 transition-colors flex flex-wrap items-center justify-between gap-3 ${
+                dragActive
+                  ? 'border-[#1D4ED8] bg-[#F4F7FF]'
+                  : 'border-[#FFD5DF] bg-[#FFF8FA]'
+              }`}
+            >
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-14 h-10 rounded-lg overflow-hidden bg-[#111214] border border-[#DCE2EE] shrink-0">
                   <video
                     src={localPreviews[source.videoUrl] || source.videoUrl}
                     poster={
@@ -863,61 +926,229 @@ export const SourcePanel: React.FC<SourcePanelProps> = ({
                     }
                     muted
                     playsInline
+                    data-testid="video-source-thumbnail"
                     className="w-full h-full object-cover"
                   />
                 </div>
-                <span className="text-xs font-medium text-[#15803D] inline-flex items-center gap-1">
-                  <CheckCircle2 className="w-3.5 h-3.5" aria-hidden="true" />
-                  <span>{source.videoEncrypted ? 'Chiffrée' : 'Prête'}</span>
-                </span>
+                <div className="min-w-0 space-y-0.5">
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <span className="text-xs font-bold text-[#111214] inline-flex items-center gap-1">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-[#15803D]" aria-hidden="true" />
+                      <span>{uploading === 'video' ? 'Envoi en cours…' : 'Vidéo prête'}</span>
+                    </span>
+                    {source.videoEncrypted && (
+                      <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-[#1D4ED8] bg-[#EFF4FF] px-1.5 py-0.5 rounded-md">
+                        <Lock className="w-2.5 h-2.5" aria-hidden="true" />
+                        <span>E2EE</span>
+                      </span>
+                    )}
+                    {source.videoUrl === DEMO_VIDEO_PATH && (
+                      <span className="text-[10px] font-semibold text-[#7C3AED] bg-[#F5F3FF] px-1.5 py-0.5 rounded-md">
+                        Démo
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-[11px] text-[#6E7078] truncate">
+                    Lecteur intégré plein écran compatible iOS et Android.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-1.5 shrink-0">
+                <button
+                  type="button"
+                  disabled={uploading === 'video'}
+                  onClick={() => videoInputRef.current?.click()}
+                  className="inline-flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-semibold text-[#111214] bg-white border border-[#DCE2EE] hover:bg-[#FFF0F3] rounded-lg transition-colors cursor-pointer disabled:opacity-60"
+                >
+                  <Upload className="w-3 h-3" aria-hidden="true" />
+                  <span>Remplacer</span>
+                </button>
                 <button
                   type="button"
                   aria-label="Retirer la vidéo sélectionnée"
-                  onClick={() =>
+                  onClick={() => {
+                    setShowExternalUrlInput(null);
                     onChange({
                       ...source,
                       videoUrl: '',
                       videoName: '',
                       videoPageUrl: '',
-                    })
-                  }
-                  className="p-1 text-[#6E7078] hover:text-[#111214] rounded-md cursor-pointer"
+                      videoEncrypted: false,
+                    });
+                  }}
+                  className="p-1.5 text-[#6E7078] hover:text-[#B91C1C] hover:bg-white rounded-lg cursor-pointer"
                 >
                   <X className="w-3.5 h-3.5" />
                 </button>
               </div>
-            )}
-          </div>
-
-          {/* Optional video poster */}
-          <div className="flex flex-col sm:flex-row sm:items-center gap-2 p-2.5 rounded-xl bg-[#FAF9F5] border border-[#E8E6DF]">
-            <input
-              ref={posterInputRef}
-              type="file"
-              accept="image/*"
-              aria-label="Importer une miniature vidéo"
-              className="sr-only"
-              onChange={(e) => {
-                const file = e.target.files?.[0];
-                if (file) void handleFileUpload(file, 'poster');
+            </div>
+          ) : (
+            <div
+              onDragOver={(e) => {
+                e.preventDefault();
+                setDragActive(true);
               }}
-            />
-            <span className="text-xs font-medium text-[#5C5E66] whitespace-nowrap">
-              Miniature (optionnel)
-            </span>
-            <input
-              type="text"
-              aria-label="URL de la miniature vidéo"
-              value={source.videoPosterUrl || ''}
-              onChange={(e) =>
-                onChange({
-                  ...source,
-                  videoPosterUrl: e.target.value,
-                })
-              }
-              placeholder="URL d’image de couverture…"
-              className="flex-1 min-w-0 px-2.5 py-1.5 text-xs bg-white border border-[#DFDDD4] rounded-lg"
-            />
+              onDragLeave={() => setDragActive(false)}
+              onDrop={(e) => handleDrop(e, 'video')}
+              className={`rounded-xl border border-dashed px-3.5 py-3 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 ${
+                dragActive
+                  ? 'border-[#1D4ED8] bg-[#F4F7FF]'
+                  : 'border-[#DAD7CD] bg-[#FAF9F5]'
+              }`}
+            >
+              <div className="flex items-center gap-2.5 min-w-0">
+                <div className="w-9 h-9 rounded-lg bg-white border border-[#E6E4DC] flex items-center justify-center shrink-0">
+                  <Film className="w-4 h-4 text-[#E11D48]" aria-hidden="true" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-xs sm:text-sm font-semibold text-[#111214] truncate">
+                    {uploading === 'video'
+                      ? 'Téléversement en cours...'
+                      : 'Importer une vidéo (MP4, WebM, MOV)'}
+                  </p>
+                  <p className="text-[11px] text-[#6E7078] truncate">
+                    Lecteur intégré sans redirection externe.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  disabled={uploading === 'video'}
+                  onClick={() => videoInputRef.current?.click()}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-[#111214] hover:bg-[#27292E] rounded-xl transition-colors whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-60"
+                >
+                  <Upload className="w-3.5 h-3.5" aria-hidden="true" />
+                  <span>Importer</span>
+                </button>
+                <button
+                  type="button"
+                  disabled={uploading === 'video'}
+                  onClick={handleUseDemoVideo}
+                  className="inline-flex items-center px-3 py-1.5 text-xs font-semibold text-[#1D4ED8] bg-[#EFF4FF] hover:bg-[#E0EAFF] rounded-xl transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+                >
+                  <span>Démo</span>
+                </button>
+              </div>
+            </div>
+          )}
+
+          {(!source.videoUrl || !isInternalMediaPath(source.videoUrl) || showExternalUrlInput === 'video') ? (
+            <div className="flex flex-col sm:flex-row gap-2 items-stretch sm:items-center">
+              <label htmlFor="qr-video-url" className="sr-only">
+                Lien HTTPS externe vers une vidéo
+              </label>
+              <input
+                id="qr-video-url"
+                type="text"
+                value={isInternalMediaPath(source.videoUrl) ? '' : source.videoUrl}
+                onChange={(e) =>
+                  onChange({
+                    ...source,
+                    type: 'video',
+                    videoUrl: e.target.value,
+                    videoPageUrl: '',
+                    videoName: '',
+                    videoEncrypted: false,
+                  })
+                }
+                placeholder="Ou collez une URL vidéo HTTPS externe (MP4, WebM, MOV)…"
+                className="flex-1 px-3 py-2 text-xs bg-[#FAF9F5] border border-[#DFDDD4] rounded-xl focus:outline-none focus:border-[#1D4ED8]"
+              />
+
+              {source.videoUrl && !isInternalMediaPath(source.videoUrl) && (
+                <div className="flex items-center gap-2 px-2.5 py-1 bg-[#F4F2EC] rounded-xl shrink-0">
+                  <div className="w-10 h-7 rounded overflow-hidden bg-black shrink-0">
+                    <video
+                      src={source.videoUrl}
+                      poster={
+                        (source.videoPosterUrl && localPreviews[source.videoPosterUrl]) ||
+                        source.videoPosterUrl ||
+                        undefined
+                      }
+                      muted
+                      playsInline
+                      data-testid="video-source-thumbnail"
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                  <span className="text-xs font-medium text-[#15803D] inline-flex items-center gap-1">
+                    <CheckCircle2 className="w-3.5 h-3.5" aria-hidden="true" />
+                    <span>Prête</span>
+                  </span>
+                  <button
+                    type="button"
+                    aria-label="Retirer la vidéo sélectionnée"
+                    onClick={() =>
+                      onChange({
+                        ...source,
+                        videoUrl: '',
+                        videoName: '',
+                        videoPageUrl: '',
+                      })
+                    }
+                    className="p-1 text-[#6E7078] hover:text-[#111214] rounded-md cursor-pointer"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="flex justify-end">
+              <button
+                type="button"
+                onClick={() => setShowExternalUrlInput('video')}
+                className="text-[11px] font-medium text-[#5C5E66] hover:text-[#1D4ED8] hover:underline cursor-pointer"
+              >
+                Utiliser plutôt un lien HTTPS externe
+              </button>
+            </div>
+          )}
+
+          {/* Optional video poster (never exposes internal path) */}
+          <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 rounded-xl bg-[#FAF9F5] border border-[#E8E6DF]">
+            <div className="flex items-center gap-2.5 min-w-0 flex-1">
+              {source.videoPosterUrl ? (
+                <img
+                  src={localPreviews[source.videoPosterUrl] || source.videoPosterUrl}
+                  alt="Miniature vidéo"
+                  referrerPolicy="no-referrer"
+                  className="w-8 h-8 rounded-md object-cover border border-[#DCE2EE] shrink-0"
+                />
+              ) : null}
+              {source.videoPosterUrl && isInternalMediaPath(source.videoPosterUrl) ? (
+                <span className="text-xs font-medium text-[#15803D] inline-flex items-center gap-1 truncate">
+                  <CheckCircle2 className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
+                  <span>Miniature de couverture prête</span>
+                </span>
+              ) : (
+                <>
+                  <span className="text-xs font-medium text-[#5C5E66] whitespace-nowrap">
+                    Miniature (optionnel)
+                  </span>
+                  <input
+                    type="text"
+                    aria-label="Lien HTTPS de la miniature vidéo"
+                    value={
+                      source.videoPosterUrl && isInternalMediaPath(source.videoPosterUrl)
+                        ? ''
+                        : source.videoPosterUrl || ''
+                    }
+                    onChange={(e) =>
+                      onChange({
+                        ...source,
+                        videoPosterUrl: e.target.value,
+                      })
+                    }
+                    placeholder="Lien HTTPS d’image de couverture…"
+                    className="flex-1 min-w-[140px] px-2.5 py-1 text-xs bg-white border border-[#DFDDD4] rounded-lg"
+                  />
+                </>
+              )}
+            </div>
             <div className="flex items-center gap-1.5 shrink-0">
               <button
                 type="button"
@@ -925,14 +1156,18 @@ export const SourcePanel: React.FC<SourcePanelProps> = ({
                 onClick={() => posterInputRef.current?.click()}
                 className="px-2.5 py-1 text-xs font-semibold text-[#111214] bg-white border border-[#DFDDD4] hover:bg-[#F2F1EB] rounded-lg cursor-pointer"
               >
-                {uploading === 'poster' ? 'Envoi…' : 'Importer'}
+                {uploading === 'poster'
+                  ? 'Envoi…'
+                  : source.videoPosterUrl
+                  ? 'Remplacer'
+                  : 'Importer'}
               </button>
               {source.videoPosterUrl && (
                 <button
                   type="button"
                   aria-label="Retirer la miniature"
                   onClick={() => onChange({ ...source, videoPosterUrl: '' })}
-                  className="p-1 text-[#6E7078] hover:text-[#111214] cursor-pointer"
+                  className="p-1 text-[#6E7078] hover:text-[#B91C1C] cursor-pointer"
                 >
                   <X className="w-3.5 h-3.5" />
                 </button>

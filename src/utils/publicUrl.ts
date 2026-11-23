@@ -368,3 +368,129 @@ export function validateGalleryUrls(urls: string[]): MediaUrlSafetyResult {
   return { safe: true };
 }
 
+export function cleanEnvUrlInput(raw?: string | null): string {
+  let val = (raw || '').trim();
+  while (
+    val.length >= 2 &&
+    ((val.startsWith('"') && val.endsWith('"')) || (val.startsWith("'") && val.endsWith("'")))
+  ) {
+    val = val.slice(1, -1).trim();
+  }
+  return val;
+}
+
+export function isInternalMediaPath(rawUrl?: string | null): boolean {
+  const trimmed = (rawUrl || '').trim();
+  if (!trimmed) return false;
+  return (
+    trimmed.startsWith('/api/media/') ||
+    trimmed.startsWith('/uploads/') ||
+    trimmed.startsWith('/m/') ||
+    trimmed.startsWith('/d/') ||
+    trimmed.startsWith('/demo-')
+  );
+}
+
+export type PublicConfigSource = 'env' | 'render-env' | 'saved' | 'detected' | 'none';
+
+export interface ResolvedPublicAppConfig {
+  configuredUrl: string;
+  valid: boolean;
+  source: PublicConfigSource;
+  error?: string;
+  detectedOrigin: string;
+  diagnostics: EnvironmentDiagnostic;
+}
+
+export function resolveBestPublicAppConfig(params: {
+  envPublicAppUrl?: string;
+  envVitePublicAppUrl?: string;
+  renderExternalUrl?: string;
+  savedPublicAppUrl?: string;
+  detectedOrigin?: string;
+  appUrl?: string;
+}): ResolvedPublicAppConfig {
+  const detectedOrigin = cleanEnvUrlInput(params.detectedOrigin);
+  const diagnostics = detectEnvironmentIssue(detectedOrigin);
+
+  const explicitEnv =
+    cleanEnvUrlInput(params.envPublicAppUrl) || cleanEnvUrlInput(params.envVitePublicAppUrl);
+  if (explicitEnv) {
+    const check = validatePublicAppUrl(explicitEnv);
+    return {
+      configuredUrl: check.valid ? check.normalizedUrl : explicitEnv,
+      valid: check.valid,
+      source: 'env',
+      error: check.error,
+      detectedOrigin,
+      diagnostics,
+    };
+  }
+
+  const renderUrl = cleanEnvUrlInput(params.renderExternalUrl);
+  if (renderUrl) {
+    const renderCheck = validatePublicAppUrl(renderUrl);
+    if (renderCheck.valid) {
+      return {
+        configuredUrl: renderCheck.normalizedUrl,
+        valid: true,
+        source: 'render-env',
+        error: undefined,
+        detectedOrigin,
+        diagnostics,
+      };
+    }
+  }
+
+  const savedUrl = cleanEnvUrlInput(params.savedPublicAppUrl);
+  if (savedUrl) {
+    const savedCheck = validatePublicAppUrl(savedUrl);
+    if (savedCheck.valid) {
+      return {
+        configuredUrl: savedCheck.normalizedUrl,
+        valid: true,
+        source: 'saved',
+        error: undefined,
+        detectedOrigin,
+        diagnostics,
+      };
+    }
+  }
+
+  const detectedCheck = validatePublicAppUrl(detectedOrigin);
+  if (detectedCheck.valid) {
+    return {
+      configuredUrl: detectedCheck.normalizedUrl,
+      valid: true,
+      source: 'detected',
+      error: undefined,
+      detectedOrigin,
+      diagnostics,
+    };
+  }
+
+  const fallbackAppUrl = cleanEnvUrlInput(params.appUrl);
+  if (fallbackAppUrl) {
+    const appCheck = validatePublicAppUrl(fallbackAppUrl);
+    if (appCheck.valid) {
+      return {
+        configuredUrl: appCheck.normalizedUrl,
+        valid: true,
+        source: 'env',
+        error: undefined,
+        detectedOrigin,
+        diagnostics,
+      };
+    }
+  }
+
+  return {
+    configuredUrl: '',
+    valid: false,
+    source: 'none',
+    error: diagnostics.summary,
+    detectedOrigin,
+    diagnostics,
+  };
+}
+

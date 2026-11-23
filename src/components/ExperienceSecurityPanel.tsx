@@ -34,6 +34,7 @@ import {
   encryptFileForUpload,
   generateE2eeKeyBase64Url,
 } from '../utils/e2eeCrypto';
+import { isInternalMediaPath } from '../utils/publicUrl';
 
 interface ExperienceSecurityPanelProps {
   experience: PostScanExperience;
@@ -797,17 +798,43 @@ export const ExperienceSecurityPanel: React.FC<ExperienceSecurityPanelProps> = (
                           </button>
                         </div>
                         {item.type === 'video' && (
-                          <input
-                            type="text"
-                            value={item.posterUrl || ''}
-                            onChange={(e) => {
-                              const next = [...experience.galleryItems];
-                              next[idx] = { ...item, posterUrl: e.target.value };
-                              updateExp({ galleryItems: next });
-                            }}
-                            placeholder="URL miniature vidéo (optionnel)..."
-                            className="w-full px-2 py-1 text-[11px] bg-white border border-[#DBD8CE] rounded-lg"
-                          />
+                          item.posterUrl && isInternalMediaPath(item.posterUrl) ? (
+                            <div className="flex items-center justify-between gap-2 px-2 py-1 bg-white border border-[#DBD8CE] rounded-lg">
+                              <div className="flex items-center gap-2 min-w-0">
+                                <img
+                                  src={localThumbs[item.posterUrl] || item.posterUrl}
+                                  alt="Miniature vidéo"
+                                  className="w-6 h-6 rounded object-cover shrink-0"
+                                />
+                                <span className="text-[11px] font-medium text-[#15803D] truncate">
+                                  Miniature prête
+                                </span>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const next = [...experience.galleryItems];
+                                  next[idx] = { ...item, posterUrl: '' };
+                                  updateExp({ galleryItems: next });
+                                }}
+                                className="text-[11px] text-[#6E7078] hover:text-[#B91C1C] cursor-pointer"
+                              >
+                                Retirer
+                              </button>
+                            </div>
+                          ) : (
+                            <input
+                              type="text"
+                              value={item.posterUrl || ''}
+                              onChange={(e) => {
+                                const next = [...experience.galleryItems];
+                                next[idx] = { ...item, posterUrl: e.target.value };
+                                updateExp({ galleryItems: next });
+                              }}
+                              placeholder="Lien HTTPS miniature vidéo (optionnel)..."
+                              className="w-full px-2 py-1 text-[11px] bg-white border border-[#DBD8CE] rounded-lg"
+                            />
+                          )
                         )}
                       </div>
                     ))}

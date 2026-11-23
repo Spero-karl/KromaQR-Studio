@@ -414,7 +414,14 @@ export async function extendRetentionPlan(input: {
   months: number;
   targetKind: 'media' | 'collection' | 'dynamic' | 'workspace';
   targetId: string;
-}): Promise<{ ok: boolean; months: number; updatedCount: number; newExpiresAt: string }> {
+}): Promise<{
+  ok: boolean;
+  months: number;
+  updatedCount: number;
+  newExpiresAt: string;
+  priceCents?: number;
+  currency?: 'EUR';
+}> {
   const res = await fetch('/api/retention/extend', {
     method: 'POST',
     headers: workspaceHeaders({ 'Content-Type': 'application/json' }),
@@ -424,7 +431,14 @@ export async function extendRetentionPlan(input: {
   if (!res.ok) {
     throw new Error(data.error || 'Prolongation impossible.');
   }
-  return data as { ok: boolean; months: number; updatedCount: number; newExpiresAt: string };
+  return data as {
+    ok: boolean;
+    months: number;
+    updatedCount: number;
+    newExpiresAt: string;
+    priceCents?: number;
+    currency?: 'EUR';
+  };
 }
 
 export interface AdminStatusResponse {

@@ -83,13 +83,13 @@ export const PrivacyTermsModal: React.FC<PrivacyTermsModalProps> = ({ open, onCl
           <section className="rounded-2xl border border-[#E2E6F0] bg-[#FAF9F5] p-4 space-y-1.5">
             <div className="flex items-center gap-2 font-bold text-[#111214]">
               <Clock className="w-4 h-4 text-[#4F46E5]" aria-hidden="true" />
-              <h3>3. Durée de conservation : 7 jours gratuits ou 1 à 12 mois</h3>
+              <h3>3. Durée de conservation : 7 jours gratuits ou 1 mois à 1 an</h3>
             </div>
             <p>
               Tout contenu hébergé avec l’offre gratuite reste accessible pendant <strong>7 jours</strong> à compter de sa création, avec date et heure prévues affichées dans votre espace <em>Conservation</em>.
             </p>
             <p>
-              Les prolongations (1 à 12 mois) s’ajoutent directement à la durée en cours sans interruption d’accès ni modification de votre QR code.
+              Les prolongations (1 mois, 3 mois, 6 mois ou 1 an) s’ajoutent directement à la durée en cours sans interruption d’accès ni modification de votre QR code.
             </p>
           </section>
 

@@ -9,11 +9,13 @@ import { fileURLToPath } from 'url';
 import { createServer as createViteServer } from 'vite';
 import {
   buildPublicReaderUrl,
+  cleanEnvUrlInput,
   detectEnvironmentIssue,
   inspectMediaUrlForQr,
   isAiStudioOrPreviewHost,
   isLocalOrPrivateHost,
   normalizeMediaAssetUrl,
+  resolveBestPublicAppConfig,
   validatePublicAppUrl,
 } from './src/utils/publicUrl.ts';
 import {
@@ -56,6 +58,8 @@ import {
 } from './src/server/workspaceStore.ts';
 import {
   computeFreeRetentionExpiry,
+  DEFAULT_MONTHLY_PRICES_CENTS,
+  formatPaidDurationLabel,
   isValidPaidMonths,
 } from './src/utils/retentionPricing.ts';
 import { computeDefaultServerExpiry } from './src/utils/serverAvailability.ts';
@@ -128,10 +132,12 @@ function getDetectedOrigin(req?: express.Request): string {
     const fwdHost = req.get('x-forwarded-host');
     const host = (fwdHost ? fwdHost.split(',')[0].trim() : '') || req.get('host') || '';
     const fwdProto = req.get('x-forwarded-proto');
-    const proto = (fwdProto ? fwdProto.split(',')[0].trim() : '') || req.protocol || 'http';
+    const proto =
+      (fwdProto ? fwdProto.split(',')[0].trim().toLowerCase() : '') ||
+      (req.protocol || 'http').toLowerCase();
     if (host) return `${proto}://${host}`;
   }
-  return process.env.APP_URL || `http://localhost:${PORT}`;
+  return cleanEnvUrlInput(process.env.APP_URL) || `http://localhost:${PORT}`;
 }
 
 function sanitizeSourceMediaUrls(source: Record<string, unknown>, experience?: Record<string, unknown>): string | null {
@@ -632,58 +638,24 @@ export async function createSparkQrApp(options: CreateSparkQrAppOptions = {}): P
   };
 
   const getEffectivePublicConfig = (req?: express.Request) => {
-    const envRaw = (process.env.PUBLIC_APP_URL || process.env.VITE_PUBLIC_APP_URL || '').trim();
     const saved = readJsonStore<StoredPublicConfig>(PUBLIC_CONFIG_FILE, {});
-    const savedRaw = (saved.publicAppUrl || '').trim();
     const detectedOrigin = getDetectedOrigin(req);
-    const diagnostics = detectEnvironmentIssue(detectedOrigin);
+    const renderHostClean = cleanEnvUrlInput(process.env.RENDER_EXTERNAL_HOSTNAME).replace(
+      /^https?:\/\//i,
+      ''
+    );
+    const renderExternalUrl =
+      cleanEnvUrlInput(process.env.RENDER_EXTERNAL_URL) ||
+      (renderHostClean ? `https://${renderHostClean}` : '');
 
-    if (envRaw) {
-      const check = validatePublicAppUrl(envRaw);
-      return {
-        configuredUrl: check.valid ? check.normalizedUrl : envRaw,
-        valid: check.valid,
-        source: 'env' as const,
-        error: check.error,
-        detectedOrigin,
-        diagnostics,
-      };
-    }
-
-    if (savedRaw) {
-      const check = validatePublicAppUrl(savedRaw);
-      if (check.valid) {
-        return {
-          configuredUrl: check.normalizedUrl,
-          valid: true,
-          source: 'saved' as const,
-          error: undefined,
-          detectedOrigin,
-          diagnostics,
-        };
-      }
-    }
-
-    const detectedCheck = validatePublicAppUrl(detectedOrigin);
-    if (detectedCheck.valid) {
-      return {
-        configuredUrl: detectedCheck.normalizedUrl,
-        valid: true,
-        source: 'detected' as const,
-        error: undefined,
-        detectedOrigin,
-        diagnostics,
-      };
-    }
-
-    return {
-      configuredUrl: '',
-      valid: false,
-      source: 'none' as const,
-      error: diagnostics.summary,
+    return resolveBestPublicAppConfig({
+      envPublicAppUrl: process.env.PUBLIC_APP_URL,
+      envVitePublicAppUrl: process.env.VITE_PUBLIC_APP_URL,
+      renderExternalUrl,
+      savedPublicAppUrl: saved.publicAppUrl,
       detectedOrigin,
-      diagnostics,
-    };
+      appUrl: process.env.APP_URL,
+    });
   };
 
   const app = express();
@@ -2066,7 +2038,9 @@ export async function createSparkQrApp(options: CreateSparkQrAppOptions = {}): P
     };
 
     if (!isValidPaidMonths(months)) {
-      res.status(400).json({ error: 'Choisissez une durée entre 1 et 12 mois.' });
+      res
+        .status(400)
+        .json({ error: 'Choisissez une formule valide : 1 mois, 3 mois, 6 mois ou 1 an.' });
       return;
     }
 
@@ -2108,6 +2082,9 @@ export async function createSparkQrApp(options: CreateSparkQrAppOptions = {}): P
       }
     }
 
+    const pricing = retentionEngine.getPricingConfig();
+    const priceCents = pricing.monthsCents[months] ?? DEFAULT_MONTHLY_PRICES_CENTS[months];
+
     const ext = await retentionEngine.extendRetention({
       workspaceId: resolved.workspace.id,
       targetKind: safeKind,
@@ -2118,6 +2095,9 @@ export async function createSparkQrApp(options: CreateSparkQrAppOptions = {}): P
     res.json({
       ok: true,
       months,
+      durationLabel: formatPaidDurationLabel(months),
+      priceCents,
+      currency: pricing.currency,
       ...ext,
     });
   });

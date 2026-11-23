@@ -597,7 +597,7 @@ export const HistoryGallery: React.FC<HistoryGalleryProps> = ({
                           currentExpiresAt: dyn?.expiresAt || item.serverExpiresAt,
                         })
                       }
-                      title="Prolonger la durée de conservation (1 à 12 mois)"
+                      title="Prolonger la durée de conservation (1 mois, 3 mois, 6 mois ou 1 an)"
                       className="inline-flex items-center gap-1 px-2.5 py-2 min-h-[40px] text-xs font-semibold text-[#1D4ED8] bg-[#EFF4FF] border border-[#BFDBFE] hover:bg-[#DBEAFE] rounded-xl transition-colors whitespace-nowrap shrink-0 cursor-pointer"
                     >
                       <Clock className="w-3.5 h-3.5" aria-hidden="true" />
@@ -762,6 +762,16 @@ export const HistoryGallery: React.FC<HistoryGalleryProps> = ({
                 ? formatRemainingDuration(mediaExpiryIso).headline
                 : 'Accessibilité serveur : 7 jours gratuits';
 
+              const genericMediaTitle =
+                media.type === 'video'
+                  ? 'Vidéo importée'
+                  : media.type === 'document'
+                  ? 'Document importé'
+                  : media.type === 'audio'
+                  ? 'Audio importé'
+                  : 'Image importée';
+              const safeDownloadName = `sparkqr-${media.id.slice(0, 6)}`;
+
               return (
                 <div
                   key={media.id}
@@ -775,7 +785,7 @@ export const HistoryGallery: React.FC<HistoryGalleryProps> = ({
                       ) : media.type === 'image' ? (
                         <img
                           src={media.fileUrl || media.url}
-                          alt={media.originalName}
+                          alt={genericMediaTitle}
                           className="w-full h-full object-cover"
                         />
                       ) : (
@@ -790,7 +800,7 @@ export const HistoryGallery: React.FC<HistoryGalleryProps> = ({
                           <Film className="w-3.5 h-3.5 text-[#E11D48] shrink-0" aria-hidden="true" />
                         )}
                         <span className="text-xs font-semibold text-[#111214] truncate">
-                          {media.originalName}
+                          {genericMediaTitle}
                         </span>
                         {media.isEncrypted && (
                           <span className="text-[10px] font-semibold text-[#2563EB] shrink-0">
@@ -816,7 +826,7 @@ export const HistoryGallery: React.FC<HistoryGalleryProps> = ({
                     </a>
                     <a
                       href={downloadHref}
-                      download={media.originalName}
+                      download={safeDownloadName}
                       className="inline-flex items-center gap-1 px-3 py-1.5 min-h-[36px] text-[11px] font-semibold text-[#1D4ED8] bg-[#EFF4FF] border border-[#BFDBFE] hover:bg-[#DBEAFE] rounded-lg transition-colors"
                     >
                       <Download className="w-3.5 h-3.5" aria-hidden="true" />
@@ -826,7 +836,7 @@ export const HistoryGallery: React.FC<HistoryGalleryProps> = ({
                       <button
                         type="button"
                         disabled={isDeleting}
-                        aria-label={`Supprimer ${media.originalName}`}
+                        aria-label={`Supprimer ${genericMediaTitle}`}
                         onClick={() => void handleDeleteMedia(media.id)}
                         className="inline-flex items-center gap-1 px-3 py-1.5 min-h-[36px] text-[11px] font-semibold text-[#B91C1C] bg-[#FEF2F2] border border-[#FECACA] hover:bg-[#FEE2E2] rounded-lg transition-colors cursor-pointer disabled:opacity-60"
                       >

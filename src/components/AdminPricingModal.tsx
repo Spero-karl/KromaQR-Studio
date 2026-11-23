@@ -17,8 +17,8 @@ import {
 } from '../utils/dynamicApi';
 import {
   DEFAULT_MONTHLY_PRICES_CENTS,
-  MAX_PAID_MONTHS,
-  MIN_PAID_MONTHS,
+  formatPaidDurationLabel,
+  PAID_PLAN_MONTHS,
 } from '../utils/retentionPricing';
 
 interface AdminPricingModalProps {
@@ -53,7 +53,7 @@ export const AdminPricingModal: React.FC<AdminPricingModalProps> = ({
       .then(([st, pr]) => {
         setStatus(st);
         const nextInputs: Record<number, string> = {};
-        for (let m = MIN_PAID_MONTHS; m <= MAX_PAID_MONTHS; m++) {
+        for (const m of PAID_PLAN_MONTHS) {
           const cents = pr.pricing.monthsCents[m] ?? DEFAULT_MONTHLY_PRICES_CENTS[m];
           nextInputs[m] = (cents / 100).toFixed(2);
         }
@@ -102,10 +102,10 @@ export const AdminPricingModal: React.FC<AdminPricingModalProps> = ({
     setSavedNotice(null);
 
     const payloadCents: Record<number, number> = {};
-    for (let m = MIN_PAID_MONTHS; m <= MAX_PAID_MONTHS; m++) {
+    for (const m of PAID_PLAN_MONTHS) {
       const parsed = Number((euroInputs[m] || '0').replace(',', '.'));
       if (!Number.isFinite(parsed) || parsed < 0.5) {
-        setError(`Tarif invalide pour ${m} mois (minimum 0,50 €).`);
+        setError(`Tarif invalide pour ${formatPaidDurationLabel(m)} (minimum 0,50 €).`);
         return;
       }
       payloadCents[m] = Math.round(parsed * 100);
@@ -115,7 +115,7 @@ export const AdminPricingModal: React.FC<AdminPricingModalProps> = ({
     try {
       const updated = await saveAdminPricing(adminToken, payloadCents);
       const nextInputs: Record<number, string> = {};
-      for (let m = MIN_PAID_MONTHS; m <= MAX_PAID_MONTHS; m++) {
+      for (const m of PAID_PLAN_MONTHS) {
         nextInputs[m] = (updated.monthsCents[m] / 100).toFixed(2);
       }
       setEuroInputs(nextInputs);
@@ -186,7 +186,7 @@ export const AdminPricingModal: React.FC<AdminPricingModalProps> = ({
                 <p className="text-[11px] text-[#5C5E66] leading-relaxed">
                   {status?.needsInitialClaim
                     ? 'Aucun code n’est encore défini. Saisissez un code d’au moins 8 caractères pour verrouiller la gestion des tarifs.'
-                    : 'Saisissez le code administrateur pour modifier la grille tarifaire (1 à 12 mois).'}
+                    : 'Saisissez le code administrateur pour modifier la grille tarifaire (1 mois, 3 mois, 6 mois et 1 an).'}
                 </p>
                 <div className="flex flex-wrap gap-2">
                   <input
@@ -214,7 +214,7 @@ export const AdminPricingModal: React.FC<AdminPricingModalProps> = ({
               <form onSubmit={(e) => void handleSavePrices(e)} className="space-y-4">
                 <div className="flex items-center justify-between gap-2">
                   <span className="text-xs font-bold text-[#111214]">
-                    Tarifs progressifs (EUR TTC) de 1 à 12 mois
+                    Tarifs des 4 formules (EUR TTC)
                   </span>
                   <span className="text-[11px] text-[#059669] font-semibold">
                     Session active (mémoire)
@@ -222,19 +222,19 @@ export const AdminPricingModal: React.FC<AdminPricingModalProps> = ({
                 </div>
 
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-                  {Array.from({ length: MAX_PAID_MONTHS }, (_, i) => i + 1).map((m) => (
+                  {PAID_PLAN_MONTHS.map((m) => (
                     <div key={m} className="p-2.5 rounded-xl border border-[#E2E6F0] bg-[#FAF9F5]">
                       <label
                         htmlFor={`admin-price-${m}`}
                         className="block text-[11px] font-semibold text-[#5C5E66] mb-1"
                       >
-                        {m} mois (€)
+                        {formatPaidDurationLabel(m)} (€)
                       </label>
                       <input
                         id={`admin-price-${m}`}
                         data-testid={`admin-price-input-${m}`}
                         type="number"
-                        step="0.10"
+                        step="0.01"
                         min="0.50"
                         value={euroInputs[m] || ''}
                         onChange={(e) =>
