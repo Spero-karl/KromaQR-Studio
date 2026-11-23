@@ -340,9 +340,18 @@ export async function deleteStorageItem(
       headers: workspaceHeaders(),
     }
   );
-  const data = await res.json();
+  let data: { error?: string; deleted?: boolean; freedBytes?: number; s3ObjectsDeleted?: number } = {};
+  try {
+    data = (await res.json()) as typeof data;
+  } catch {
+    data = {};
+  }
   if (!res.ok) {
-    throw new Error(data.error || 'Impossible de supprimer cette ressource.');
+    const err = new Error(data.error || 'Impossible de supprimer cette ressource.') as Error & {
+      status?: number;
+    };
+    err.status = res.status;
+    throw err;
   }
   return data as { deleted: boolean; freedBytes: number; s3ObjectsDeleted: number };
 }

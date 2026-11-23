@@ -35,6 +35,8 @@ import type {
 } from './types/qr';
 import {
   createNewWorkspace,
+  deleteHostedMedia,
+  deleteStorageItem,
   fetchPublicAppConfig,
   fetchServerProjects,
   fetchStorageDashboard,
@@ -46,9 +48,9 @@ import {
   renameWorkspace,
   saveDynamicQr,
   syncServerProjects,
-  deleteHostedMedia,
   type PublicAppConfigResponse,
 } from './utils/dynamicApi';
+import { resolveUnsharedServerDeletionTarget } from './utils/savedQrDeletion';
 import {
   appendKeyFragmentToUrl,
   encryptJsonWithKey,
@@ -936,10 +938,52 @@ export default function App() {
     setSavedItems((prev) => [copy, ...prev]);
   };
 
-  const handleDeleteSavedItem = (id: string) => {
+  const handleDeleteSavedItem = async (id: string) => {
+    const targetItem = savedItems.find((item) => item.id === id);
+    if (!targetItem) return;
+
+    const serverTarget = resolveUnsharedServerDeletionTarget(targetItem, savedItems);
+    if (serverTarget) {
+      try {
+        await deleteStorageItem(serverTarget.kind, serverTarget.id);
+      } catch (err) {
+        const status = (err as { status?: number } | null)?.status;
+        if (status !== 404) {
+          throw err;
+        }
+      }
+    }
+
     setSavedItems((prev) => prev.filter((item) => item.id !== id));
     if (activeSavedItemId === id) setActiveSavedItemId(null);
     if (loadedForEditId === id) setLoadedForEditId(null);
+
+    if (serverTarget) {
+      await Promise.all([
+        refreshDynamicRecords(),
+        refreshHostedMedia(),
+        refreshUnreadNotifications(),
+      ]);
+      setDashboardNonce((n) => n + 1);
+    }
+  };
+
+  const handleDeleteDynamicRecord = async (slug: string) => {
+    try {
+      await deleteStorageItem('dynamic', slug);
+    } catch (err) {
+      const status = (err as { status?: number } | null)?.status;
+      if (status !== 404) {
+        throw err;
+      }
+    }
+    setSavedItems((prev) => prev.filter((item) => item.dynamicSlug !== slug));
+    await Promise.all([
+      refreshDynamicRecords(),
+      refreshHostedMedia(),
+      refreshUnreadNotifications(),
+    ]);
+    setDashboardNonce((n) => n + 1);
   };
 
   const handleResetStyle = () => {
@@ -1298,6 +1342,7 @@ export default function App() {
             onLoadItem={handleLoadSavedItem}
             onDuplicateItem={handleDuplicateItem}
             onDeleteItem={handleDeleteSavedItem}
+            onDeleteDynamic={handleDeleteDynamicRecord}
             onRefreshDynamic={refreshDynamicRecords}
             onDeleteMedia={handleDeleteHostedMedia}
             onRefreshMedia={refreshHostedMedia}
@@ -1310,8 +1355,11 @@ export default function App() {
             onOpenExtend={(target) => setExtendTarget(target)}
             onOpenPrivacy={() => setPrivacyModalOpen(true)}
             onResourceDeleted={() => {
-              void refreshDynamicRecords();
-              void refreshHostedMedia();
+              void Promise.all([
+                refreshDynamicRecords(),
+                refreshHostedMedia(),
+                refreshUnreadNotifications(),
+              ]);
             }}
             onNotificationsChanged={setUnreadNotificationsCount}
           />

@@ -5,6 +5,7 @@ import fs from 'fs';
 import http from 'http';
 import multer from 'multer';
 import path from 'path';
+import { fileURLToPath } from 'url';
 import { createServer as createViteServer } from 'vite';
 import {
   buildPublicReaderUrl,
@@ -17,13 +18,24 @@ import {
 } from './src/utils/publicUrl.ts';
 import {
   createDosyaStorageFromEnv,
+  type DosyaStorageService,
 } from './src/server/dosyaStorage.ts';
 import { findMediaQrAssociations } from './src/server/mediaAssociations.ts';
 import {
+  cleanupOrphanTempFiles,
+  readJsonFileAtomic,
+  withDataDirLock,
+  writeJsonFileAtomic,
+  writeTextFileAtomic,
+} from './src/server/jsonStore.ts';
+import {
+  isMediaReferencedElsewhere,
   RetentionEngine,
+  type AlertEmailDispatchFn,
   type DynamicRecordLike,
   type MediaRecordLike,
 } from './src/server/retentionEngine.ts';
+import { S3StateBackupService } from './src/server/s3StateBackup.ts';
 import {
   AdminAuthService,
   getConfiguredEmailTransport,
@@ -45,7 +57,6 @@ import {
 import {
   computeFreeRetentionExpiry,
   isValidPaidMonths,
-  type NotificationMilestone,
 } from './src/utils/retentionPricing.ts';
 import { computeDefaultServerExpiry } from './src/utils/serverAvailability.ts';
 
@@ -81,100 +92,20 @@ interface ServerDynamicRecord extends DynamicRecordLike {
   };
 }
 
+export interface CreateSparkQrAppOptions {
+  dataDir?: string;
+  storage?: DosyaStorageService;
+  sendAlertEmail?: AlertEmailDispatchFn;
+  enableS3StateBackup?: boolean;
+}
+
 const PORT = Number(process.env.PORT || 3000);
 const ROOT_DIR = process.cwd();
-const DATA_DIR = path.join(ROOT_DIR, 'data');
-const LEGACY_UPLOADS_DIR = path.join(ROOT_DIR, 'uploads');
-const INDEX_FILE = path.join(DATA_DIR, 'media-index.json');
-const DYNAMIC_FILE = path.join(DATA_DIR, 'dynamic-qrs.json');
-const PROJECTS_FILE = path.join(DATA_DIR, 'projects.json');
-const WORKSPACES_FILE = path.join(DATA_DIR, 'workspaces.json');
-const PUBLIC_CONFIG_FILE = path.join(DATA_DIR, 'public-config.json');
-const SECRET_FILE = path.join(DATA_DIR, '.hmac-secret');
-
-if (!fs.existsSync(DATA_DIR)) {
-  fs.mkdirSync(DATA_DIR, { recursive: true });
-}
-
-function migrateLegacyJsonIfNeeded(legacyName: string, targetPath: string): void {
-  const legacyPath = path.join(LEGACY_UPLOADS_DIR, legacyName);
-  if (!fs.existsSync(targetPath) && fs.existsSync(legacyPath)) {
-    try {
-      fs.copyFileSync(legacyPath, targetPath);
-    } catch {
-      // Non-fatal migration skip
-    }
-  }
-}
-
-migrateLegacyJsonIfNeeded('index.json', INDEX_FILE);
-migrateLegacyJsonIfNeeded('dynamic-qrs.json', DYNAMIC_FILE);
-migrateLegacyJsonIfNeeded('projects.json', PROJECTS_FILE);
-migrateLegacyJsonIfNeeded('public-config.json', PUBLIC_CONFIG_FILE);
-migrateLegacyJsonIfNeeded('.hmac-secret', SECRET_FILE);
-
-const dosyaStorage = createDosyaStorageFromEnv();
-
-function getHmacSecret(): string {
-  try {
-    if (fs.existsSync(SECRET_FILE)) {
-      const val = fs.readFileSync(SECRET_FILE, 'utf-8').trim();
-      if (val.length >= 32) return val;
-    }
-    const secret = crypto.randomBytes(32).toString('hex');
-    fs.writeFileSync(SECRET_FILE, secret, 'utf-8');
-    return secret;
-  } catch {
-    return crypto.randomBytes(32).toString('hex');
-  }
-}
-
-const HMAC_SECRET = getHmacSecret();
-const retentionEngine = new RetentionEngine(
-  DATA_DIR,
-  dosyaStorage,
-  async (alert) => {
-    if (getConfiguredEmailTransport() !== 'none') {
-      await sendTransactionalEmail(alert);
-    }
-  }
-);
-const adminAuth = new AdminAuthService(DATA_DIR, HMAC_SECRET);
 
 function isRecordExpired(expiresAt: string | null | undefined): boolean {
   if (!expiresAt) return false;
   const ms = Date.parse(expiresAt);
   return Number.isFinite(ms) && Date.now() >= ms;
-}
-
-function readJsonStore<T>(filePath: string, fallback: T): T {
-  try {
-    if (!fs.existsSync(filePath)) return fallback;
-    const raw = fs.readFileSync(filePath, 'utf-8');
-    return JSON.parse(raw) as T;
-  } catch {
-    return fallback;
-  }
-}
-
-function writeJsonStore<T>(filePath: string, data: T): void {
-  fs.writeFileSync(filePath, JSON.stringify(data, null, 2), 'utf-8');
-}
-
-function readMediaIndex(): Record<string, MediaRecord> {
-  return readJsonStore<Record<string, MediaRecord>>(INDEX_FILE, {});
-}
-
-function writeMediaIndex(index: Record<string, MediaRecord>): void {
-  writeJsonStore(INDEX_FILE, index);
-}
-
-function readDynamicStore(): Record<string, ServerDynamicRecord> {
-  return readJsonStore<Record<string, ServerDynamicRecord>>(DYNAMIC_FILE, {});
-}
-
-function writeDynamicStore(store: Record<string, ServerDynamicRecord>): void {
-  writeJsonStore(DYNAMIC_FILE, store);
 }
 
 const WORKSPACE_COOKIE_NAME = 'sparkqr_ws';
@@ -186,41 +117,6 @@ function setWorkspaceCookie(res: express.Response, workspaceId: string): void {
     maxAge: 365 * 24 * 60 * 60 * 1000,
     path: '/',
   });
-}
-
-function resolveRequestWorkspace(
-  req: express.Request,
-  res?: express.Response,
-  createIfMissing = true
-): { workspace: WorkspaceRecord; isNew: boolean } | null {
-  const map = loadWorkspacesMap(WORKSPACES_FILE);
-  const headerId = req.get('x-workspace-id');
-  const cookies = parseCookies(req.headers.cookie);
-  const cookieId = cookies[WORKSPACE_COOKIE_NAME];
-
-  const candidateId = isValidWorkspaceId(headerId)
-    ? headerId.trim()
-    : isValidWorkspaceId(cookieId)
-    ? cookieId.trim()
-    : null;
-
-  if (candidateId && map[candidateId]) {
-    if (res && cookieId !== candidateId) {
-      setWorkspaceCookie(res, candidateId);
-    }
-    return { workspace: map[candidateId], isNew: false };
-  }
-
-  if (!createIfMissing) {
-    return null;
-  }
-
-  const created = createWorkspaceRecord(map);
-  saveWorkspacesMap(WORKSPACES_FILE, map);
-  if (res) {
-    setWorkspaceCookie(res, created.id);
-  }
-  return { workspace: created, isNew: true };
 }
 
 interface StoredPublicConfig {
@@ -236,62 +132,6 @@ function getDetectedOrigin(req?: express.Request): string {
     if (host) return `${proto}://${host}`;
   }
   return process.env.APP_URL || `http://localhost:${PORT}`;
-}
-
-function getEffectivePublicConfig(req?: express.Request) {
-  const envRaw = (process.env.PUBLIC_APP_URL || process.env.VITE_PUBLIC_APP_URL || '').trim();
-  const saved = readJsonStore<StoredPublicConfig>(PUBLIC_CONFIG_FILE, {});
-  const savedRaw = (saved.publicAppUrl || '').trim();
-  const detectedOrigin = getDetectedOrigin(req);
-  const diagnostics = detectEnvironmentIssue(detectedOrigin);
-
-  if (envRaw) {
-    const check = validatePublicAppUrl(envRaw);
-    return {
-      configuredUrl: check.valid ? check.normalizedUrl : envRaw,
-      valid: check.valid,
-      source: 'env' as const,
-      error: check.error,
-      detectedOrigin,
-      diagnostics,
-    };
-  }
-
-  if (savedRaw) {
-    const check = validatePublicAppUrl(savedRaw);
-    if (check.valid) {
-      return {
-        configuredUrl: check.normalizedUrl,
-        valid: true,
-        source: 'saved' as const,
-        error: undefined,
-        detectedOrigin,
-        diagnostics,
-      };
-    }
-  }
-
-  // Only auto-accept current origin if deployed on a genuine public HTTPS domain (never AI Studio, never localhost)
-  const detectedCheck = validatePublicAppUrl(detectedOrigin);
-  if (detectedCheck.valid) {
-    return {
-      configuredUrl: detectedCheck.normalizedUrl,
-      valid: true,
-      source: 'detected' as const,
-      error: undefined,
-      detectedOrigin,
-      diagnostics,
-    };
-  }
-
-  return {
-    configuredUrl: '',
-    valid: false,
-    source: 'none' as const,
-    error: diagnostics.summary,
-    detectedOrigin,
-    diagnostics,
-  };
 }
 
 function sanitizeSourceMediaUrls(source: Record<string, unknown>, experience?: Record<string, unknown>): string | null {
@@ -327,13 +167,19 @@ function sanitizeSourceMediaUrls(source: Record<string, unknown>, experience?: R
   return null;
 }
 
-function generateShortId(): string {
+function generateShortId(existingKeys?: Record<string, unknown>): string {
   const chars = 'abcdefghijkmnpqrstuvwxyz23456789';
-  let id = '';
-  for (let i = 0; i < 7; i++) {
-    id += chars[Math.floor(Math.random() * chars.length)];
+  for (let attempt = 0; attempt < 20; attempt++) {
+    const bytes = crypto.randomBytes(8);
+    let id = '';
+    for (let i = 0; i < 8; i++) {
+      id += chars[bytes[i] % chars.length];
+    }
+    if (!existingKeys || !existingKeys[id]) {
+      return id;
+    }
   }
-  return id;
+  return crypto.randomBytes(6).toString('hex');
 }
 
 function escapeHtml(value: string): string {
@@ -357,27 +203,6 @@ function verifyPinHash(pin: string, salt: string, expectedHex: string): boolean 
     const expected = Buffer.from(expectedHex, 'hex');
     if (derived.length !== expected.length) return false;
     return crypto.timingSafeEqual(derived, expected);
-  } catch {
-    return false;
-  }
-}
-
-function signUnlockToken(slug: string): string {
-  const exp = Date.now() + 15 * 60 * 1000;
-  const body = `${slug}:${exp}`;
-  const sig = crypto.createHmac('sha256', HMAC_SECRET).update(body).digest('hex');
-  return `${exp}.${sig}`;
-}
-
-function verifyUnlockToken(slug: string, token: string | undefined): boolean {
-  if (!token || !token.includes('.')) return false;
-  const [expStr, sig] = token.split('.');
-  const exp = Number(expStr);
-  if (!Number.isFinite(exp) || Date.now() > exp) return false;
-  const body = `${slug}:${exp}`;
-  const expectedSig = crypto.createHmac('sha256', HMAC_SECRET).update(body).digest('hex');
-  try {
-    return crypto.timingSafeEqual(Buffer.from(sig, 'hex'), Buffer.from(expectedSig, 'hex'));
   } catch {
     return false;
   }
@@ -628,7 +453,239 @@ function buildContentDisposition(disposition: 'inline' | 'attachment', filename:
   return `${disposition}; filename="${fallback}"; filename*=UTF-8''${encoded}`;
 }
 
-async function startServer() {
+export async function createSparkQrApp(options: CreateSparkQrAppOptions = {}): Promise<{
+  app: express.Express;
+  dataDir: string;
+  dosyaStorage: DosyaStorageService;
+  retentionEngine: RetentionEngine;
+  stateBackup: S3StateBackupService;
+}> {
+  const DATA_DIR = path.resolve(
+    options.dataDir || process.env.SPARKQR_DATA_DIR || path.join(ROOT_DIR, 'data')
+  );
+  const LEGACY_UPLOADS_DIR = path.join(ROOT_DIR, 'uploads');
+  const INDEX_FILE = path.join(DATA_DIR, 'media-index.json');
+  const DYNAMIC_FILE = path.join(DATA_DIR, 'dynamic-qrs.json');
+  const PROJECTS_FILE = path.join(DATA_DIR, 'projects.json');
+  const WORKSPACES_FILE = path.join(DATA_DIR, 'workspaces.json');
+  const PUBLIC_CONFIG_FILE = path.join(DATA_DIR, 'public-config.json');
+  const SECRET_FILE = path.join(DATA_DIR, '.hmac-secret');
+
+  if (!fs.existsSync(DATA_DIR)) {
+    fs.mkdirSync(DATA_DIR, { recursive: true });
+  }
+  cleanupOrphanTempFiles(DATA_DIR);
+
+  const migrateLegacyJsonIfNeeded = (legacyName: string, targetPath: string): void => {
+    if (options.dataDir) return; // Never copy global legacy data into isolated test dirs
+    const legacyPath = path.join(LEGACY_UPLOADS_DIR, legacyName);
+    if (!fs.existsSync(targetPath) && fs.existsSync(legacyPath)) {
+      try {
+        fs.copyFileSync(legacyPath, targetPath);
+      } catch {
+        // Non-fatal migration skip
+      }
+    }
+  };
+
+  migrateLegacyJsonIfNeeded('index.json', INDEX_FILE);
+  migrateLegacyJsonIfNeeded('dynamic-qrs.json', DYNAMIC_FILE);
+  migrateLegacyJsonIfNeeded('projects.json', PROJECTS_FILE);
+  migrateLegacyJsonIfNeeded('public-config.json', PUBLIC_CONFIG_FILE);
+  migrateLegacyJsonIfNeeded('.hmac-secret', SECRET_FILE);
+
+  const dosyaStorage = options.storage ?? createDosyaStorageFromEnv();
+  const stateBackup = new S3StateBackupService(DATA_DIR, dosyaStorage);
+  const backupEnabled = options.enableS3StateBackup !== false;
+
+  if (backupEnabled && dosyaStorage.isConfigured()) {
+    try {
+      const restored = await stateBackup.restoreMissingStateFromS3();
+      if (restored.restoredCount > 0) {
+        console.log(
+          `SparkQR: restored ${restored.restoredCount} state file(s) from Dosya.dev S3.`
+        );
+      }
+    } catch (err) {
+      console.error('Non-fatal S3 state restore error:', err);
+    }
+  }
+
+  const getHmacSecret = (): string => {
+    try {
+      if (fs.existsSync(SECRET_FILE)) {
+        const val = fs.readFileSync(SECRET_FILE, 'utf-8').trim();
+        if (val.length >= 32) return val;
+      }
+      const secret = crypto.randomBytes(32).toString('hex');
+      writeTextFileAtomic(SECRET_FILE, secret);
+      if (backupEnabled) stateBackup.scheduleFileSync(SECRET_FILE);
+      return secret;
+    } catch {
+      return crypto.randomBytes(32).toString('hex');
+    }
+  };
+
+  const HMAC_SECRET = getHmacSecret();
+  const emailDispatcher: AlertEmailDispatchFn =
+    options.sendAlertEmail ??
+    (async (alert) => {
+      if (getConfiguredEmailTransport() !== 'none') {
+        await sendTransactionalEmail(alert);
+      }
+    });
+
+  const retentionEngine = new RetentionEngine(
+    DATA_DIR,
+    dosyaStorage,
+    emailDispatcher,
+    backupEnabled ? stateBackup : undefined
+  );
+  const adminAuth = new AdminAuthService(DATA_DIR, HMAC_SECRET);
+
+  const readJsonStore = <T>(filePath: string, fallback: T): T =>
+    readJsonFileAtomic(filePath, fallback);
+
+  const writeJsonStore = <T>(filePath: string, data: T): void => {
+    writeJsonFileAtomic(filePath, data);
+    if (backupEnabled) stateBackup.scheduleFileSync(filePath);
+  };
+
+  const readMediaIndex = (): Record<string, MediaRecord> =>
+    readJsonStore<Record<string, MediaRecord>>(INDEX_FILE, {});
+
+  const writeMediaIndex = (index: Record<string, MediaRecord>): void => {
+    writeJsonStore(INDEX_FILE, index);
+  };
+
+  const readDynamicStore = (): Record<string, ServerDynamicRecord> =>
+    readJsonStore<Record<string, ServerDynamicRecord>>(DYNAMIC_FILE, {});
+
+  const writeDynamicStore = (store: Record<string, ServerDynamicRecord>): void => {
+    writeJsonStore(DYNAMIC_FILE, store);
+  };
+
+  const signUnlockToken = (slug: string): string => {
+    const exp = Date.now() + 15 * 60 * 1000;
+    const body = `${slug}:${exp}`;
+    const sig = crypto.createHmac('sha256', HMAC_SECRET).update(body).digest('hex');
+    return `${exp}.${sig}`;
+  };
+
+  const verifyUnlockToken = (slug: string, token: string | undefined): boolean => {
+    if (!token || !token.includes('.')) return false;
+    const [expStr, sig] = token.split('.');
+    const exp = Number(expStr);
+    if (!Number.isFinite(exp) || Date.now() > exp) return false;
+    const body = `${slug}:${exp}`;
+    const expectedSig = crypto.createHmac('sha256', HMAC_SECRET).update(body).digest('hex');
+    try {
+      return crypto.timingSafeEqual(Buffer.from(sig, 'hex'), Buffer.from(expectedSig, 'hex'));
+    } catch {
+      return false;
+    }
+  };
+
+  const setWorkspaceCookie = (res: express.Response, workspaceId: string): void => {
+    res.cookie(WORKSPACE_COOKIE_NAME, workspaceId, {
+      httpOnly: false,
+      sameSite: 'lax',
+      maxAge: 365 * 24 * 60 * 60 * 1000,
+      path: '/',
+    });
+  };
+
+  const resolveRequestWorkspace = (
+    req: express.Request,
+    res?: express.Response,
+    createIfMissing = true
+  ): { workspace: WorkspaceRecord; isNew: boolean } | null => {
+    const map = loadWorkspacesMap(WORKSPACES_FILE);
+    const headerId = req.get('x-workspace-id');
+    const cookies = parseCookies(req.headers.cookie);
+    const cookieId = cookies[WORKSPACE_COOKIE_NAME];
+
+    const candidateId = isValidWorkspaceId(headerId)
+      ? headerId.trim()
+      : isValidWorkspaceId(cookieId)
+      ? cookieId.trim()
+      : null;
+
+    if (candidateId && map[candidateId]) {
+      if (res && cookieId !== candidateId) {
+        setWorkspaceCookie(res, candidateId);
+      }
+      return { workspace: map[candidateId], isNew: false };
+    }
+
+    if (!createIfMissing) {
+      return null;
+    }
+
+    const created = createWorkspaceRecord(map);
+    saveWorkspacesMap(WORKSPACES_FILE, map);
+    if (backupEnabled) stateBackup.scheduleFileSync(WORKSPACES_FILE);
+    if (res) {
+      setWorkspaceCookie(res, created.id);
+    }
+    return { workspace: created, isNew: true };
+  };
+
+  const getEffectivePublicConfig = (req?: express.Request) => {
+    const envRaw = (process.env.PUBLIC_APP_URL || process.env.VITE_PUBLIC_APP_URL || '').trim();
+    const saved = readJsonStore<StoredPublicConfig>(PUBLIC_CONFIG_FILE, {});
+    const savedRaw = (saved.publicAppUrl || '').trim();
+    const detectedOrigin = getDetectedOrigin(req);
+    const diagnostics = detectEnvironmentIssue(detectedOrigin);
+
+    if (envRaw) {
+      const check = validatePublicAppUrl(envRaw);
+      return {
+        configuredUrl: check.valid ? check.normalizedUrl : envRaw,
+        valid: check.valid,
+        source: 'env' as const,
+        error: check.error,
+        detectedOrigin,
+        diagnostics,
+      };
+    }
+
+    if (savedRaw) {
+      const check = validatePublicAppUrl(savedRaw);
+      if (check.valid) {
+        return {
+          configuredUrl: check.normalizedUrl,
+          valid: true,
+          source: 'saved' as const,
+          error: undefined,
+          detectedOrigin,
+          diagnostics,
+        };
+      }
+    }
+
+    const detectedCheck = validatePublicAppUrl(detectedOrigin);
+    if (detectedCheck.valid) {
+      return {
+        configuredUrl: detectedCheck.normalizedUrl,
+        valid: true,
+        source: 'detected' as const,
+        error: undefined,
+        detectedOrigin,
+        diagnostics,
+      };
+    }
+
+    return {
+      configuredUrl: '',
+      valid: false,
+      source: 'none' as const,
+      error: diagnostics.summary,
+      detectedOrigin,
+      diagnostics,
+    };
+  };
+
   const app = express();
   app.set('trust proxy', true);
 
@@ -687,6 +744,7 @@ async function startServer() {
     const map = loadWorkspacesMap(WORKSPACES_FILE);
     const created = createWorkspaceRecord(map, name);
     saveWorkspacesMap(WORKSPACES_FILE, map);
+    if (backupEnabled) stateBackup.scheduleFileSync(WORKSPACES_FILE);
     setWorkspaceCookie(res, created.id);
     res.status(201).json({ workspace: created });
   });
@@ -699,6 +757,7 @@ async function startServer() {
     current.updatedAt = new Date().toISOString();
     map[current.id] = current;
     saveWorkspacesMap(WORKSPACES_FILE, map);
+    if (backupEnabled) stateBackup.scheduleFileSync(WORKSPACES_FILE);
     res.json({ workspace: current });
   });
 
@@ -730,6 +789,7 @@ async function startServer() {
     if (!rawUrl) {
       if (fs.existsSync(PUBLIC_CONFIG_FILE)) {
         fs.unlinkSync(PUBLIC_CONFIG_FILE);
+        if (backupEnabled) stateBackup.scheduleFileSync(PUBLIC_CONFIG_FILE);
       }
       res.json(getEffectivePublicConfig(req));
       return;
@@ -746,6 +806,7 @@ async function startServer() {
   app.delete('/api/public-config', (req, res) => {
     if (fs.existsSync(PUBLIC_CONFIG_FILE)) {
       fs.unlinkSync(PUBLIC_CONFIG_FILE);
+      if (backupEnabled) stateBackup.scheduleFileSync(PUBLIC_CONFIG_FILE);
     }
     res.json(getEffectivePublicConfig(req));
   });
@@ -790,7 +851,7 @@ async function startServer() {
       type = 'document';
     }
 
-    const id = generateShortId();
+    const id = generateShortId(readMediaIndex());
     const originalName = isEncrypted
       ? 'contenu-chiffre.spk1'
       : req.file.originalname || `media-${id}`;
@@ -847,9 +908,11 @@ async function startServer() {
         createdAt: nowIso,
       };
 
-      const index = readMediaIndex();
-      index[id] = record;
-      writeMediaIndex(index);
+      await withDataDirLock(DATA_DIR, () => {
+        const index = readMediaIndex();
+        index[id] = record;
+        writeMediaIndex(index);
+      });
 
       const pub = getEffectivePublicConfig(req);
       res.status(201).json({
@@ -904,7 +967,7 @@ async function startServer() {
   });
 
   // Register a full hosted multimedia collection / custom reader bundle (/m/:id)
-  app.post('/api/media-collection', (req, res) => {
+  app.post('/api/media-collection', async (req, res) => {
     const { source, experience, config, title, isEncrypted, encryptedMeta } = req.body as {
       source?: Record<string, unknown>;
       experience?: Record<string, unknown>;
@@ -924,38 +987,41 @@ async function startServer() {
     }
 
     const { workspace } = resolveRequestWorkspace(req, res, true)!;
-    const id = generateShortId();
     const nowIso = new Date().toISOString();
     const serverExpiresAt = computeFreeRetentionExpiry(nowIso);
-    const record: MediaRecord = {
-      id,
-      ownerWorkspaceId: workspace.id,
-      kind: 'collection',
-      type: 'collection',
-      filename: id,
-      originalName: isEncrypted ? `Contenu chiffré #${id}` : title || 'Collection SparkQR',
-      mimeType: 'application/json',
-      size: encryptedMeta ? Buffer.byteLength(JSON.stringify(encryptedMeta), 'utf8') : 0,
-      url: `/m/${id}`,
-      isEncrypted: Boolean(isEncrypted),
-      e2eeVersion: isEncrypted ? 1 : undefined,
-      encryptedMeta: isEncrypted ? encryptedMeta : undefined,
-      retentionPlanMonths: null,
-      sentMilestones: [],
-      storage: { provider: 'collection' },
-      posterUrl:
-        typeof source.videoPosterUrl === 'string' && source.videoPosterUrl
-          ? source.videoPosterUrl
-          : undefined,
-      source,
-      experience: experience || {},
-      config: config || {},
-      serverExpiresAt,
-      createdAt: nowIso,
-    };
-    const index = readMediaIndex();
-    index[id] = record;
-    writeMediaIndex(index);
+    const id = await withDataDirLock(DATA_DIR, () => {
+      const index = readMediaIndex();
+      const nextId = generateShortId(index);
+      const record: MediaRecord = {
+        id: nextId,
+        ownerWorkspaceId: workspace.id,
+        kind: 'collection',
+        type: 'collection',
+        filename: nextId,
+        originalName: isEncrypted ? `Contenu chiffré #${nextId}` : title || 'Collection SparkQR',
+        mimeType: 'application/json',
+        size: encryptedMeta ? Buffer.byteLength(JSON.stringify(encryptedMeta), 'utf8') : 0,
+        url: `/m/${nextId}`,
+        isEncrypted: Boolean(isEncrypted),
+        e2eeVersion: isEncrypted ? 1 : undefined,
+        encryptedMeta: isEncrypted ? encryptedMeta : undefined,
+        retentionPlanMonths: null,
+        sentMilestones: [],
+        storage: { provider: 'collection' },
+        posterUrl:
+          typeof source.videoPosterUrl === 'string' && source.videoPosterUrl
+            ? source.videoPosterUrl
+            : undefined,
+        source,
+        experience: experience || {},
+        config: config || {},
+        serverExpiresAt,
+        createdAt: nowIso,
+      };
+      index[nextId] = record;
+      writeMediaIndex(index);
+      return nextId;
+    });
     const pub = getEffectivePublicConfig(req);
     const pageUrl = `/m/${id}`;
     res.status(201).json({
@@ -1003,7 +1069,13 @@ async function startServer() {
       res.status(404).json({ error: 'Média introuvable.' });
       return;
     }
-    if (isRecordExpired(record.serverExpiresAt)) {
+    const dynamicStore = readDynamicStore();
+    const stillKeptByActiveQr =
+      record.kind !== 'collection' &&
+      isMediaReferencedElsewhere(record.id, 'media', record.id, index, dynamicStore, {
+        onlyNonExpiredAtMs: Date.now(),
+      });
+    if (isRecordExpired(record.serverExpiresAt) && !stillKeptByActiveQr) {
       void retentionEngine.deleteResourceNow({
         kind: record.kind === 'collection' ? 'collection' : 'media',
         id: record.id,
@@ -1012,7 +1084,6 @@ async function startServer() {
       res.status(410).json({ error: 'Ce média a expiré et a été supprimé.' });
       return;
     }
-    const dynamicStore = readDynamicStore();
     const pub = getEffectivePublicConfig(req);
     const pageUrl = `/m/${record.id}`;
     const isS3 = record.storage?.provider === 'dosya-s3';
@@ -1037,7 +1108,12 @@ async function startServer() {
       res.status(404).json({ error: 'Média introuvable.' });
       return;
     }
-    if (isRecordExpired(record.serverExpiresAt)) {
+    if (
+      isRecordExpired(record.serverExpiresAt) &&
+      !isMediaReferencedElsewhere(record.id, 'media', record.id, index, readDynamicStore(), {
+        onlyNonExpiredAtMs: Date.now(),
+      })
+    ) {
       void retentionEngine.deleteResourceNow({
         kind: 'media',
         id: record.id,
@@ -1099,12 +1175,10 @@ async function startServer() {
       const genericServeName = buildGenericServingFilename(record);
       res.setHeader(
         'Content-Disposition',
-        buildContentDisposition(
-          disposition,
-          disposition === 'inline' ? genericServeName : genericServeName
-        )
+        buildContentDisposition(disposition, genericServeName)
       );
-      res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+      res.setHeader('Cache-Control', 'private, no-cache, must-revalidate');
+      res.setHeader('Pragma', 'no-cache');
 
       req.on('close', () => {
         if (!obj.stream.destroyed) {
@@ -1155,33 +1229,49 @@ async function startServer() {
       return;
     }
 
-    const dynamicStore = readDynamicStore();
-    const associations = findMediaQrAssociations(record.id, record.url, index, dynamicStore);
-
     const result = await retentionEngine.deleteResourceNow({
       kind: record.kind === 'collection' ? 'collection' : 'media',
       id: record.id,
       reason: 'manual',
     });
 
+    if (result.blockedByReferences) {
+      res.status(409).json({
+        error:
+          'Ce média est encore utilisé par au moins un autre QR code actif. Supprimez d’abord les QR codes qui le référencent.',
+        deleted: false,
+        id: req.params.id,
+        blockedByReferences: true,
+        associations: result.associations || [],
+      });
+      return;
+    }
+
     res.json({
       deleted: result.deleted,
       id: req.params.id,
       removedFromS3: result.s3ObjectsDeleted > 0,
+      s3ObjectsDeleted: result.s3ObjectsDeleted,
       freedBytes: result.freedBytes,
       pendingRetry: result.pendingRetry,
-      associations,
+      associations: [],
     });
   });
 
   app.get('/api/reader/media/:id', (req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
     const index = readMediaIndex();
     const record = index[req.params.id];
     if (!record) {
       res.status(404).json({ error: 'Média introuvable ou expiré.' });
       return;
     }
-    if (isRecordExpired(record.serverExpiresAt)) {
+    const stillKeptByActiveQr =
+      record.kind !== 'collection' &&
+      isMediaReferencedElsewhere(record.id, 'media', record.id, index, readDynamicStore(), {
+        onlyNonExpiredAtMs: Date.now(),
+      });
+    if (isRecordExpired(record.serverExpiresAt) && !stillKeptByActiveQr) {
       void retentionEngine.deleteResourceNow({
         kind: record.kind === 'collection' ? 'collection' : 'media',
         id: record.id,
@@ -1274,7 +1364,7 @@ async function startServer() {
     res.json({ items: list });
   });
 
-  app.post('/api/dynamic', (req, res) => {
+  app.post('/api/dynamic', async (req, res) => {
     const body = req.body as {
       slug?: string | null;
       active?: boolean;
@@ -1324,75 +1414,67 @@ async function startServer() {
 
     const resolved = resolveRequestWorkspace(req, res, true)!;
     const wsId = resolved.workspace.id;
-    const store = readDynamicStore();
-    const now = new Date().toISOString();
-    const canReuseSlug =
-      Boolean(body.slug && store[body.slug]) &&
-      canWorkspaceAccessRecord(store[body.slug!].ownerWorkspaceId, wsId);
-    const slug = canReuseSlug ? body.slug! : generateShortId();
-    const existing = canReuseSlug ? store[slug] : undefined;
+    const { nextRecord, existed } = await withDataDirLock(DATA_DIR, () => {
+      const store = readDynamicStore();
+      const now = new Date().toISOString();
+      const canReuseSlug =
+        Boolean(body.slug && store[body.slug]) &&
+        canWorkspaceAccessRecord(store[body.slug!].ownerWorkspaceId, wsId);
+      const slug = canReuseSlug ? body.slug! : generateShortId(store);
+      const existing = canReuseSlug ? store[slug] : undefined;
 
-    let pinSalt = existing?.pinSalt ?? null;
-    let pinHash = existing?.pinHash ?? null;
-    if (typeof body.pinCode === 'string') {
-      const trimmedPin = body.pinCode.trim();
-      if (trimmedPin.length > 0) {
-        const hashed = hashPin(trimmedPin);
-        pinSalt = hashed.salt;
-        pinHash = hashed.hash;
-      } else if (body.pinCode === '') {
-        // Explicit clear only if creating or explicitly clearing
-        if (!existing) {
-          pinSalt = null;
-          pinHash = null;
+      let pinSalt = existing?.pinSalt ?? null;
+      let pinHash = existing?.pinHash ?? null;
+      if (typeof body.pinCode === 'string') {
+        const trimmedPin = body.pinCode.trim();
+        if (trimmedPin.length > 0) {
+          const hashed = hashPin(trimmedPin);
+          pinSalt = hashed.salt;
+          pinHash = hashed.hash;
+        } else if (body.pinCode === '') {
+          if (!existing) {
+            pinSalt = null;
+            pinHash = null;
+          }
         }
       }
-    }
 
-    const nextRecord: ServerDynamicRecord = {
-      slug,
-      ownerWorkspaceId: wsId,
-      active: typeof body.active === 'boolean' ? body.active : existing?.active ?? true,
-      pinSalt,
-      pinHash,
-      expiresAt: body.expiresAt
-        ? body.expiresAt
-        : existing?.expiresAt ?? computeFreeRetentionExpiry(now),
-      retentionPlanMonths: existing?.retentionPlanMonths ?? null,
-      isEncrypted: Boolean((body as { isEncrypted?: boolean }).isEncrypted ?? existing?.isEncrypted),
-      sentMilestones: existing?.sentMilestones ?? [],
-      maxScans:
-        typeof body.maxScans === 'number' && body.maxScans > 0 ? body.maxScans : null,
-      createdAt: existing?.createdAt ?? now,
-      updatedAt: now,
-      destination: body.destination,
-      stats: existing?.stats ?? {
-        totalScans: 0,
-        lastScannedAt: null,
-        recentEvents: [],
-      },
-    };
+      const rec: ServerDynamicRecord = {
+        slug,
+        ownerWorkspaceId: wsId,
+        active: typeof body.active === 'boolean' ? body.active : existing?.active ?? true,
+        pinSalt,
+        pinHash,
+        expiresAt: body.expiresAt
+          ? body.expiresAt
+          : existing?.expiresAt ?? computeFreeRetentionExpiry(now),
+        retentionPlanMonths: existing?.retentionPlanMonths ?? null,
+        isEncrypted: Boolean((body as { isEncrypted?: boolean }).isEncrypted ?? existing?.isEncrypted),
+        sentMilestones: existing?.sentMilestones ?? [],
+        maxScans:
+          typeof body.maxScans === 'number' && body.maxScans > 0 ? body.maxScans : null,
+        createdAt: existing?.createdAt ?? now,
+        updatedAt: now,
+        destination: body.destination!,
+        stats: existing?.stats ?? {
+          totalScans: 0,
+          lastScannedAt: null,
+          recentEvents: [],
+        },
+      };
 
-    store[slug] = nextRecord;
-    writeDynamicStore(store);
+      store[slug] = rec;
+      writeDynamicStore(store);
+      return { nextRecord: rec, existed: Boolean(existing) };
+    });
 
     const pub = getEffectivePublicConfig(req);
     const publicOrigin = pub.valid ? pub.configuredUrl : '';
-    res.status(existing ? 200 : 201).json(sanitizeDynamicRecord(nextRecord, publicOrigin));
+    res.status(existed ? 200 : 201).json(sanitizeDynamicRecord(nextRecord, publicOrigin));
   });
 
-  app.patch('/api/dynamic/:slug', (req, res) => {
+  app.patch('/api/dynamic/:slug', async (req, res) => {
     const resolved = resolveRequestWorkspace(req, res, true)!;
-    const store = readDynamicStore();
-    const rec = store[req.params.slug];
-    if (!rec) {
-      res.status(404).json({ error: 'QR dynamique introuvable.' });
-      return;
-    }
-    if (!canWorkspaceAccessRecord(rec.ownerWorkspaceId, resolved.workspace.id)) {
-      res.status(403).json({ error: 'Ce QR dynamique appartient à un autre espace utilisateur.' });
-      return;
-    }
     const body = req.body as {
       active?: boolean;
       pinCode?: string | null;
@@ -1402,58 +1484,78 @@ async function startServer() {
       destination?: Partial<ServerDynamicRecord['destination']>;
     };
 
-    if (typeof body.active === 'boolean') rec.active = body.active;
-    if (body.clearPin) {
-      rec.pinSalt = null;
-      rec.pinHash = null;
-    } else if (typeof body.pinCode === 'string' && body.pinCode.trim().length > 0) {
-      const hashed = hashPin(body.pinCode.trim());
-      rec.pinSalt = hashed.salt;
-      rec.pinHash = hashed.hash;
-    }
-    if (body.expiresAt !== undefined) {
-      rec.expiresAt = body.expiresAt || null;
-    }
-    if (body.maxScans !== undefined) {
-      rec.maxScans =
-        typeof body.maxScans === 'number' && body.maxScans > 0 ? body.maxScans : null;
-    }
-    if (body.destination) {
-      if (
-        typeof body.destination.payload === 'string' &&
-        /^https?:\/\//i.test(body.destination.payload)
-      ) {
-        try {
-          const destParsed = new URL(body.destination.payload);
-          if (isAiStudioOrPreviewHost(destParsed.hostname)) {
-            res.status(400).json({
-              error: 'Destination Google AI Studio interdite dans un QR dynamique.',
-            });
-            return;
-          }
-          if (isLocalOrPrivateHost(destParsed.hostname)) {
-            res.status(400).json({
-              error: 'Destination locale (localhost / IP privée) interdite dans un QR dynamique.',
-            });
-            return;
-          }
-        } catch {
-          // Ignore non-URL payloads
+    if (
+      body.destination &&
+      typeof body.destination.payload === 'string' &&
+      /^https?:\/\//i.test(body.destination.payload)
+    ) {
+      try {
+        const destParsed = new URL(body.destination.payload);
+        if (isAiStudioOrPreviewHost(destParsed.hostname)) {
+          res.status(400).json({
+            error: 'Destination Google AI Studio interdite dans un QR dynamique.',
+          });
+          return;
         }
+        if (isLocalOrPrivateHost(destParsed.hostname)) {
+          res.status(400).json({
+            error: 'Destination locale (localhost / IP privée) interdite dans un QR dynamique.',
+          });
+          return;
+        }
+      } catch {
+        // Ignore non-URL payloads
       }
-      rec.destination = {
-        ...rec.destination,
-        ...body.destination,
-      };
     }
-    rec.updatedAt = new Date().toISOString();
 
-    store[rec.slug] = rec;
-    writeDynamicStore(store);
+    const updated = await withDataDirLock(DATA_DIR, () => {
+      const store = readDynamicStore();
+      const rec = store[req.params.slug];
+      if (!rec) return { status: 404 as const };
+      if (!canWorkspaceAccessRecord(rec.ownerWorkspaceId, resolved.workspace.id)) {
+        return { status: 403 as const };
+      }
+
+      if (typeof body.active === 'boolean') rec.active = body.active;
+      if (body.clearPin) {
+        rec.pinSalt = null;
+        rec.pinHash = null;
+      } else if (typeof body.pinCode === 'string' && body.pinCode.trim().length > 0) {
+        const hashed = hashPin(body.pinCode.trim());
+        rec.pinSalt = hashed.salt;
+        rec.pinHash = hashed.hash;
+      }
+      if (body.expiresAt !== undefined) {
+        rec.expiresAt = body.expiresAt || null;
+      }
+      if (body.maxScans !== undefined) {
+        rec.maxScans =
+          typeof body.maxScans === 'number' && body.maxScans > 0 ? body.maxScans : null;
+      }
+      if (body.destination) {
+        rec.destination = {
+          ...rec.destination,
+          ...body.destination,
+        };
+      }
+      rec.updatedAt = new Date().toISOString();
+      store[rec.slug] = rec;
+      writeDynamicStore(store);
+      return { status: 200 as const, rec };
+    });
+
+    if (updated.status === 404) {
+      res.status(404).json({ error: 'QR dynamique introuvable.' });
+      return;
+    }
+    if (updated.status === 403) {
+      res.status(403).json({ error: 'Ce QR dynamique appartient à un autre espace utilisateur.' });
+      return;
+    }
 
     const pub = getEffectivePublicConfig(req);
     const publicOrigin = pub.valid ? pub.configuredUrl : '';
-    res.json(sanitizeDynamicRecord(rec, publicOrigin));
+    res.json(sanitizeDynamicRecord(updated.rec, publicOrigin));
   });
 
   app.delete('/api/dynamic/:slug', async (req, res) => {
@@ -1534,6 +1636,7 @@ async function startServer() {
 
   // Unified reader API for dynamic QRs
   app.get('/api/reader/dynamic/:slug', (req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
     const store = readDynamicStore();
     const rec = store[req.params.slug];
     if (!rec) {
@@ -1754,14 +1857,21 @@ async function startServer() {
     res.json({ items: readWorkspaceProjects(DATA_DIR, resolved.workspace.id) });
   });
 
-  app.put('/api/projects', (req, res) => {
+  app.put('/api/projects', async (req, res) => {
     const resolved = resolveRequestWorkspace(req, res, true)!;
     const items = (req.body as { items?: unknown[] })?.items;
     if (!Array.isArray(items)) {
       res.status(400).json({ error: 'Liste de projets invalide.' });
       return;
     }
-    writeWorkspaceProjects(DATA_DIR, resolved.workspace.id, items);
+    await withDataDirLock(DATA_DIR, () => {
+      writeWorkspaceProjects(DATA_DIR, resolved.workspace.id, items);
+      if (backupEnabled) {
+        stateBackup.scheduleFileSync(
+          path.join(DATA_DIR, 'workspaces', `${resolved.workspace.id}-projects.json`)
+        );
+      }
+    });
     res.json({ saved: true, count: items.length });
   });
 
@@ -1818,6 +1928,7 @@ async function startServer() {
       return;
     }
     const id = req.params.id;
+    let resolvedKind: 'media' | 'collection' | 'dynamic' = kind;
     if (kind === 'dynamic') {
       const store = readDynamicStore();
       const rec = store[id];
@@ -1840,13 +1951,22 @@ async function startServer() {
         res.status(403).json({ error: 'Accès refusé à cet espace.' });
         return;
       }
+      resolvedKind = rec.kind === 'collection' ? 'collection' : 'media';
     }
 
     const result = await retentionEngine.deleteResourceNow({
-      kind,
+      kind: resolvedKind,
       id,
       reason: 'manual',
     });
+    if (result.blockedByReferences) {
+      res.status(409).json({
+        error:
+          'Ce média est encore utilisé par un ou plusieurs QR codes actifs. Supprimez d’abord les QR codes qui le référencent.',
+        ...result,
+      });
+      return;
+    }
     res.json(result);
   });
 
@@ -1937,7 +2057,7 @@ async function startServer() {
     res.json({ pricing });
   });
 
-  app.post('/api/retention/extend', (req, res) => {
+  app.post('/api/retention/extend', async (req, res) => {
     const resolved = resolveRequestWorkspace(req, res, true)!;
     const { months, targetKind, targetId } = req.body as {
       months?: number;
@@ -1988,7 +2108,7 @@ async function startServer() {
       }
     }
 
-    const ext = retentionEngine.extendRetention({
+    const ext = await retentionEngine.extendRetention({
       workspaceId: resolved.workspace.id,
       targetKind: safeKind,
       targetId: safeTargetId,
@@ -2057,21 +2177,28 @@ async function startServer() {
     res.json({ pricing: saved });
   });
 
-  // External/Scheduled Cleanup Endpoint (protected by CRON_SECRET if configured)
+  // External/Scheduled Cleanup Endpoint (strictly protected by CRON_SECRET — fail-closed)
   app.post('/api/cron/cleanup', async (req, res) => {
     const expectedSecret = (process.env.CRON_SECRET || '').trim();
-    if (expectedSecret) {
-      const ok = verifyCronSecretHeader(
-        req.get('authorization'),
-        req.get('x-cron-secret'),
-        expectedSecret
-      );
-      if (!ok) {
-        res.status(401).json({ error: 'Jeton CRON invalide.' });
-        return;
-      }
+    if (!expectedSecret) {
+      res.status(503).json({
+        error: 'CRON_SECRET non configuré sur le serveur. Accès public refusé.',
+      });
+      return;
+    }
+    const ok = verifyCronSecretHeader(
+      req.get('authorization'),
+      req.get('x-cron-secret'),
+      expectedSecret
+    );
+    if (!ok) {
+      res.status(401).json({ error: 'Jeton CRON invalide.' });
+      return;
     }
     const summary = await retentionEngine.runCleanupPass();
+    if (backupEnabled) {
+      await stateBackup.flush();
+    }
     res.json({ ok: true, ...summary, ranAt: new Date().toISOString() });
   });
 
@@ -2125,6 +2252,17 @@ async function startServer() {
     }
   );
 
+  return {
+    app,
+    dataDir: DATA_DIR,
+    dosyaStorage,
+    retentionEngine,
+    stateBackup,
+  };
+}
+
+export async function startServer() {
+  const { app, retentionEngine, stateBackup } = await createSparkQrApp();
   const httpServer = http.createServer(app);
 
   if (process.env.NODE_ENV !== 'production') {
@@ -2165,6 +2303,18 @@ async function startServer() {
     }, 15 * 60 * 1000);
     sweepTimer.unref();
   });
+
+  const flushOnExit = () => {
+    void stateBackup.flush().catch(() => undefined);
+  };
+  process.once('SIGTERM', flushOnExit);
+  process.once('SIGINT', flushOnExit);
 }
 
-startServer();
+const isMainEntry = Boolean(
+  process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)
+);
+
+if (isMainEntry) {
+  void startServer();
+}

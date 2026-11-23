@@ -35,9 +35,10 @@ jobs:
           if [ -z "$RENDER_APP_URL" ]; then
             exit 0
           fi
-          if [ -n "$CRON_SECRET" ]; then
-            curl -fsS --max-time 25 -X POST -H "Authorization: Bearer ${CRON_SECRET}" "${RENDER_APP_URL%/}/api/cron/cleanup"
-          else
-            curl -fsS --max-time 25 -X POST "${RENDER_APP_URL%/}/api/cron/cleanup"
+          if [ -z "$CRON_SECRET" ]; then
+            echo "CRON_SECRET non défini dans GitHub Secrets — purge distante ignorée."
+            exit 0
           fi
+          curl -fsS --max-time 25 -X POST -H "Authorization: Bearer ${CRON_SECRET}" "${RENDER_APP_URL%/}/api/cron/cleanup"
           echo ""
+

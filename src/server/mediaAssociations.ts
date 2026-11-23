@@ -92,12 +92,22 @@ export function findMediaQrAssociations(
 
   for (const rec of Object.values(mediaIndex)) {
     if (rec.id === mediaId) continue;
-    if (rec.kind !== 'collection') continue;
-    if (recordReferencesMedia(rec.source, rec.experience, mediaId, mediaUrls)) {
+    if (
+      rec.kind === 'collection' &&
+      recordReferencesMedia(rec.source, rec.experience, mediaId, mediaUrls)
+    ) {
       associations.push({
         kind: 'collection',
         id: rec.id,
         title: rec.originalName || `Collection /m/${rec.id}`,
+      });
+      continue;
+    }
+    if (rec.posterUrl && matchesMediaReference(rec.posterUrl, mediaId, mediaUrls)) {
+      associations.push({
+        kind: 'collection',
+        id: rec.id,
+        title: rec.originalName || `Média /m/${rec.id}`,
       });
     }
   }

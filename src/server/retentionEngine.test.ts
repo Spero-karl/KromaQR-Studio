@@ -197,7 +197,7 @@ test('RetentionEngine retries failed S3 deletions and supports cumulative extens
   assert.equal(retryPass.retriedJobsCompleted, 1);
   assert.deepEqual(deletedKeys, ['sparkqr/images/mfail/a.png']);
 
-  const ext = engine.extendRetention({
+  const ext = await engine.extendRetention({
     workspaceId: 'ws_2',
     targetKind: 'media',
     targetId: 'mkeep',

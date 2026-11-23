@@ -1,6 +1,7 @@
 import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
+import { readJsonFileAtomic, writeJsonFileAtomic } from './jsonStore.ts';
 
 export interface WorkspaceRecord {
   id: string;
@@ -51,24 +52,17 @@ export function sanitizeWorkspaceName(name: unknown): string {
 }
 
 export function loadWorkspacesMap(filePath: string): Record<string, WorkspaceRecord> {
-  try {
-    if (!fs.existsSync(filePath)) return {};
-    const parsed = JSON.parse(fs.readFileSync(filePath, 'utf-8'));
-    return parsed && typeof parsed === 'object' ? (parsed as Record<string, WorkspaceRecord>) : {};
-  } catch {
-    return {};
-  }
+  const parsed = readJsonFileAtomic<unknown>(filePath, {});
+  return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+    ? (parsed as Record<string, WorkspaceRecord>)
+    : {};
 }
 
 export function saveWorkspacesMap(
   filePath: string,
   map: Record<string, WorkspaceRecord>
 ): void {
-  const dir = path.dirname(filePath);
-  if (!fs.existsSync(dir)) {
-    fs.mkdirSync(dir, { recursive: true });
-  }
-  fs.writeFileSync(filePath, JSON.stringify(map, null, 2), 'utf-8');
+  writeJsonFileAtomic(filePath, map);
 }
 
 export function createWorkspaceRecord(
@@ -126,8 +120,7 @@ export function resolveWorkspaceProjectsFile(
 export function readWorkspaceProjects(dataDir: string, workspaceId: string): unknown[] {
   try {
     const file = resolveWorkspaceProjectsFile(dataDir, workspaceId);
-    if (!fs.existsSync(file)) return [];
-    const parsed = JSON.parse(fs.readFileSync(file, 'utf-8'));
+    const parsed = readJsonFileAtomic<unknown>(file, []);
     return Array.isArray(parsed) ? parsed : [];
   } catch {
     return [];
@@ -140,7 +133,7 @@ export function writeWorkspaceProjects(
   items: unknown[]
 ): void {
   const file = resolveWorkspaceProjectsFile(dataDir, workspaceId);
-  fs.writeFileSync(file, JSON.stringify(items.slice(0, 200), null, 2), 'utf-8');
+  writeJsonFileAtomic(file, items.slice(0, 200));
 }
 
 export function canWorkspaceAccessRecord(

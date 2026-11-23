@@ -88,7 +88,8 @@ interface HistoryGalleryProps {
   onOpenWorkspaceModal?: () => void;
   onLoadItem: (item: SavedQrItem) => void;
   onDuplicateItem: (item: SavedQrItem) => void;
-  onDeleteItem: (id: string) => void;
+  onDeleteItem: (id: string) => void | Promise<void>;
+  onDeleteDynamic?: (slug: string) => Promise<void>;
   onRefreshDynamic: () => Promise<void>;
   onDeleteMedia?: (id: string) => Promise<void>;
   onRefreshMedia?: () => Promise<void>;
@@ -110,6 +111,7 @@ export const HistoryGallery: React.FC<HistoryGalleryProps> = ({
   onLoadItem,
   onDuplicateItem,
   onDeleteItem,
+  onDeleteDynamic,
   onRefreshDynamic,
   onDeleteMedia,
   onRefreshMedia,
@@ -117,6 +119,9 @@ export const HistoryGallery: React.FC<HistoryGalleryProps> = ({
   onBackToStudio,
 }) => {
   const [deletingMediaId, setDeletingMediaId] = useState<string | null>(null);
+  const [deletingItemId, setDeletingItemId] = useState<string | null>(null);
+  const [deletingDynamicSlug, setDeletingDynamicSlug] = useState<string | null>(null);
+  const [itemActionError, setItemActionError] = useState<string | null>(null);
   const [mediaActionError, setMediaActionError] = useState<string | null>(null);
   const [refreshingMedia, setRefreshingMedia] = useState(false);
   const [search, setSearch] = useState('');
@@ -247,6 +252,39 @@ export const HistoryGallery: React.FC<HistoryGalleryProps> = ({
       );
     } finally {
       setDeletingMediaId(null);
+    }
+  };
+
+  const handleDeleteSavedCard = async (id: string) => {
+    setDeletingItemId(id);
+    setItemActionError(null);
+    try {
+      await onDeleteItem(id);
+    } catch (err) {
+      setItemActionError(
+        err instanceof Error
+          ? err.message
+          : 'Impossible de supprimer ce QR code et ses données associées.'
+      );
+    } finally {
+      setDeletingItemId(null);
+    }
+  };
+
+  const handleDeleteDynamicRow = async (slug: string) => {
+    if (!onDeleteDynamic) return;
+    setDeletingDynamicSlug(slug);
+    setItemActionError(null);
+    try {
+      await onDeleteDynamic(slug);
+    } catch (err) {
+      setItemActionError(
+        err instanceof Error
+          ? err.message
+          : 'Impossible de supprimer ce QR dynamique.'
+      );
+    } finally {
+      setDeletingDynamicSlug(null);
     }
   };
 
@@ -432,6 +470,15 @@ export const HistoryGallery: React.FC<HistoryGalleryProps> = ({
         </select>
       </div>
 
+      {itemActionError && (
+        <div
+          role="alert"
+          className="rounded-xl border border-[#FECACA] bg-[#FEF2F2] px-4 py-3 text-xs font-medium text-[#B91C1C]"
+        >
+          {itemActionError}
+        </div>
+      )}
+
       {/* Saved Projects Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
         {filteredItems.map((item) => {
@@ -583,9 +630,10 @@ export const HistoryGallery: React.FC<HistoryGalleryProps> = ({
 
                   <button
                     type="button"
+                    disabled={deletingItemId === item.id}
                     aria-label={`Supprimer ${item.name || 'ce code QR'}`}
-                    onClick={() => onDeleteItem(item.id)}
-                    className="p-2.5 min-h-[40px] min-w-[40px] flex items-center justify-center text-[#6E7078] hover:text-[#B91C1C] hover:bg-[#FEF2F2] rounded-xl transition-colors cursor-pointer"
+                    onClick={() => void handleDeleteSavedCard(item.id)}
+                    className="p-2.5 min-h-[40px] min-w-[40px] flex items-center justify-center text-[#6E7078] hover:text-[#B91C1C] hover:bg-[#FEF2F2] rounded-xl transition-colors cursor-pointer disabled:opacity-50"
                   >
                     <Trash2 className="w-4 h-4" />
                   </button>
@@ -645,6 +693,18 @@ export const HistoryGallery: React.FC<HistoryGalleryProps> = ({
                     >
                       Gérer &amp; Stats
                     </button>
+                    {onDeleteDynamic && (
+                      <button
+                        type="button"
+                        disabled={deletingDynamicSlug === rec.slug}
+                        aria-label={`Supprimer le QR dynamique ${rec.destination.title || rec.slug}`}
+                        onClick={() => void handleDeleteDynamicRow(rec.slug)}
+                        className="inline-flex items-center gap-1 px-2.5 py-1.5 min-h-[34px] text-[11px] font-semibold text-[#B91C1C] bg-[#FEF2F2] border border-[#FECACA] hover:bg-[#FEE2E2] rounded-lg transition-colors cursor-pointer disabled:opacity-50"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" aria-hidden="true" />
+                        <span>{deletingDynamicSlug === rec.slug ? '...' : 'Supprimer'}</span>
+                      </button>
+                    )}
                   </div>
                 </div>
               );

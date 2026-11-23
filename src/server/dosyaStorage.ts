@@ -2,6 +2,7 @@ import {
   DeleteObjectCommand,
   GetObjectCommand,
   HeadObjectCommand,
+  ListObjectsV2Command,
   PutObjectCommand,
   S3Client,
   type S3ClientConfig,
@@ -312,6 +313,53 @@ export class DosyaStorageService {
       }
       throw err;
     }
+  }
+
+  async getObjectBuffer(key: string): Promise<Buffer | null> {
+    const client = this.getClient();
+    const cmd = new GetObjectCommand({
+      Bucket: this.config.bucket,
+      Key: key,
+    });
+    try {
+      const out = (await client.send(cmd)) as { Body?: unknown };
+      const stream = toNodeReadable(out.Body);
+      const chunks: Buffer[] = [];
+      for await (const chunk of stream) {
+        chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+      }
+      return Buffer.concat(chunks);
+    } catch (err) {
+      const errName = (err as { name?: string })?.name;
+      const httpStatus = (err as { $metadata?: { httpStatusCode?: number } })?.$metadata?.httpStatusCode;
+      if (errName === 'NoSuchKey' || httpStatus === 404) {
+        return null;
+      }
+      throw err;
+    }
+  }
+
+  async listObjectKeys(prefix: string): Promise<string[]> {
+    const client = this.getClient();
+    const keys: string[] = [];
+    let continuationToken: string | undefined;
+    do {
+      const cmd = new ListObjectsV2Command({
+        Bucket: this.config.bucket,
+        Prefix: prefix,
+        ...(continuationToken ? { ContinuationToken: continuationToken } : {}),
+      });
+      const out = (await client.send(cmd)) as {
+        Contents?: Array<{ Key?: string }>;
+        IsTruncated?: boolean;
+        NextContinuationToken?: string;
+      };
+      for (const obj of out.Contents || []) {
+        if (obj.Key) keys.push(obj.Key);
+      }
+      continuationToken = out.IsTruncated ? out.NextContinuationToken : undefined;
+    } while (continuationToken);
+    return keys;
   }
 
   async deleteObjects(keys: string[]): Promise<{
