@@ -51,13 +51,19 @@ export type QrCardTexture =
 
 export type QrFontId =
   | 'bricolage'
+  | 'outfit'
   | 'syne'
+  | 'cormorant'
+  | 'cinzel'
+  | 'bodoni'
+  | 'marcellus'
   | 'fraunces'
   | 'playfair'
   | 'oswald'
   | 'jakarta'
   | 'mono'
   | 'dancing'
+  | 'sacramento'
   | 'greatvibes'
   | 'pacifico'
   | 'caveat';
@@ -417,6 +423,7 @@ export interface QrConfig {
   errorCorrection: QrErrorCorrection;
   margin: number;
   cornerRadius: number;
+  laserEnabled?: boolean;
 }
 
 export interface QrThemePreset {

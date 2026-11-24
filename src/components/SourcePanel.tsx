@@ -354,7 +354,7 @@ export const SourcePanel: React.FC<SourcePanelProps> = ({
             id="source-heading"
             className="font-display text-lg sm:text-xl font-bold tracking-tight text-[#111214] mt-0.5"
           >
-            Contenu du QR code
+            Que voulez-vous transformer ?
           </h2>
         </div>
 
@@ -364,11 +364,11 @@ export const SourcePanel: React.FC<SourcePanelProps> = ({
         </span>
       </div>
 
-      {/* Tactile Visual Cards */}
+      {/* Tactile Visual Cards — centered cleanly on smartphones & balanced on desktop */}
       <div
         role="tablist"
         aria-label="Choix du contenu à encoder"
-        className="pt-5 grid grid-cols-2 sm:grid-cols-5 gap-2.5"
+        className="pt-5 flex flex-wrap justify-center gap-2.5 sm:grid sm:grid-cols-5"
       >
         {INTENT_OPTIONS.map((opt) => {
           const Icon = opt.icon;
@@ -381,7 +381,7 @@ export const SourcePanel: React.FC<SourcePanelProps> = ({
               aria-selected={active}
               data-testid={`intent-${opt.id}`}
               onClick={() => handleChooseIntent(opt.id)}
-              className={`group min-h-[44px] flex flex-col items-start justify-between gap-3 p-3.5 rounded-xl border text-left transition-all duration-200 ease-[cubic-bezier(0.16,1,0.3,1)] hover:-translate-y-0.5 active:scale-[0.98] cursor-pointer ${
+              className={`group w-[calc(50%-0.3125rem)] sm:w-auto min-h-[44px] flex flex-col items-center sm:items-start justify-between gap-2.5 p-3.5 rounded-xl border text-center sm:text-left transition-all duration-200 ease-[cubic-bezier(0.16,1,0.3,1)] hover:-translate-y-0.5 active:scale-[0.98] cursor-pointer ${
                 active ? `${opt.activeBorder} ${opt.activeSurface}` : opt.idleSurface
               }`}
             >
@@ -404,16 +404,6 @@ export const SourcePanel: React.FC<SourcePanelProps> = ({
           );
         })}
       </div>
-
-      {/* Empty state before selection */}
-      {selectedIntent === null && (
-        <div
-          data-testid="intent-prompt-state"
-          className="mt-5 rounded-xl border border-dashed border-[#CBD5E1] bg-gradient-to-r from-[#F8FAFC] to-[#F5F3FF]/60 px-4 py-4 text-xs text-[#475569]"
-        >
-          Touchez l’un des 5 formats colorés ci-dessus pour créer votre lien, texte, Wi-Fi, photo ou vidéo.
-        </div>
-      )}
 
       {/* URL INPUT */}
       {selectedIntent === 'url' && (
@@ -690,20 +680,9 @@ export const SourcePanel: React.FC<SourcePanelProps> = ({
                       </span>
                     )}
                   </div>
-                  <label className="inline-flex items-center gap-1.5 text-[11px] font-medium text-[#475569] cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={source.useSourceImageAsLogo}
-                      onChange={(e) =>
-                        onChange({
-                          ...source,
-                          useSourceImageAsLogo: e.target.checked,
-                        })
-                      }
-                      className="w-3.5 h-3.5 rounded accent-[#1D4ED8]"
-                    />
-                    <span>Afficher aussi au centre du QR</span>
-                  </label>
+                  <p className="text-[11px] text-[#5C5E66]">
+                    Affichée en plein format après scan
+                  </p>
                 </div>
               </div>
 
@@ -820,20 +799,6 @@ export const SourcePanel: React.FC<SourcePanelProps> = ({
                     data-testid="image-source-thumbnail"
                     className="w-7 h-7 rounded-md object-cover border border-black/10"
                   />
-                  <label className="inline-flex items-center gap-1.5 text-xs font-medium text-[#2C2E33] cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={source.useSourceImageAsLogo}
-                      onChange={(e) =>
-                        onChange({
-                          ...source,
-                          useSourceImageAsLogo: e.target.checked,
-                        })
-                      }
-                      className="w-3.5 h-3.5 rounded accent-[#1D4ED8]"
-                    />
-                    <span>Au centre</span>
-                  </label>
                   <button
                     type="button"
                     aria-label="Retirer l’image sélectionnée"

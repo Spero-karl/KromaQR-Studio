@@ -55,8 +55,8 @@ test('normalizeConfigWithDefaults preserves saved configs and fills missing fiel
 });
 
 test('Prestige presets, VIP frames, and mood showcase backdrops are well-formed', () => {
-  assert.equal(THEME_PRESETS.length, 13);
-  assert.equal(PRESTIGE_THEME_PRESETS.length, 5);
+  assert.equal(THEME_PRESETS.length, 16);
+  assert.equal(PRESTIGE_THEME_PRESETS.length, 7);
 
   const goldLayout = getCardLayout('vip-gold');
   assert.equal(goldLayout.width, 400);

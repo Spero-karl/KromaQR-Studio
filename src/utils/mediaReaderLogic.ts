@@ -5,7 +5,7 @@ import type {
   QrSourceState,
 } from '../types/qr';
 import { normalizeMediaAssetUrl } from './publicUrl';
-import { buildShowcaseBackdrop, relativeLuminance } from './qrLogic';
+import { buildShowcaseBackdrop, hexToRgb, mixHexColors, relativeLuminance } from './qrLogic';
 
 export type ReaderContentCategory =
   | 'image-single'
@@ -432,12 +432,48 @@ export function computeReadingMetrics(rawText: string): ReadingMetrics {
 }
 
 export function getDefaultReaderColorMode(
-  _config: QrConfig,
+  config: QrConfig,
   _mood: PostScanExperience['accentMood'] = 'auto',
   readerThemeMode?: 'light' | 'dark'
 ): ReaderColorMode {
   if (readerThemeMode === 'dark') return 'dark';
+  if (readerThemeMode === 'light') return 'light';
+  if (relativeLuminance(config.cardBackgroundColor || '#FFFFFF') < 0.22) {
+    return 'dark';
+  }
   return 'light';
+}
+
+function pickLegibleAccent(
+  candidates: string[],
+  mode: ReaderColorMode
+): string {
+  const valid = candidates.filter((c) => /^#[0-9a-f]{3,8}$/i.test((c || '').trim()));
+  if (valid.length === 0) return mode === 'dark' ? '#60A5FA' : '#2563EB';
+
+  if (mode === 'dark') {
+    const vivid = valid.find((c) => {
+      const lum = relativeLuminance(c);
+      return lum >= 0.2 && lum <= 0.85;
+    });
+    const base = vivid || valid[0];
+    const lum = relativeLuminance(base);
+    if (lum < 0.18) {
+      return mixHexColors(base, '#FFFFFF', 0.45);
+    }
+    return base;
+  }
+
+  const rich = valid.find((c) => {
+    const lum = relativeLuminance(c);
+    return lum >= 0.03 && lum <= 0.48;
+  });
+  const base = rich || valid[0];
+  const lum = relativeLuminance(base);
+  if (lum > 0.52) {
+    return mixHexColors(base, '#0F172A', 0.42);
+  }
+  return base;
 }
 
 export function buildReaderThemeTokens(
@@ -448,44 +484,81 @@ export function buildReaderThemeTokens(
   const baseBackdrop = buildShowcaseBackdrop(config, mood);
   const mode = modeOverride ?? getDefaultReaderColorMode(config, mood);
 
-  // Pick a vivid accent with strong contrast in the chosen mode (defaulting to SparkQR cobalt/violet)
-  const rawAccent = baseBackdrop.accentColor || '#2563EB';
-  const accentLum = relativeLuminance(rawAccent);
+  const primary = config.foregroundColor || '#2563EB';
+  const secondary = config.foregroundSecondaryColor || primary;
+  const eye = config.useCustomEyeColor ? config.eyeColor : secondary;
+  const cardBg = config.cardBackgroundColor || '#FFFFFF';
+  const isCardDark = relativeLuminance(cardBg) < 0.22;
+
+  const isExplicitMood =
+    mood === 'gold-velvet' ||
+    mood === 'midnight-neon' ||
+    mood === 'cinema-35' ||
+    mood === 'botanical';
+
+  const safeAccent = isExplicitMood
+    ? pickLegibleAccent([baseBackdrop.accentColor, eye, secondary, primary], mode)
+    : pickLegibleAccent([eye, secondary, primary], mode);
+
+  const accentContrastText = relativeLuminance(safeAccent) > 0.45 ? '#090B10' : '#FFFFFF';
+  const { r: ar, g: ag, b: ab } = hexToRgb(safeAccent);
+  const { r: pr, g: pg, b: pb } = hexToRgb(primary);
 
   if (mode === 'dark') {
-    const safeAccent = accentLum < 0.14 ? '#60A5FA' : rawAccent;
-    const accentContrastText = relativeLuminance(safeAccent) > 0.45 ? '#090B10' : '#FFFFFF';
     const isMoodDark =
       mood === 'gold-velvet' || mood === 'midnight-neon' || mood === 'cinema-35';
+    const themedDarkOuter = isCardDark
+      ? baseBackdrop.outerBackground
+      : `radial-gradient(ellipse 72% 52% at 15% 0%, rgba(${ar},${ag},${ab},0.22), transparent 58%), radial-gradient(ellipse 62% 48% at 88% 12%, rgba(${pr},${pg},${pb},0.18), transparent 55%), linear-gradient(155deg, ${mixHexColors(primary, '#07090F', 0.86)} 0%, #090C14 58%, #06080D 100%)`;
+
+    const themedSurface = isMoodDark
+      ? baseBackdrop.cardBackground
+      : isCardDark
+      ? mixHexColors(cardBg, '#10141F', 0.35)
+      : mixHexColors(primary, '#10131C', 0.88);
+
+    const themedElevated = isCardDark
+      ? 'rgba(255, 255, 255, 0.065)'
+      : `rgba(${ar},${ag},${ab},0.10)`;
+
     return {
       mode: 'dark',
-      outerBackground: isMoodDark
-        ? baseBackdrop.outerBackground
-        : 'radial-gradient(ellipse 70% 50% at 15% 0%, rgba(37,99,235,0.22), transparent 58%), radial-gradient(ellipse 60% 45% at 88% 10%, rgba(79,70,229,0.18), transparent 55%), #080A10',
-      surfaceBackground: isMoodDark ? baseBackdrop.cardBackground : '#10131C',
-      surfaceElevated: 'rgba(255, 255, 255, 0.055)',
-      mediaStageBg: '#06080D',
-      borderColor: isMoodDark ? baseBackdrop.cardBorder : 'rgba(255, 255, 255, 0.10)',
+      outerBackground: isMoodDark ? baseBackdrop.outerBackground : themedDarkOuter,
+      surfaceBackground: themedSurface,
+      surfaceElevated: themedElevated,
+      mediaStageBg: isCardDark ? mixHexColors(cardBg, '#05070B', 0.5) : '#06080D',
+      borderColor: isMoodDark
+        ? baseBackdrop.cardBorder
+        : `rgba(${ar},${ag},${ab},0.26)`,
       textPrimary: isMoodDark ? baseBackdrop.textPrimary : '#F8FAFC',
-      textMuted: isMoodDark ? baseBackdrop.textMuted : '#94A3B8',
+      textMuted: isMoodDark ? baseBackdrop.textMuted : '#9BA6BA',
       accentColor: safeAccent,
       accentContrastText,
     };
   }
 
-  // Light mode — crisp SaaS gallery surface with SparkQR atmosphere
-  const safeAccent = accentLum > 0.65 ? '#2563EB' : rawAccent;
-  const accentContrastText = relativeLuminance(safeAccent) > 0.45 ? '#0F172A' : '#FFFFFF';
+  // Light mode — bright luminous gallery surface infused with the QR model's palette
+  const lightTintOuter = !isCardDark && relativeLuminance(cardBg) < 0.96
+    ? `radial-gradient(ellipse 75% 55% at 14% 0%, rgba(${ar},${ag},${ab},0.14), transparent 60%), radial-gradient(ellipse 62% 48% at 88% 8%, rgba(${pr},${pg},${pb},0.10), transparent 56%), linear-gradient(155deg, ${mixHexColors(cardBg, '#FFFFFF', 0.35)} 0%, ${mixHexColors(cardBg, '#F8FAFC', 0.5)} 100%)`
+    : `radial-gradient(ellipse 75% 55% at 14% 0%, rgba(${ar},${ag},${ab},0.11), transparent 60%), radial-gradient(ellipse 60% 48% at 88% 8%, rgba(${pr},${pg},${pb},0.085), transparent 56%), #F6F7FB`;
+
+  const lightSurface =
+    !isCardDark && relativeLuminance(cardBg) > 0.78
+      ? mixHexColors(cardBg, '#FFFFFF', 0.82)
+      : '#FFFFFF';
+
+  const lightElevated =
+    !isCardDark && relativeLuminance(cardBg) > 0.78
+      ? mixHexColors(cardBg, '#F3F5FA', 0.55)
+      : mixHexColors(safeAccent, '#F8FAFC', 0.93);
+
   return {
     mode: 'light',
-    outerBackground:
-      mood === 'botanical'
-        ? baseBackdrop.outerBackground
-        : 'radial-gradient(ellipse 75% 55% at 14% 0%, rgba(37,99,235,0.085), transparent 60%), radial-gradient(ellipse 60% 48% at 88% 8%, rgba(79,70,229,0.075), transparent 56%), #F6F7FB',
-    surfaceBackground: '#FFFFFF',
-    surfaceElevated: '#F3F5FA',
-    mediaStageBg: '#ECEFF6',
-    borderColor: 'rgba(15, 23, 42, 0.09)',
+    outerBackground: mood === 'botanical' ? baseBackdrop.outerBackground : lightTintOuter,
+    surfaceBackground: lightSurface,
+    surfaceElevated: lightElevated,
+    mediaStageBg: mixHexColors(safeAccent, '#ECEFF6', 0.91),
+    borderColor: `rgba(${ar},${ag},${ab},0.18)`,
     textPrimary: '#0F172A',
     textMuted: '#475569',
     accentColor: safeAccent,

@@ -30,6 +30,8 @@ import {
   FILTER_CATALOG,
   FONT_CATALOG,
   FRAME_CATALOG,
+  PRESTIGE_THEME_PRESETS,
+  STUDIO_THEME_PRESETS,
   TEXTURE_CATALOG,
   THEME_PRESETS,
   UNIQUE_LOGOS,
@@ -514,12 +516,12 @@ export const CustomizePanel: React.FC<CustomizePanelProps> = ({
         {activeTab === 'models' && (
           <div className="space-y-5 animate-[fadeIn_160ms_ease-out]" data-testid="bar-themes">
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <div className="inline-flex p-1 bg-[#F4F2EC] rounded-xl gap-1">
+              <div className="inline-flex flex-wrap p-1 bg-[#F2F0E9] rounded-xl gap-1">
                 {(
                   [
                     { id: 'all', label: `Toutes · ${THEME_PRESETS.length}` },
-                    { id: 'studio', label: 'Studio · 8' },
-                    { id: 'prestige', label: 'Atelier Prestige · 5' },
+                    { id: 'studio', label: `Studio · ${STUDIO_THEME_PRESETS.length}` },
+                    { id: 'prestige', label: `Atelier Prestige · ${PRESTIGE_THEME_PRESETS.length}` },
                   ] as const
                 ).map((tab) => (
                   <button
@@ -527,9 +529,9 @@ export const CustomizePanel: React.FC<CustomizePanelProps> = ({
                     type="button"
                     data-testid={`collection-tab-${tab.id}`}
                     onClick={() => setCollectionTab(tab.id)}
-                    className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+                    className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all whitespace-nowrap shrink-0 cursor-pointer ${
                       collectionTab === tab.id
-                        ? 'bg-white text-[#111214] shadow-2xs'
+                        ? 'bg-white text-[#111214] shadow-xs'
                         : 'text-[#5C5E66] hover:text-[#111214]'
                     }`}
                   >
@@ -1885,6 +1887,24 @@ export const CustomizePanel: React.FC<CustomizePanelProps> = ({
                   </select>
                 </div>
               </div>
+
+              <label className="mt-3 flex items-center justify-between gap-3 p-3 rounded-xl bg-[#FAF9F5] border border-[#E6E4DC] cursor-pointer">
+                <div className="min-w-0">
+                  <span className="block text-xs font-semibold text-[#111214]">
+                    Faisceau laser lumineux (aperçu &amp; partage)
+                  </span>
+                  <span className="block text-[11px] text-[#6E7078]">
+                    Anime un balayage lumineux sur l’aperçu et lors de l’ouverture dans « Mes QR ».
+                  </span>
+                </div>
+                <input
+                  type="checkbox"
+                  data-testid="config-laser-toggle"
+                  checked={config.laserEnabled !== false}
+                  onChange={(e) => update({ laserEnabled: e.target.checked })}
+                  className="w-4 h-4 rounded accent-[#4F46E5] shrink-0"
+                />
+              </label>
             </div>
 
             {/* Fine Positioning */}

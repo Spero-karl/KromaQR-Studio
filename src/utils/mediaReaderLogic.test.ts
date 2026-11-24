@@ -295,4 +295,25 @@ test('looksLikeFilename & sanitizePublicCaption strip uploaded filenames while k
   assert.equal(sanitizePublicCaption('Scannez pour découvrir', ''), '');
 });
 
+test('buildReaderThemeTokens adapts post-scan Clair/Sombre mode to QR model palette', async () => {
+  const { THEME_PRESETS } = await import('../data/presets');
+  const frozen = THEME_PRESETS.find((t) => t.id === 'frozen-cristal');
+  const glacial = THEME_PRESETS.find((t) => t.id === 'glacial');
+  assert.ok(frozen && glacial);
+
+  const frozenCfg = { ...DEFAULT_CONFIG, ...frozen.patch };
+  const glacialCfg = { ...DEFAULT_CONFIG, ...glacial.patch };
+
+  assert.equal(getDefaultReaderColorMode(frozenCfg, 'auto'), 'dark');
+  assert.equal(getDefaultReaderColorMode(glacialCfg, 'auto'), 'light');
+
+  const frozenDark = buildReaderThemeTokens(frozenCfg, 'auto', 'dark');
+  const frozenLight = buildReaderThemeTokens(frozenCfg, 'auto', 'light');
+  assert.equal(frozenDark.mode, 'dark');
+  assert.equal(frozenLight.mode, 'light');
+  assert.notEqual(frozenDark.surfaceBackground, frozenLight.surfaceBackground);
+  assert.ok(frozenDark.outerBackground.includes('radial-gradient'));
+  assert.ok(frozenLight.outerBackground.includes('radial-gradient'));
+});
+
 

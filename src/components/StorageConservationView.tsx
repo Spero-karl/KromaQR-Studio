@@ -378,8 +378,12 @@ export const StorageConservationView: React.FC<StorageConservationViewProps> = (
                   className="px-5 py-3.5 flex flex-wrap items-center justify-between gap-3 text-xs"
                 >
                   <div className="space-y-0.5">
-                    <span className="font-mono font-bold text-[#111214]">
-                      Réf #{entry.shortRef}
+                    <span className="font-semibold text-[#111214]">
+                      {entry.resourceKind === 'dynamic'
+                        ? 'QR dynamique'
+                        : entry.resourceKind === 'collection'
+                        ? 'Collection média'
+                        : 'Fichier média'}
                     </span>
                     <span className="block text-[11px] text-[#5C5E66]">
                       {entry.reason === 'expired'

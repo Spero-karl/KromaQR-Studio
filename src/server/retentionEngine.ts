@@ -476,15 +476,14 @@ export class RetentionEngine {
   private safeNotificationTitle(
     isEncrypted: boolean | undefined,
     kind: 'media' | 'collection' | 'dynamic',
-    id: string
+    _id: string
   ): string {
-    const shortId = id.slice(0, 6);
     if (isEncrypted) {
-      return `QR chiffré #${shortId}`;
+      return kind === 'dynamic' ? 'QR dynamique chiffré' : 'Contenu chiffré';
     }
-    if (kind === 'dynamic') return `QR dynamique #${shortId}`;
-    if (kind === 'collection') return `Collection #${shortId}`;
-    return `Média #${shortId}`;
+    if (kind === 'dynamic') return 'QR dynamique';
+    if (kind === 'collection') return 'Collection média';
+    return 'Fichier média';
   }
 
   private async maybeSendEmailAlert(
@@ -1005,7 +1004,11 @@ export class RetentionEngine {
         targetTitle:
           params.targetKind === 'workspace'
             ? 'Abonnement espace'
-            : `#${params.targetId.slice(0, 6)}`,
+            : params.targetKind === 'dynamic'
+            ? 'QR dynamique'
+            : params.targetKind === 'collection'
+            ? 'Collection média'
+            : 'Fichier média',
         milestone: 'extended',
         message: `Conservation prolongée de ${durationLabel} sans perte de données.`,
         expiresAt: latestExpiry,
@@ -1244,20 +1247,18 @@ export class RetentionEngine {
         id: rec.id,
         kind,
         title: rec.isEncrypted
-          ? `Contenu chiffré #${rec.id.slice(0, 6)}`
+          ? 'Contenu chiffré'
           : kind === 'collection'
           ? rec.originalName && !/^Collection SparkQR$/i.test(rec.originalName)
             ? rec.originalName
-            : `Collection #${rec.id.slice(0, 6)}`
-          : `${
-              rec.type === 'video'
-                ? 'Vidéo'
-                : rec.type === 'document'
-                ? 'Document'
-                : rec.type === 'audio'
-                ? 'Audio'
-                : 'Image'
-            } #${rec.id.slice(0, 6)}`,
+            : 'Collection média'
+          : rec.type === 'video'
+          ? 'Vidéo'
+          : rec.type === 'document'
+          ? 'Document'
+          : rec.type === 'audio'
+          ? 'Audio'
+          : 'Image',
         mediaType:
           kind === 'collection'
             ? 'collection'
@@ -1296,8 +1297,8 @@ export class RetentionEngine {
         id: dyn.slug,
         kind: 'dynamic',
         title: dyn.isEncrypted
-          ? `QR dynamique chiffré #${dyn.slug.slice(0, 6)}`
-          : dyn.destination?.title || `QR dynamique #${dyn.slug.slice(0, 6)}`,
+          ? 'QR dynamique chiffré'
+          : dyn.destination?.title || 'QR dynamique',
         mediaType: 'dynamic',
         sizeBytes: totalSize,
         isEncrypted: Boolean(dyn.isEncrypted),

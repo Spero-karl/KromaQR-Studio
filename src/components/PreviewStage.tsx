@@ -12,12 +12,14 @@ import {
   Lock,
   QrCode,
   ScanLine,
+  Share2,
   ShieldCheck,
   SlidersHorizontal,
 } from 'lucide-react';
-import type { QrConfig, QrSourceState, ScannabilityReport } from '../types/qr';
+import type { PostScanExperience, QrConfig, QrSourceState, ScannabilityReport } from '../types/qr';
 import { verifySvgQrScannable } from '../utils/exportQr';
 import { relativeLuminance } from '../utils/qrLogic';
+import { encodeSparkQrSharePackage } from '../utils/sharedQrPackage';
 import { QrCanvasRenderer } from './QrCanvasRenderer';
 
 interface PreviewStageProps {
@@ -27,6 +29,7 @@ interface PreviewStageProps {
   payload: string;
   config: QrConfig;
   source: QrSourceState;
+  experience?: PostScanExperience;
   report: ScannabilityReport;
   svgRef: React.RefObject<SVGSVGElement | null>;
   onGenerate?: () => void;
@@ -36,6 +39,7 @@ interface PreviewStageProps {
   onOpenTargetPreview: () => void;
   onSaveToHistory: () => void;
   onClearGenerated: () => void;
+  onToggleLaser?: () => void;
   justSaved: boolean;
   dynamicSlug?: string | null;
   dynamicHasPin?: boolean;
@@ -49,6 +53,7 @@ export const PreviewStage: React.FC<PreviewStageProps> = ({
   payload,
   config,
   source,
+  experience,
   report,
   svgRef,
   onGenerate,
@@ -58,17 +63,28 @@ export const PreviewStage: React.FC<PreviewStageProps> = ({
   onOpenTargetPreview,
   onSaveToHistory,
   onClearGenerated,
+  onToggleLaser,
   justSaved,
   dynamicSlug,
   dynamicHasPin,
   onOpenProExport,
 }) => {
   const [copied, setCopied] = useState(false);
+  const [sharedPackageCopied, setSharedPackageCopied] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
-  const [laserEnabled, setLaserEnabled] = useState(true);
+  const [localLaserEnabled, setLocalLaserEnabled] = useState(true);
   const [scanLockActive, setScanLockActive] = useState(false);
   const [decodeStatus, setDecodeStatus] = useState<'idle' | 'verified' | 'mismatch'>('idle');
   const [decodedPayload, setDecodedPayload] = useState<string>('');
+
+  const laserEnabled = onToggleLaser ? config.laserEnabled !== false : localLaserEnabled;
+  const handleLaserButtonClick = () => {
+    if (onToggleLaser) {
+      onToggleLaser();
+    } else {
+      setLocalLaserEnabled((v) => !v);
+    }
+  };
 
   const isDarkCard = relativeLuminance(config.cardBackgroundColor) < 0.22;
 
@@ -180,7 +196,8 @@ export const PreviewStage: React.FC<PreviewStageProps> = ({
               <button
                 type="button"
                 aria-pressed={laserEnabled}
-                onClick={() => setLaserEnabled((v) => !v)}
+                data-testid="preview-laser-toggle"
+                onClick={handleLaserButtonClick}
                 className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-xl border transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
                   laserEnabled
                     ? 'border-[#1D4ED8]/30 bg-[#F4F7FF] text-[#1D4ED8]'
@@ -188,7 +205,7 @@ export const PreviewStage: React.FC<PreviewStageProps> = ({
                 }`}
               >
                 <ScanLine className="w-3.5 h-3.5" aria-hidden="true" />
-                <span>{laserEnabled ? 'Laser' : 'Laser'}</span>
+                <span>Laser</span>
               </button>
 
               <button
@@ -452,7 +469,7 @@ export const PreviewStage: React.FC<PreviewStageProps> = ({
             <span>Télécharger PNG HD</span>
           </button>
 
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
             <button
               type="button"
               disabled={!isGenerated}
@@ -497,6 +514,43 @@ export const PreviewStage: React.FC<PreviewStageProps> = ({
                 <>
                   <Bookmark className="w-3.5 h-3.5" aria-hidden="true" />
                   <span>Sauver</span>
+                </>
+              )}
+            </button>
+
+            <button
+              type="button"
+              data-testid="copy-share-package-btn"
+              disabled={!isGenerated}
+              onClick={async () => {
+                if (!isGenerated) return;
+                try {
+                  const code = encodeSparkQrSharePackage({
+                    name: config.titleText || 'Code QR SparkQR',
+                    payload,
+                    source,
+                    config: { ...config, laserEnabled },
+                    experience,
+                  });
+                  await navigator.clipboard.writeText(code);
+                  setSharedPackageCopied(true);
+                  setTimeout(() => setSharedPackageCopied(false), 2200);
+                } catch {
+                  setExportError('Impossible de copier le code de partage SparkQR.');
+                }
+              }}
+              title="Copier le code SparkQR complet (design et faisceau laser inclus)"
+              className="inline-flex items-center justify-center gap-1.5 px-3 py-2 min-h-[42px] text-xs font-semibold text-[#4F46E5] bg-[#EEF2FF] hover:bg-[#E0E7FF] rounded-xl transition-colors whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              {sharedPackageCopied ? (
+                <>
+                  <Check className="w-3.5 h-3.5 text-[#15803D]" aria-hidden="true" />
+                  <span>Partagé</span>
+                </>
+              ) : (
+                <>
+                  <Share2 className="w-3.5 h-3.5" aria-hidden="true" />
+                  <span>Partager</span>
                 </>
               )}
             </button>

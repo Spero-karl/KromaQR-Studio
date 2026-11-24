@@ -249,13 +249,10 @@ export function contrastRatio(hexA: string, hexB: string): number {
   return Number(((lighter + 0.05) / (darker + 0.05)).toFixed(2));
 }
 
-export function hasActiveLogo(config: QrConfig, source?: QrSourceState): boolean {
+export function hasActiveLogo(config: QrConfig, _source?: QrSourceState): boolean {
   if (config.customLogoDataUrl) return true;
   if (config.logoId) return true;
   if (config.centerEmoji && config.centerEmoji.trim().length > 0) return true;
-  if (source?.type === 'image' && source.useSourceImageAsLogo && source.imageUrl) {
-    return true;
-  }
   return false;
 }
 
@@ -406,6 +403,16 @@ export interface ShowcaseBackdrop {
   accentColor: string;
 }
 
+export function mixHexColors(hexA: string, hexB: string, weightB: number): string {
+  const w = Math.max(0, Math.min(1, weightB));
+  const a = hexToRgb(hexA);
+  const b = hexToRgb(hexB);
+  const r = Math.round(a.r * (1 - w) + b.r * w);
+  const g = Math.round(a.g * (1 - w) + b.g * w);
+  const bl = Math.round(a.b * (1 - w) + b.b * w);
+  return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${bl.toString(16).padStart(2, '0')}`;
+}
+
 export function buildShowcaseBackdrop(
   config: QrConfig,
   mood: 'auto' | 'gold-velvet' | 'midnight-neon' | 'cinema-35' | 'botanical' = 'auto'
@@ -467,26 +474,32 @@ export function buildShowcaseBackdrop(
 
   const { r: ar, g: ag, b: ab } = hexToRgb(accent);
   const { r: pr, g: pg, b: pb } = hexToRgb(config.foregroundColor);
-  const bgLum = relativeLuminance(config.cardBackgroundColor);
+  const cardBg = config.cardBackgroundColor || '#FFFFFF';
+  const bgLum = relativeLuminance(cardBg);
   const isDarkTheme = bgLum < 0.22;
 
   if (isDarkTheme) {
+    const darkBaseTop = mixHexColors(cardBg, '#07090E', 0.35);
+    const darkBaseMid = mixHexColors(cardBg, '#111622', 0.25);
+    const darkCard = mixHexColors(cardBg, '#131722', 0.3);
     return {
-      outerBackground: `radial-gradient(circle at 20% 15%, rgba(${ar},${ag},${ab},0.28), transparent 55%), radial-gradient(circle at 82% 85%, rgba(${pr},${pg},${pb},0.24), transparent 60%), linear-gradient(155deg, #0b0d13 0%, #121622 55%, #090b10 100%)`,
+      outerBackground: `radial-gradient(circle at 20% 15%, rgba(${ar},${ag},${ab},0.28), transparent 55%), radial-gradient(circle at 82% 85%, rgba(${pr},${pg},${pb},0.22), transparent 60%), linear-gradient(155deg, ${darkBaseTop} 0%, ${darkBaseMid} 55%, #07090D 100%)`,
       accentGlow: `rgba(${ar},${ag},${ab},0.35)`,
-      cardBackground: 'rgba(19, 22, 31, 0.88)',
-      cardBorder: 'rgba(255, 255, 255, 0.12)',
+      cardBackground: darkCard,
+      cardBorder: `rgba(${ar},${ag},${ab},0.24)`,
       textPrimary: '#F8FAFC',
       textMuted: '#A1A8B8',
       accentColor: accent,
     };
   }
 
+  const lightBaseTop = mixHexColors(cardBg, '#F8FAFC', 0.45);
+  const lightBaseMid = mixHexColors(cardBg, '#F1F5F9', 0.55);
   return {
-    outerBackground: `radial-gradient(circle at 18% 12%, rgba(${ar},${ag},${ab},0.20), transparent 52%), radial-gradient(circle at 85% 88%, rgba(${pr},${pg},${pb},0.14), transparent 58%), linear-gradient(155deg, #f4f4ef 0%, #eae9e2 52%, #f7f7f4 100%)`,
+    outerBackground: `radial-gradient(circle at 18% 12%, rgba(${ar},${ag},${ab},0.18), transparent 54%), radial-gradient(circle at 85% 88%, rgba(${pr},${pg},${pb},0.13), transparent 58%), linear-gradient(155deg, ${lightBaseTop} 0%, ${lightBaseMid} 52%, #FFFFFF 100%)`,
     accentGlow: `rgba(${ar},${ag},${ab},0.24)`,
-    cardBackground: 'rgba(255, 255, 255, 0.94)',
-    cardBorder: 'rgba(17, 18, 20, 0.10)',
+    cardBackground: '#FFFFFF',
+    cardBorder: `rgba(${ar},${ag},${ab},0.16)`,
     textPrimary: '#111214',
     textMuted: '#5C5E66',
     accentColor: accent,

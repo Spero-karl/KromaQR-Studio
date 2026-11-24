@@ -78,6 +78,10 @@ export function normalizeConfigWithDefaults(
   return {
     ...defaults,
     ...partial,
+    laserEnabled:
+      typeof partial.laserEnabled === 'boolean'
+        ? partial.laserEnabled
+        : defaults.laserEnabled ?? true,
     layers:
       Array.isArray(partial.layers) && partial.layers.length > 0
         ? partial.layers

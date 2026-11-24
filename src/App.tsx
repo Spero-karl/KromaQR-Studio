@@ -78,9 +78,10 @@ import {
   validateGalleryUrls,
   validatePublicAppUrl,
 } from './utils/publicUrl';
-import { buildPayload, evaluateScannability } from './utils/qrLogic';
+import { buildPayload, evaluateScannability, relativeLuminance } from './utils/qrLogic';
 import { formatPaidDurationLabel } from './utils/retentionPricing';
 import { computeDefaultServerExpiry } from './utils/serverAvailability';
+import { parseReceivedQrInput } from './utils/sharedQrPackage';
 
 function parseViewerRoute(
   pathname: string
@@ -289,6 +290,7 @@ export default function App() {
   const [loadedForEditId, setLoadedForEditId] = useState<string | null>(null);
   const [dynamicRecords, setDynamicRecords] = useState<DynamicQrRecord[]>([]);
   const [previewModalOpen, setPreviewModalOpen] = useState(false);
+  const [galleryPreviewItem, setGalleryPreviewItem] = useState<SavedQrItem | null>(null);
   const [exportModalOpen, setExportModalOpen] = useState(false);
   const [justSaved, setJustSaved] = useState(false);
   const [customizeTab, setCustomizeTab] = useState<CustomizeCategoryTab>('models');
@@ -460,8 +462,29 @@ export default function App() {
     await hydrateWorkspaceData(joined);
   };
 
-  const setConfig = useCallback((nextConfig: QrConfig) => {
-    setConfigHistory((prev) => pushHistoryState(prev, nextConfig));
+  const setConfig = useCallback(
+    (nextConfig: QrConfig) => {
+      setConfigHistory((prev) => {
+        if (nextConfig.themeId !== prev.present.themeId && nextConfig.themeId !== 'custom') {
+          const isDarkTheme = relativeLuminance(nextConfig.cardBackgroundColor || '#FFFFFF') < 0.22;
+          setExperience((expPrev) => ({
+            ...expPrev,
+            readerThemeMode: isDarkTheme ? 'dark' : 'light',
+          }));
+        }
+        return pushHistoryState(prev, nextConfig);
+      });
+    },
+    []
+  );
+
+  const handleToggleLaser = useCallback(() => {
+    setConfigHistory((prev) =>
+      pushHistoryState(prev, {
+        ...prev.present,
+        laserEnabled: prev.present.laserEnabled === false ? true : false,
+      })
+    );
   }, []);
 
   const handleUndo = useCallback(() => {
@@ -971,6 +994,14 @@ export default function App() {
     setSavedItems((prev) => [copy, ...prev]);
   };
 
+  const handleImportQrItem = (item: SavedQrItem) => {
+    const normalized = normalizeSavedItem({
+      ...item,
+      workspaceId: workspace?.id,
+    });
+    setSavedItems((prev) => [normalized, ...prev]);
+  };
+
   const handleDeleteSavedItem = async (id: string) => {
     const targetItem = savedItems.find((item) => item.id === id);
     if (!targetItem) return;
@@ -1027,6 +1058,30 @@ export default function App() {
     setCustomizeTab('typography');
     customizeSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
+
+  // Auto-detect shared SparkQR link (?sq=... or #sq=...) and import/display cleanly
+  useEffect(() => {
+    if (typeof window === 'undefined' || !workspaceReady) return;
+    const rawHref = window.location.href;
+    if (!/[?#]sq=/.test(rawHref)) return;
+    const parsed = parseReceivedQrInput(rawHref);
+    if (!parsed.ok) return;
+    const imported: SavedQrItem = normalizeSavedItem({
+      ...parsed.item,
+      id: `shared-${Date.now()}`,
+      workspaceId: workspace?.id,
+      category: parsed.item.category || 'Personnel',
+      createdAt: new Date().toISOString(),
+    });
+    setSavedItems((prev) => {
+      if (prev.some((it) => it.payload === imported.payload && it.name === imported.name)) {
+        return prev;
+      }
+      return [imported, ...prev];
+    });
+    setView('gallery');
+    window.history.replaceState({}, '', window.location.pathname);
+  }, [workspaceReady, workspace?.id]);
 
   if (viewerRoute) {
     return (
@@ -1246,46 +1301,20 @@ export default function App() {
 
         {view === 'studio' ? (
           <div className="space-y-5 animate-spark-enter">
-            {/* Short, warm welcome card encouraging ideas into QR codes */}
+            {/* Concise Welcome Banner (<= 9 words, clean typographic focus) */}
             <section
               data-testid="welcome-intro-card"
               aria-label="Bienvenue sur SparkQR"
-              className="rounded-2xl border border-[#DCE6FF] bg-gradient-to-r from-[#EFF5FF] via-[#F5F3FF] to-[#FFF2F7] px-4 py-3.5 sm:px-6 sm:py-4 shadow-[0_6px_22px_rgba(79,70,229,0.06)] flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+              className="rounded-2xl border border-[#DCE6FF] bg-gradient-to-r from-[#EFF5FF] via-[#F5F3FF] to-[#FFF2F7] px-4 py-3.5 sm:px-6 sm:py-4 shadow-[0_6px_22px_rgba(79,70,229,0.06)] flex items-center justify-between gap-3"
             >
-              <div className="flex items-start sm:items-center gap-3.5 min-w-0 flex-1">
-                <div className="w-11 h-11 rounded-2xl bg-gradient-to-br from-[#2563EB] via-[#4F46E5] to-[#7C3AED] text-white flex items-center justify-center shrink-0 shadow-[0_8px_18px_rgba(79,70,229,0.25)]">
-                  <svg
-                    viewBox="0 0 24 24"
-                    className="w-6 h-6"
-                    fill="none"
-                    aria-hidden="true"
-                  >
-                    <rect x="3" y="3" width="7" height="7" rx="2" stroke="currentColor" strokeWidth="2.1" />
-                    <rect x="5.4" y="5.4" width="2.2" height="2.2" rx="0.6" fill="currentColor" />
-                    <circle cx="17.5" cy="6.5" r="3.5" stroke="currentColor" strokeWidth="2.1" />
-                    <circle cx="17.5" cy="6.5" r="1.2" fill="currentColor" />
-                    <rect x="3" y="14" width="7" height="7" rx="2" stroke="currentColor" strokeWidth="2.1" />
-                    <rect x="5.4" y="16.4" width="2.2" height="2.2" rx="0.6" fill="currentColor" />
-                    <path
-                      d="M17.5 13L18.7 16.3L22 17.5L18.7 18.7L17.5 22L16.3 18.7L13 17.5L16.3 16.3L17.5 13Z"
-                      fill="currentColor"
-                    />
-                  </svg>
-                </div>
-                <div className="min-w-0">
-                  <p className="font-display text-sm sm:text-base font-bold text-[#111214] leading-snug">
-                    Partagez vos idées en un seul geste
-                  </p>
-                  <p className="text-xs sm:text-sm text-[#4B4D54] leading-relaxed mt-0.5">
-                    Transformez vos liens, messages, accès Wi-Fi, photos ou vidéos en QR codes colorés et élégants.
-                  </p>
-                </div>
-              </div>
+              <p className="font-display text-base sm:text-xl font-bold tracking-tight text-[#111214] leading-snug">
+                Transformez vos idées en codes QR.
+              </p>
 
               <button
                 type="button"
                 onClick={() => setWorkspaceModalOpen(true)}
-                className="self-start sm:self-center inline-flex items-center gap-1.5 px-3 py-2 min-h-[38px] text-xs font-semibold text-[#4F46E5] bg-white/90 hover:bg-white border border-[#C7D2FE] rounded-xl transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+                className="inline-flex items-center gap-1.5 px-3 py-2 min-h-[38px] text-xs font-semibold text-[#4F46E5] bg-white/90 hover:bg-white border border-[#C7D2FE] rounded-xl transition-colors whitespace-nowrap shrink-0 cursor-pointer"
               >
                 <UserCheck className="w-3.5 h-3.5" aria-hidden="true" />
                 <span>{workspace?.name || 'Mon espace'}</span>
@@ -1349,6 +1378,7 @@ export default function App() {
                 payload={activePayload}
                 config={config}
                 source={activeSource}
+                experience={activeExperience}
                 report={scannabilityReport}
                 svgRef={qrSvgRef}
                 onGenerate={() => void handleGenerate()}
@@ -1358,6 +1388,7 @@ export default function App() {
                 onOpenTargetPreview={() => isGenerated && setPreviewModalOpen(true)}
                 onSaveToHistory={handleSaveToHistory}
                 onClearGenerated={() => setGeneratedSnapshot(null)}
+                onToggleLaser={handleToggleLaser}
                 justSaved={justSaved}
                 dynamicSlug={generatedSnapshot?.dynamicSlug ?? null}
                 dynamicHasPin={generatedSnapshot?.dynamicHasPin ?? false}
@@ -1380,6 +1411,8 @@ export default function App() {
             onDeleteMedia={handleDeleteHostedMedia}
             onRefreshMedia={refreshHostedMedia}
             onOpenExtend={(target) => setExtendTarget(target)}
+            onImportQrItem={handleImportQrItem}
+            onOpenTargetPreview={(item) => setGalleryPreviewItem(item)}
             onBackToStudio={() => setView('studio')}
           />
         ) : (
@@ -1416,14 +1449,27 @@ export default function App() {
       </footer>
 
       <TargetPreviewModal
-        open={previewModalOpen && isGenerated}
-        onClose={() => setPreviewModalOpen(false)}
-        source={activeSource}
-        config={config}
-        payload={activePayload}
-        experience={activeExperience}
-        dynamicSlug={generatedSnapshot?.dynamicSlug ?? null}
-        dynamicHasPin={generatedSnapshot?.dynamicHasPin ?? false}
+        open={(previewModalOpen && isGenerated) || galleryPreviewItem !== null}
+        onClose={() => {
+          setPreviewModalOpen(false);
+          setGalleryPreviewItem(null);
+        }}
+        source={galleryPreviewItem ? galleryPreviewItem.source : activeSource}
+        config={galleryPreviewItem ? galleryPreviewItem.config : config}
+        payload={galleryPreviewItem ? galleryPreviewItem.payload : activePayload}
+        experience={
+          galleryPreviewItem
+            ? galleryPreviewItem.experience ?? DEFAULT_EXPERIENCE
+            : activeExperience
+        }
+        dynamicSlug={
+          galleryPreviewItem
+            ? galleryPreviewItem.dynamicSlug ?? null
+            : generatedSnapshot?.dynamicSlug ?? null
+        }
+        dynamicHasPin={
+          galleryPreviewItem ? false : generatedSnapshot?.dynamicHasPin ?? false
+        }
       />
 
       <ExportModal

@@ -377,18 +377,31 @@ export const SparkMediaReader: React.FC<SparkMediaReaderProps> = ({
     [config, tokens.textPrimary]
   );
 
-  // Preload exact Google Font so cursive/display fonts render crisply upon opening
+  const titleFontCss =
+    FONT_CATALOG[config.fontId]?.cssFamily || FONT_CATALOG.bricolage.cssFamily;
+  const subtitleFontCss =
+    FONT_CATALOG[config.subtitleFontId]?.cssFamily || titleFontCss;
+
+  // Preload exact Google Fonts so cursive/display fonts render crisply upon opening
   useEffect(() => {
     if (typeof document === 'undefined' || !('fonts' in document)) return;
-    const primaryFont = extractPrimaryFontName(exactTextStyle.fontFamily);
-    if (!primaryFont) return;
-    const descriptor = `${exactTextStyle.fontStyle === 'italic' ? 'italic ' : ''}${exactTextStyle.fontWeight} ${exactTextStyle.fontSizePx}px "${primaryFont}"`;
-    void document.fonts.load(descriptor).catch(() => {});
+    const families = new Set<string>();
+    for (const css of [exactTextStyle.fontFamily, titleFontCss, subtitleFontCss]) {
+      const primary = extractPrimaryFontName(css);
+      if (primary) families.add(primary);
+    }
+    for (const family of families) {
+      const descriptor = `${exactTextStyle.fontStyle === 'italic' ? 'italic ' : ''}${exactTextStyle.fontWeight} ${exactTextStyle.fontSizePx}px "${family}"`;
+      void document.fonts.load(descriptor).catch(() => {});
+      void document.fonts.load(`700 22px "${family}"`).catch(() => {});
+    }
   }, [
     exactTextStyle.fontFamily,
     exactTextStyle.fontStyle,
     exactTextStyle.fontWeight,
     exactTextStyle.fontSizePx,
+    titleFontCss,
+    subtitleFontCss,
   ]);
 
   const safeImageIdx = Math.min(activeImageIdx, Math.max(0, buckets.images.length - 1));
@@ -497,11 +510,6 @@ export const SparkMediaReader: React.FC<SparkMediaReaderProps> = ({
     }
   };
 
-  const titleFontCss =
-    FONT_CATALOG[config.fontId]?.cssFamily || FONT_CATALOG.bricolage.cssFamily;
-  const subtitleFontCss =
-    FONT_CATALOG[config.subtitleFontId]?.cssFamily || titleFontCss;
-
   const isWebLink = /^https?:\/\//i.test(payload);
   const hostname = isWebLink ? extractHostname(payload) : '';
 
@@ -587,7 +595,7 @@ export const SparkMediaReader: React.FC<SparkMediaReaderProps> = ({
           : 'relative w-full transition-colors duration-200'
       }
       style={{
-        background: standalone ? tokens.outerBackground : tokens.surfaceBackground,
+        background: tokens.outerBackground,
         color: tokens.textPrimary,
       }}
     >
@@ -595,17 +603,12 @@ export const SparkMediaReader: React.FC<SparkMediaReaderProps> = ({
         className={
           standalone
             ? `${standaloneMaxWidth} w-full mx-auto sm:my-auto space-y-3`
-            : 'w-full'
+            : 'w-full p-2.5 sm:p-4 space-y-3'
         }
       >
         {/* Top Brand + Theme Toggle Bar */}
         <header
-          className={
-            standalone
-              ? 'flex items-center justify-between gap-2 px-1'
-              : 'flex items-center justify-between gap-2 px-4 sm:px-5 py-3 border-b'
-          }
-          style={standalone ? undefined : { borderColor: tokens.borderColor }}
+          className="flex items-center justify-between gap-2 px-1"
         >
           <div className="flex items-center gap-2 min-w-0">
             <div
@@ -722,16 +725,19 @@ export const SparkMediaReader: React.FC<SparkMediaReaderProps> = ({
 
         {/* Unified Content Surface (Single Card — Zero Double Nesting) */}
         <article
-          className={
-            standalone
-              ? 'rounded-2xl border shadow-[0_14px_44px_rgba(15,23,42,0.08)] p-3.5 sm:p-5 space-y-4 animate-spark-enter'
-              : 'p-3.5 sm:p-5 space-y-4'
-          }
+          className="rounded-2xl border shadow-[0_14px_44px_rgba(15,23,42,0.08)] p-3.5 sm:p-5 space-y-4 animate-spark-enter relative overflow-hidden"
           style={{
             backgroundColor: tokens.surfaceBackground,
-            borderColor: standalone ? tokens.borderColor : 'transparent',
+            borderColor: tokens.borderColor,
           }}
         >
+          <div
+            aria-hidden="true"
+            className="absolute inset-x-0 top-0 h-1"
+            style={{
+              background: `linear-gradient(90deg, ${tokens.accentColor}, ${tokens.accentColor}80)`,
+            }}
+          />
           {/* Editorial Heading & Optional Custom Subtitle */}
           {category === 'text-free' && !customTitle && !customDescription ? (
             <h1 id="target-preview-title" className="sr-only">

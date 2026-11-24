@@ -9,6 +9,7 @@ import {
   hasActiveLogo,
   isFinderCell,
   isInLogoKnockoutZone,
+  relativeLuminance,
 } from '../utils/qrLogic';
 
 interface QrCanvasRendererProps {
@@ -526,11 +527,7 @@ export const QrCanvasRenderer: React.FC<QrCanvasRendererProps> = ({
   const logoY = logoVisualCenterY - logoSpan / 2;
   const logoRotation = config.logoRotation || 0;
 
-  const activeRasterLogo =
-    config.customLogoDataUrl ||
-    (source.type === 'image' && source.useSourceImageAsLogo && source.imageUrl
-      ? source.imageUrl
-      : null);
+  const activeRasterLogo = config.customLogoDataUrl || null;
 
   const selectedVectorLogo = UNIQUE_LOGOS.find((l) => l.id === config.logoId) || null;
   const activeCenterEmoji =
@@ -1299,6 +1296,13 @@ export const QrCanvasRenderer: React.FC<QrCanvasRendererProps> = ({
           <stop offset="100%" stopColor="#F3E8FF" />
         </linearGradient>
 
+        <linearGradient id={`${uid}-holo-dark`} x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stopColor="#38BDF8" stopOpacity="0.22" />
+          <stop offset="38%" stopColor="#818CF8" stopOpacity="0.14" />
+          <stop offset="72%" stopColor="#22D3EE" stopOpacity="0.2" />
+          <stop offset="100%" stopColor="#A855F7" stopOpacity="0.18" />
+        </linearGradient>
+
         {/* Subtle outer-card textures (never applied inside QR window) */}
         <pattern id={`${uid}-tex-brushed`} width="8" height="4" patternUnits="userSpaceOnUse">
           <line x1="0" y1="1" x2="8" y2="1" stroke="#FFFFFF" strokeOpacity="0.055" strokeWidth="0.7" />
@@ -1433,13 +1437,25 @@ export const QrCanvasRenderer: React.FC<QrCanvasRendererProps> = ({
           width={layout.width}
           height={layout.height}
           fill={
-            config.cardTexture === 'holographic'
+            config.cardTexture === 'holographic' &&
+            relativeLuminance(config.cardBackgroundColor || '#FFFFFF') >= 0.22
               ? `url(#${uid}-holo-card)`
               : config.frameStyle === 'glass'
               ? `url(#${uid}-prism-bg)`
               : config.cardBackgroundColor
           }
         />
+        {config.cardTexture === 'holographic' &&
+          relativeLuminance(config.cardBackgroundColor || '#FFFFFF') < 0.22 && (
+            <rect
+              data-card-bg="true"
+              x="0"
+              y="0"
+              width={layout.width}
+              height={layout.height}
+              fill={`url(#${uid}-holo-dark)`}
+            />
+          )}
 
         {/* Card-only texture overlay */}
         {config.cardTexture === 'brushed' && (

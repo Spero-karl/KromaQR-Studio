@@ -281,4 +281,44 @@ test('buildShowcaseBackdrop adapts light and dark card themes and extractHostnam
   assert.equal(extractHostname('https://www.galerie-travers.fr/expo'), 'galerie-travers.fr');
 });
 
+test('source image never acts as center QR logo and new theme presets remain scannable', async () => {
+  const { THEME_PRESETS } = await import('../data/presets');
+
+  // Even if legacy data has useSourceImageAsLogo: true, hasActiveLogo remains false unless explicit center emblem is set
+  assert.equal(
+    hasActiveLogo(baseConfig, {
+      ...baseSource,
+      type: 'image',
+      imageUrl: '/uploads/photo.jpg',
+      useSourceImageAsLogo: true,
+    }),
+    false
+  );
+
+  // Deleted presets must no longer exist
+  for (const removedId of ['bauhaus-1923', 'billet-collector', 'signal-pure', 'cuivre-patine']) {
+    assert.equal(
+      THEME_PRESETS.some((t) => t.id === removedId),
+      false,
+      `${removedId} should be removed`
+    );
+  }
+
+  // New requested presets must exist and have legible QR contrast
+  for (const requiredId of [
+    'glacial',
+    'frozen-cristal',
+    'noel-enchante',
+    'fluoluminescent',
+    'cool-breeze',
+    'verre-glassmorph',
+    'metal-titane',
+  ]) {
+    const preset = THEME_PRESETS.find((t) => t.id === requiredId);
+    assert.ok(preset, `Preset ${requiredId} should exist`);
+    const report = evaluateScannability({ ...DEFAULT_CONFIG, ...preset.patch }, baseSource);
+    assert.ok(report.contrastRatio >= 4.5, `${requiredId} contrast too low: ${report.contrastRatio}`);
+  }
+});
+
 
