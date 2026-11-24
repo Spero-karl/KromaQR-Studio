@@ -2,6 +2,7 @@ import React, { useMemo, useRef, useState } from 'react';
 import {
   Activity,
   ArrowUpRight,
+  BarChart3,
   Check,
   Clock,
   CopyPlus,
@@ -13,6 +14,8 @@ import {
   FolderHeart,
   Image as ImageIcon,
   Lock,
+  MapPin,
+  Monitor,
   Plus,
   QrCode,
   RefreshCw,
@@ -21,6 +24,7 @@ import {
   Settings2,
   Share2,
   ShieldCheck,
+  Smartphone,
   Trash2,
   Upload,
   UserCheck,
@@ -46,12 +50,15 @@ import { updateDynamicQr } from '../utils/dynamicApi';
 import { decryptJsonWithKey, isValidE2eeEnvelope } from '../utils/e2eeCrypto';
 import { normalizeConfigWithDefaults } from '../utils/historyReducer';
 import { resolveMediaDownloadUrl } from '../utils/mediaReaderLogic';
-import { relativeLuminance, verifyQrDecodeFromImageData } from '../utils/qrLogic';
+import { relativeLuminance } from '../utils/qrLogic';
+import { decodeQrImageFile, type DecodedQrImageResult } from '../utils/qrImageDecoder';
+import { summarizeDynamicScanStats } from '../utils/scanStatsSummary';
 import {
   describeSavedQrAccessibility,
   formatRemainingDuration,
 } from '../utils/serverAvailability';
 import {
+  describeQrPayloadFormat,
   encodeSparkQrJsonFile,
   encodeSparkQrSharePackage,
   extractSparkQrReaderEndpoint,
@@ -115,133 +122,6 @@ function getLaserAccentColor(config: QrConfig): string {
   return '#2563EB';
 }
 
-function thresholdImageData(
-  src: Uint8ClampedArray,
-  cutoff: number
-): Uint8ClampedArray {
-  const out = new Uint8ClampedArray(src.length);
-  for (let i = 0; i < src.length; i += 4) {
-    const luma = src[i] * 0.299 + src[i + 1] * 0.587 + src[i + 2] * 0.114;
-    const val = luma < cutoff ? 0 : 255;
-    out[i] = val;
-    out[i + 1] = val;
-    out[i + 2] = val;
-    out[i + 3] = 255;
-  }
-  return out;
-}
-
-function tryDecodeCanvas(
-  ctx: CanvasRenderingContext2D,
-  width: number,
-  height: number
-): string | null {
-  const imageData = ctx.getImageData(0, 0, width, height);
-  const direct = verifyQrDecodeFromImageData(imageData.data, width, height);
-  if (direct) return direct;
-
-  for (const cutoff of [120, 165, 90]) {
-    const bin = thresholdImageData(imageData.data, cutoff);
-    const decoded = verifyQrDecodeFromImageData(bin, width, height);
-    if (decoded) return decoded;
-  }
-  return null;
-}
-
-function decodeQrImageFile(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const objectUrl = URL.createObjectURL(file);
-    const img = new Image();
-    img.onload = () => {
-      try {
-        const natW = img.naturalWidth || img.width || 960;
-        const natH = img.naturalHeight || img.height || 960;
-        const maxSide = 1400;
-        const minSide = 420;
-        const rawMax = Math.max(natW, natH, 1);
-        const scale =
-          rawMax > maxSide
-            ? maxSide / rawMax
-            : rawMax < minSide
-            ? minSide / rawMax
-            : 1;
-        const width = Math.max(240, Math.round(natW * scale));
-        const height = Math.max(240, Math.round(natH * scale));
-
-        const canvas = document.createElement('canvas');
-        const ctx = canvas.getContext('2d', { willReadFrequently: true });
-        if (!ctx) {
-          URL.revokeObjectURL(objectUrl);
-          reject(new Error('Canvas indisponible pour lire l’image QR.'));
-          return;
-        }
-
-        // Pass 1: Crisp scaled full image
-        canvas.width = width;
-        canvas.height = height;
-        ctx.fillStyle = '#FFFFFF';
-        ctx.fillRect(0, 0, width, height);
-        ctx.drawImage(img, 0, 0, width, height);
-        const pass1 = tryDecodeCanvas(ctx, width, height);
-        if (pass1) {
-          URL.revokeObjectURL(objectUrl);
-          resolve(pass1);
-          return;
-        }
-
-        // Pass 2: Quiet-zone padded full image (+48px white border)
-        const pad = 48;
-        canvas.width = width + pad * 2;
-        canvas.height = height + pad * 2;
-        ctx.fillStyle = '#FFFFFF';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-        ctx.drawImage(img, pad, pad, width, height);
-        const pass2 = tryDecodeCanvas(ctx, canvas.width, canvas.height);
-        if (pass2) {
-          URL.revokeObjectURL(objectUrl);
-          resolve(pass2);
-          return;
-        }
-
-        // Pass 3: Center-cropped pass (isolates QR code inside exported SparkQR cards)
-        const cropW = Math.max(160, Math.round(natW * 0.84));
-        const cropH = Math.max(160, Math.round(natH * 0.76));
-        const cropX = Math.round((natW - cropW) / 2);
-        const cropY = Math.round((natH - cropH) / 2);
-        canvas.width = 960;
-        canvas.height = 960;
-        ctx.fillStyle = '#FFFFFF';
-        ctx.fillRect(0, 0, 960, 960);
-        ctx.drawImage(img, cropX, cropY, cropW, cropH, 48, 48, 864, 864);
-        const pass3 = tryDecodeCanvas(ctx, 960, 960);
-        URL.revokeObjectURL(objectUrl);
-        if (pass3) {
-          resolve(pass3);
-          return;
-        }
-
-        reject(
-          new Error(
-            'Aucun QR code valide détecté dans cette image. Importez une image contenant un QR code lisible.'
-          )
-        );
-      } catch (err) {
-        URL.revokeObjectURL(objectUrl);
-        reject(
-          err instanceof Error
-            ? err
-            : new Error('Impossible d’analyser l’image importée.')
-        );
-      }
-    };
-    img.onerror = () => {
-      URL.revokeObjectURL(objectUrl);
-      reject(new Error('Format d’image non reconnu ou fichier corrompu.'));
-    };
-    img.src = objectUrl;
-  });
-}
-
 interface HistoryGalleryProps {
   items: SavedQrItem[];
   dynamicRecords: DynamicQrRecord[];
@@ -290,6 +170,7 @@ export const HistoryGallery: React.FC<HistoryGalleryProps> = ({
   const [itemActionError, setItemActionError] = useState<string | null>(null);
   const [mediaActionError, setMediaActionError] = useState<string | null>(null);
   const [refreshingMedia, setRefreshingMedia] = useState(false);
+  const [refreshingDynamic, setRefreshingDynamic] = useState(false);
   const [search, setSearch] = useState('');
   const [categoryFilter, setCategoryFilter] = useState<'all' | ProjectCategory>('all');
   const [sortBy, setSortBy] = useState<'recent' | 'scans' | 'name'>('recent');
@@ -313,6 +194,7 @@ export const HistoryGallery: React.FC<HistoryGalleryProps> = ({
 
   // Import Received QR Modal (with live preview & laser animation)
   const [importModalOpen, setImportModalOpen] = useState(false);
+  const [importDragActive, setImportDragActive] = useState(false);
   const [importRawInput, setImportRawInput] = useState('');
   const [importParsed, setImportParsed] = useState<{
     name: string;
@@ -322,6 +204,8 @@ export const HistoryGallery: React.FC<HistoryGalleryProps> = ({
     experience: SavedQrItem['experience'];
     category: ProjectCategory;
     laserEnabled: boolean;
+    recognitionKind: 'sparkqr-custom' | 'classic-qr';
+    formatLabel: string;
   } | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
   const [importBusy, setImportBusy] = useState(false);
@@ -340,12 +224,16 @@ export const HistoryGallery: React.FC<HistoryGalleryProps> = ({
     setImportParsed(null);
     setImportError(null);
     setImportBusy(false);
+    setImportDragActive(false);
     setImportModalOpen(true);
   };
 
   const applyParsedInput = async (
     raw: string,
-    opts?: { fromDecodedImage?: boolean }
+    opts?: {
+      fromDecodedImage?: boolean;
+      decodedResult?: DecodedQrImageResult;
+    }
   ) => {
     const seq = ++importSeqRef.current;
     setImportRawInput(raw);
@@ -375,9 +263,33 @@ export const HistoryGallery: React.FC<HistoryGalleryProps> = ({
     let nextConfig = parsed.item.config;
     let nextExperience = parsed.item.experience ?? DEFAULT_EXPERIENCE;
     const nextCategory = parsed.item.category || 'Personnel';
+    let recognitionKind: 'sparkqr-custom' | 'classic-qr' =
+      parsed.originKind === 'sparkqr-package' ? 'sparkqr-custom' : 'classic-qr';
+
+    const svgMeta = opts?.decodedResult?.sparkQrMetadata;
+    if (svgMeta) {
+      recognitionKind = 'sparkqr-custom';
+      if (svgMeta.config && typeof svgMeta.config === 'object') {
+        nextConfig = normalizeConfigWithDefaults(
+          svgMeta.config as Partial<QrConfig>,
+          DEFAULT_CONFIG
+        );
+      }
+      if (svgMeta.source && typeof svgMeta.source === 'object') {
+        nextSource = {
+          ...DEFAULT_SOURCE,
+          ...(svgMeta.source as Partial<QrSourceState>),
+          useSourceImageAsLogo: false,
+        };
+      }
+      if (typeof svgMeta.title === 'string' && svgMeta.title.trim()) {
+        nextName = svgMeta.title.trim();
+      }
+    }
 
     const endpointInfo = extractSparkQrReaderEndpoint(parsed.item.payload);
     if (endpointInfo) {
+      recognitionKind = 'sparkqr-custom';
       setImportBusy(true);
       try {
         const apiUrl =
@@ -489,6 +401,18 @@ export const HistoryGallery: React.FC<HistoryGalleryProps> = ({
 
     if (seq !== importSeqRef.current) return;
 
+    const strategyWasStyled =
+      opts?.decodedResult?.strategy === 'adaptive-laser' ||
+      opts?.decodedResult?.strategy === 'color-distance' ||
+      opts?.decodedResult?.strategy === 'dark-backdrop' ||
+      opts?.decodedResult?.strategy === 'card-crop';
+    if (strategyWasStyled && recognitionKind !== 'sparkqr-custom') {
+      // Custom stylized QR decoded via adaptive/color-distance/card passes -> classify clearly if SparkQR styled
+      if (nextPayload.includes('/m/') || nextPayload.includes('/d/')) {
+        recognitionKind = 'sparkqr-custom';
+      }
+    }
+
     setImportParsed({
       name: nextName,
       payload: nextPayload,
@@ -497,6 +421,8 @@ export const HistoryGallery: React.FC<HistoryGalleryProps> = ({
       experience: nextExperience,
       category: nextCategory,
       laserEnabled: nextConfig.laserEnabled !== false,
+      recognitionKind,
+      formatLabel: describeQrPayloadFormat(nextPayload),
     });
   };
 
@@ -509,8 +435,11 @@ export const HistoryGallery: React.FC<HistoryGalleryProps> = ({
         const text = await file.text();
         await applyParsedInput(text, { fromDecodedImage: false });
       } else {
-        const decoded = await decodeQrImageFile(file);
-        await applyParsedInput(decoded, { fromDecodedImage: true });
+        const decodedResult = await decodeQrImageFile(file);
+        await applyParsedInput(decodedResult.payload, {
+          fromDecodedImage: true,
+          decodedResult,
+        });
       }
     } catch (err) {
       setImportParsed(null);
@@ -782,7 +711,7 @@ export const HistoryGallery: React.FC<HistoryGalleryProps> = ({
         <div
           role="dialog"
           aria-modal="true"
-          aria-label="Importer un QR code reçu"
+          aria-label="Importer un QR code"
           data-testid="import-qr-modal"
           className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-[#090B12]/72 backdrop-blur-xs p-0 sm:p-4"
           onClick={() => setImportModalOpen(false)}
@@ -793,14 +722,14 @@ export const HistoryGallery: React.FC<HistoryGalleryProps> = ({
           >
             <div className="flex items-start justify-between gap-3">
               <div>
-                <span className="block text-[11px] font-semibold uppercase tracking-[0.12em] text-[#4F46E5] dark:text-[#818CF8]">
-                  Réception &amp; visualisation
+                <span className="block text-[11px] font-semibold uppercase tracking-[0.12em] text-[#2563EB] dark:text-[#60A5FA]">
+                  Importation intelligente
                 </span>
                 <h3 className="font-display text-lg font-bold text-[#111214] dark:text-[#F1F5F9] mt-0.5">
-                  Importer un QR code reçu
+                  Importer un QR code
                 </h3>
-                <p className="text-xs text-[#5C5E66] dark:text-[#94A3B8] mt-0.5">
-                  Importez une image contenant un QR code ou collez un lien QR reçu pour le visualiser et l’enregistrer dans votre espace.
+                <p className="text-xs text-[#5C5E66] dark:text-[#94A3B8] mt-0.5 leading-relaxed">
+                  Reconnaît les QR personnalisés SparkQR (effets laser, couleurs, dégradés, logos ou décorations) et récupère le contenu des QR codes classiques.
                 </p>
               </div>
               <button
@@ -814,45 +743,78 @@ export const HistoryGallery: React.FC<HistoryGalleryProps> = ({
             </div>
 
             <div className="space-y-3">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <label htmlFor="import-qr-textarea" className="text-xs font-semibold text-[#111214] dark:text-[#F1F5F9]">
-                  Lien QR ou code partagé
-                </label>
-                <div className="flex items-center gap-2">
-                  <input
-                    ref={importFileInputRef}
-                    type="file"
-                    accept="image/*,.json,application/json"
-                    data-testid="import-qr-file-input"
-                    aria-label="Importer une image contenant un QR code ou un fichier QR"
-                    className="sr-only"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (file) void handleImportFileChange(file);
-                      e.target.value = '';
-                    }}
-                  />
+              {/* Drag & Drop Smart QR Image Zone */}
+              <div
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  setImportDragActive(true);
+                }}
+                onDragLeave={() => setImportDragActive(false)}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  setImportDragActive(false);
+                  const file = e.dataTransfer.files?.[0];
+                  if (file) void handleImportFileChange(file);
+                }}
+                className={`rounded-2xl border border-dashed p-4 text-center transition-colors ${
+                  importDragActive
+                    ? 'border-[#2563EB] bg-[#EFF6FF] dark:bg-[#1E293B]'
+                    : 'border-[#CBD5E1] dark:border-[#2E3850] bg-[#F8FAFC] dark:bg-[#0F172A]'
+                }`}
+              >
+                <input
+                  ref={importFileInputRef}
+                  type="file"
+                  accept="image/*,.json,application/json"
+                  data-testid="import-qr-file-input"
+                  aria-label="Importer une image contenant un QR code"
+                  className="sr-only"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) void handleImportFileChange(file);
+                    e.target.value = '';
+                  }}
+                />
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-3 text-left">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className="w-10 h-10 rounded-xl bg-white dark:bg-[#131926] border border-[#E2E6F0] dark:border-[#242C3D] text-[#2563EB] dark:text-[#60A5FA] flex items-center justify-center shrink-0">
+                      <ScanLine className="w-5 h-5" aria-hidden="true" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-xs font-semibold text-[#111214] dark:text-[#F1F5F9]">
+                        Déposez une image ou capture de QR code
+                      </p>
+                      <p className="text-[11px] text-[#5C5E66] dark:text-[#94A3B8]">
+                        PNG, JPG, WEBP ou SVG · SparkQR stylisés &amp; QR classiques
+                      </p>
+                    </div>
+                  </div>
                   <button
                     type="button"
                     disabled={importBusy}
                     onClick={() => importFileInputRef.current?.click()}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 min-h-[34px] text-xs font-semibold text-[#4F46E5] dark:text-[#A5B4FC] bg-[#EEF2FF] dark:bg-[#1E1B4B]/60 hover:bg-[#E0E7FF] dark:hover:bg-[#312E81]/60 rounded-xl cursor-pointer disabled:opacity-60 whitespace-nowrap shrink-0"
+                    className="inline-flex items-center gap-1.5 px-3.5 py-2 min-h-[38px] text-xs font-semibold text-white bg-[#2563EB] hover:bg-[#1D4ED8] rounded-xl cursor-pointer disabled:opacity-60 whitespace-nowrap shrink-0"
                   >
                     <FileUp className="w-3.5 h-3.5" aria-hidden="true" />
-                    <span>{importBusy ? 'Analyse du QR…' : 'Choisir une image QR'}</span>
+                    <span>{importBusy ? 'Analyse…' : 'Choisir une image'}</span>
                   </button>
                 </div>
               </div>
 
-              <textarea
-                id="import-qr-textarea"
-                data-testid="import-qr-text-input"
-                rows={3}
-                value={importRawInput}
-                onChange={(e) => void applyParsedInput(e.target.value, { fromDecodedImage: false })}
-                placeholder="Collez un lien QR (https://…) ou un contenu partagé…"
-                className="w-full px-3.5 py-2.5 text-xs bg-[#F8FAFC] dark:bg-[#0F172A] border border-[#DCE2EE] dark:border-[#2A3347] text-[#111214] dark:text-[#F1F5F9] placeholder:text-[#94A3B8] dark:placeholder:text-[#64748B] rounded-xl focus:outline-none focus:border-[#2563EB]"
-              />
+              <div className="space-y-1.5">
+                <label htmlFor="import-qr-textarea" className="block text-xs font-semibold text-[#111214] dark:text-[#F1F5F9]">
+                  Ou collez un lien QR directement
+                </label>
+                <textarea
+                  id="import-qr-textarea"
+                  data-testid="import-qr-text-input"
+                  rows={2}
+                  value={importRawInput}
+                  onChange={(e) => void applyParsedInput(e.target.value, { fromDecodedImage: false })}
+                  placeholder="Collez un lien (https://…), un accès Wi-Fi ou un lien partagé…"
+                  className="w-full px-3.5 py-2.5 text-xs bg-[#F8FAFC] dark:bg-[#0F172A] border border-[#DCE2EE] dark:border-[#2A3347] text-[#111214] dark:text-[#F1F5F9] placeholder:text-[#94A3B8] dark:placeholder:text-[#64748B] rounded-xl focus:outline-none focus:border-[#2563EB]"
+                />
+              </div>
 
               {importError && (
                 <p role="alert" data-testid="import-qr-error" className="text-xs font-medium text-[#B91C1C] dark:text-[#FCA5A5]">
@@ -862,7 +824,27 @@ export const HistoryGallery: React.FC<HistoryGalleryProps> = ({
             </div>
 
             {importParsed && (
-              <div className="space-y-4 pt-2 border-t border-[#EFEFF5] dark:border-[#242C3D]">
+              <div className="space-y-4 pt-3 border-t border-[#EFEFF5] dark:border-[#242C3D]">
+                {/* Recognition Summary & Decoded Content */}
+                <div
+                  data-testid="import-recognition-summary"
+                  className="rounded-xl border border-[#DCE6FF] dark:border-[#243047] bg-[#F5F8FF] dark:bg-[#0F172A] px-3.5 py-2.5 space-y-1"
+                >
+                  <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] font-semibold">
+                    <span className="text-[#1D4ED8] dark:text-[#60A5FA]">
+                      {importParsed.recognitionKind === 'sparkqr-custom'
+                        ? 'QR personnalisé SparkQR reconnu'
+                        : 'QR code classique reconnu'}
+                    </span>
+                    <span className="text-[#5C5E66] dark:text-[#94A3B8]">
+                      Format · {importParsed.formatLabel}
+                    </span>
+                  </div>
+                  <p className="text-xs text-[#111214] dark:text-[#E2E8F0] break-all line-clamp-2">
+                    {importParsed.payload}
+                  </p>
+                </div>
+
                 <div className="grid grid-cols-1 sm:grid-cols-[1fr_140px] gap-2.5">
                   <div>
                     <label
@@ -924,7 +906,7 @@ export const HistoryGallery: React.FC<HistoryGalleryProps> = ({
                           : 'studio-grid-mat border-[#E4E1D7] dark:border-[#242C3D]'
                       }`}
                     >
-                      <div className="relative w-full max-w-[230px]">
+                      <div className="relative w-full max-w-[220px]">
                         <div className="relative rounded-2xl overflow-hidden shadow-lg">
                           <QrCanvasRenderer
                             payload={importParsed.payload}
@@ -970,11 +952,26 @@ export const HistoryGallery: React.FC<HistoryGalleryProps> = ({
                         prev ? { ...prev, laserEnabled: e.target.checked } : prev
                       )
                     }
-                    className="w-4 h-4 accent-[#4F46E5]"
+                    className="w-4 h-4 accent-[#2563EB]"
                   />
                 </label>
 
                 <div className="flex flex-wrap items-center justify-end gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const previewItem = buildPreviewSavedItemFromImport();
+                      if (previewItem) {
+                        setImportModalOpen(false);
+                        onLoadItem(previewItem);
+                      }
+                    }}
+                    className="inline-flex items-center gap-1.5 px-3.5 py-2.5 min-h-[40px] text-xs font-semibold text-[#111214] dark:text-[#F1F5F9] bg-[#F3F4F8] dark:bg-[#1E293B] hover:bg-[#E8EAF2] dark:hover:bg-[#334155] rounded-xl cursor-pointer whitespace-nowrap shrink-0"
+                  >
+                    <ArrowUpRight className="w-3.5 h-3.5" aria-hidden="true" />
+                    <span>Éditer dans le studio</span>
+                  </button>
+
                   {onOpenTargetPreview && (
                     <button
                       type="button"
@@ -1223,6 +1220,28 @@ export const HistoryGallery: React.FC<HistoryGalleryProps> = ({
         </div>
 
         <div className="flex flex-wrap items-center gap-2.5">
+          {onRefreshDynamic && (
+            <button
+              type="button"
+              data-testid="refresh-scan-stats-btn"
+              disabled={refreshingDynamic}
+              onClick={async () => {
+                setRefreshingDynamic(true);
+                try {
+                  await onRefreshDynamic();
+                } finally {
+                  setRefreshingDynamic(false);
+                }
+              }}
+              className="inline-flex items-center gap-1.5 px-3 py-2.5 min-h-[42px] text-xs font-semibold text-[#4B4D54] dark:text-[#CBD5E1] bg-white dark:bg-[#131926] hover:bg-[#F3F4F8] dark:hover:bg-[#1E293B] border border-[#E2E6F0] dark:border-[#242C3D] rounded-xl transition-colors whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-60"
+            >
+              <RefreshCw
+                className={`w-3.5 h-3.5 ${refreshingDynamic ? 'animate-spin' : ''}`}
+                aria-hidden="true"
+              />
+              <span>Actualiser</span>
+            </button>
+          )}
           {onImportQrItem && (
             <button
               type="button"
@@ -1386,6 +1405,7 @@ export const HistoryGallery: React.FC<HistoryGalleryProps> = ({
           });
           const isDark = relativeLuminance(item.config.cardBackgroundColor || '#FFFFFF') < 0.22;
           const dyn = item.dynamicSlug ? dynamicMap.get(item.dynamicSlug) : undefined;
+          const scanSummary = dyn ? summarizeDynamicScanStats(dyn.stats) : null;
           const availability = describeSavedQrAccessibility(item, dyn);
           const availStyles = getAccessibilityStyles(availability.status);
 
@@ -1458,6 +1478,101 @@ export const HistoryGallery: React.FC<HistoryGalleryProps> = ({
                       {availability.detail}
                     </span>
                   </div>
+                </div>
+
+                {/* Scan Statistics Panel under every QR card */}
+                <div
+                  data-testid={`qr-scan-stats-${item.id}`}
+                  className="pt-3 border-t border-[#EFEFF5] dark:border-[#242C3D] space-y-2 text-[11px]"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="inline-flex items-center gap-1.5 font-semibold text-[#111214] dark:text-[#F1F5F9]">
+                      <BarChart3
+                        className={`w-3.5 h-3.5 shrink-0 ${
+                          dyn
+                            ? 'text-[#2563EB] dark:text-[#60A5FA]'
+                            : 'text-[#6E7078] dark:text-[#94A3B8]'
+                        }`}
+                        aria-hidden="true"
+                      />
+                      <span>Statistiques de scan</span>
+                    </span>
+                    {dyn && scanSummary ? (
+                      <span
+                        data-testid={`qr-scan-total-${item.id}`}
+                        className="font-bold text-[#111214] dark:text-[#F8FAFC] tabular-nums"
+                      >
+                        {scanSummary.totalScans} scan{scanSummary.totalScans > 1 ? 's' : ''}
+                        {dyn.maxScans ? ` / ${dyn.maxScans}` : ''}
+                      </span>
+                    ) : (
+                      <span className="font-medium text-[#6E7078] dark:text-[#94A3B8]">
+                        Mode statique
+                      </span>
+                    )}
+                  </div>
+
+                  {dyn && scanSummary ? (
+                    <div className="space-y-1.5 text-[#4B4D54] dark:text-[#CBD5E1] tabular-nums">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <span className="inline-flex items-center gap-1.5 text-[#5C5E66] dark:text-[#94A3B8]">
+                          <Smartphone className="w-3.5 h-3.5 text-[#2563EB] dark:text-[#60A5FA] shrink-0" aria-hidden="true" />
+                          <Monitor className="w-3.5 h-3.5 text-[#4F46E5] dark:text-[#A5B4FC] shrink-0 -ml-0.5" aria-hidden="true" />
+                          <span>Appareils</span>
+                        </span>
+                        <span
+                          data-testid={`qr-scan-devices-${item.id}`}
+                          className="font-semibold text-[#111214] dark:text-[#F1F5F9]"
+                        >
+                          {scanSummary.totalScans === 0
+                            ? 'Aucun scan'
+                            : `Mobile : ${scanSummary.mobileScans} · Ordinateur : ${scanSummary.desktopScans}${
+                                scanSummary.otherScans > 0 ? ` · Autre : ${scanSummary.otherScans}` : ''
+                              }`}
+                        </span>
+                      </div>
+
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <span className="inline-flex items-center gap-1.5 text-[#5C5E66] dark:text-[#94A3B8]">
+                          <MapPin className="w-3.5 h-3.5 text-[#059669] dark:text-[#34D399] shrink-0" aria-hidden="true" />
+                          <span>Localisation</span>
+                        </span>
+                        <span
+                          data-testid={`qr-scan-location-${item.id}`}
+                          title={
+                            scanSummary.topLocations.length > 0
+                              ? scanSummary.topLocations
+                                  .slice(0, 5)
+                                  .map((l) => `${l.label} (${l.count})`)
+                                  .join(' · ')
+                              : undefined
+                          }
+                          className="font-semibold text-[#111214] dark:text-[#F1F5F9] truncate max-w-[200px]"
+                        >
+                          {scanSummary.primaryLocation}
+                          {scanSummary.topLocations.length > 1
+                            ? ` (+${scanSummary.topLocations.length - 1})`
+                            : ''}
+                        </span>
+                      </div>
+
+                      {scanSummary.lastScannedAt && (
+                        <p className="text-[10px] text-[#6E7078] dark:text-[#94A3B8] text-right">
+                          Dernier scan ·{' '}
+                          {new Date(scanSummary.lastScannedAt).toLocaleString('fr-FR', {
+                            day: '2-digit',
+                            month: 'short',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })}
+                        </p>
+                      )}
+                    </div>
+                  ) : (
+                    <p className="text-[11px] text-[#6E7078] dark:text-[#94A3B8] leading-snug">
+                      Total des scans, localisation approximative et type d’appareil (mobile/ordinateur) suivis en mode QR dynamique.
+                    </p>
+                  )}
                 </div>
 
                 <div className="flex flex-wrap items-center justify-between gap-1.5 pt-1">
@@ -1880,11 +1995,16 @@ export const HistoryGallery: React.FC<HistoryGalleryProps> = ({
                   <span className="text-[11px] font-semibold text-[#111214] dark:text-[#F1F5F9]">
                     Journal des derniers scans
                   </span>
-                  <div className="max-h-28 overflow-y-auto space-y-1 text-[11px] text-[#5C5E66] dark:text-[#94A3B8] tabular-nums">
+                  <div className="max-h-32 overflow-y-auto space-y-1 text-[11px] text-[#5C5E66] dark:text-[#94A3B8] tabular-nums">
                     {managedRecord.stats.recentEvents.map((ev, i) => (
-                      <div key={i} className="flex items-center justify-between">
-                        <span>{ev.device}</span>
-                        <span>{new Date(ev.at).toLocaleString('fr-FR')}</span>
+                      <div key={i} className="flex items-center justify-between gap-2">
+                        <span className="truncate">
+                          {ev.device}
+                          {ev.location ? ` · ${ev.location}` : ''}
+                        </span>
+                        <span className="shrink-0">
+                          {new Date(ev.at).toLocaleString('fr-FR')}
+                        </span>
                       </div>
                     ))}
                   </div>

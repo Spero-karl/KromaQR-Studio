@@ -256,6 +256,19 @@ export function isValidQrPayloadFormat(raw: string): boolean {
   return false;
 }
 
+export function describeQrPayloadFormat(raw: string): string {
+  const trimmed = (raw || '').trim();
+  if (/^WIFI:/i.test(trimmed)) return 'Wi-Fi';
+  if (/^BEGIN:VCARD/i.test(trimmed)) return 'Contact vCard';
+  if (/^mailto:/i.test(trimmed)) return 'E-mail';
+  if (/^tel:/i.test(trimmed)) return 'Téléphone';
+  if (/^sms:/i.test(trimmed)) return 'SMS';
+  if (/^geo:/i.test(trimmed)) return 'Position GPS';
+  if (/^MATMSG:/i.test(trimmed)) return 'E-mail';
+  if (/^https?:\/\//i.test(trimmed)) return 'Lien web';
+  return 'Texte';
+}
+
 export function extractSparkQrReaderEndpoint(
   payload: string
 ): { kind: 'media' | 'dynamic'; id: string; keyFragment: string | null } | null {
@@ -357,6 +370,15 @@ export function parseReceivedQrInput(
       }
     } else if (source.textMode === 'wifi') {
       derivedTitle = `Wi-Fi ${source.wifiSsid}`;
+    } else if (/^BEGIN:VCARD/i.test(trimmed)) {
+      const fnMatch = trimmed.match(/(?:FN|N):([^\r\n;]+)/i);
+      derivedTitle = fnMatch?.[1]?.trim() || 'Contact vCard';
+    } else if (/^mailto:/i.test(trimmed)) {
+      derivedTitle = trimmed.replace(/^mailto:/i, '').split('?')[0].slice(0, 38) || 'E-mail';
+    } else if (/^tel:/i.test(trimmed)) {
+      derivedTitle = trimmed.replace(/^tel:/i, '').slice(0, 28) || 'Téléphone';
+    } else if (/^geo:/i.test(trimmed)) {
+      derivedTitle = 'Position GPS';
     } else {
       derivedTitle = trimmed.slice(0, 34);
     }

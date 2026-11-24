@@ -64,14 +64,16 @@ import {
 } from './src/utils/retentionPricing.ts';
 import { computeDefaultServerExpiry } from './src/utils/serverAvailability.ts';
 
+import {
+  applyDynamicScanEvent,
+  lookupPublicIpLocation,
+  replaceDynamicScanLocation,
+  resolveImmediateScanLocation,
+  type ServerDynamicStats,
+} from './src/server/scanAnalytics.ts';
+
 interface MediaRecord extends MediaRecordLike {
   type: 'image' | 'video' | 'document' | 'audio' | 'collection';
-}
-
-interface DynamicScanEvent {
-  at: string;
-  device: string;
-  unlocked: boolean;
 }
 
 interface ServerDynamicRecord extends DynamicRecordLike {
@@ -89,11 +91,7 @@ interface ServerDynamicRecord extends DynamicRecordLike {
     };
     config?: Record<string, unknown>;
   };
-  stats: {
-    totalScans: number;
-    lastScannedAt: string | null;
-    recentEvents: DynamicScanEvent[];
-  };
+  stats: ServerDynamicStats;
 }
 
 export interface CreateSparkQrAppOptions {
@@ -225,16 +223,6 @@ function parseCookies(cookieHeader: string | undefined): Record<string, string> 
     out[key] = decodeURIComponent(val);
   }
   return out;
-}
-
-function summarizeDevice(ua: string | undefined): string {
-  const agent = ua || '';
-  if (/iPhone|iPad/i.test(agent)) return 'iOS Mobile';
-  if (/Android/i.test(agent)) return 'Android Mobile';
-  if (/Macintosh/i.test(agent)) return 'macOS Desktop';
-  if (/Windows/i.test(agent)) return 'Windows Desktop';
-  if (/Linux/i.test(agent)) return 'Linux Desktop';
-  return 'Navigateur Web';
 }
 
 function sanitizeDynamicRecord(rec: ServerDynamicRecord, origin = '') {
@@ -569,6 +557,43 @@ export async function createSparkQrApp(options: CreateSparkQrAppOptions = {}): P
 
   const writeDynamicStore = (store: Record<string, ServerDynamicRecord>): void => {
     writeJsonStore(DYNAMIC_FILE, store);
+  };
+
+  const recordDynamicScan = (
+    req: express.Request,
+    rec: ServerDynamicRecord,
+    store: Record<string, ServerDynamicRecord>
+  ): void => {
+    const scanAt = new Date().toISOString();
+    const { location, needsAsyncIpLookup, clientIp } = resolveImmediateScanLocation(req);
+    rec.stats = applyDynamicScanEvent(rec.stats, {
+      at: scanAt,
+      userAgent: req.get('user-agent'),
+      location,
+      unlocked: true,
+    });
+    store[rec.slug] = rec;
+    writeDynamicStore(store);
+
+    if (needsAsyncIpLookup && clientIp) {
+      const targetSlug = rec.slug;
+      const placeholder = location;
+      void lookupPublicIpLocation(clientIp).then((resolvedLocation) => {
+        if (!resolvedLocation || resolvedLocation === placeholder) return;
+        return withDataDirLock(DATA_DIR, () => {
+          const latestStore = readDynamicStore();
+          const current = latestStore[targetSlug];
+          if (!current) return;
+          current.stats = replaceDynamicScanLocation(current.stats, {
+            at: scanAt,
+            oldLocation: placeholder,
+            newLocation: resolvedLocation,
+          });
+          latestStore[targetSlug] = current;
+          writeDynamicStore(latestStore);
+        });
+      });
+    }
   };
 
   const signUnlockToken = (slug: string): string => {
@@ -1584,18 +1609,7 @@ export async function createSparkQrApp(options: CreateSparkQrAppOptions = {}): P
       }
     }
 
-    rec.stats.totalScans += 1;
-    rec.stats.lastScannedAt = new Date().toISOString();
-    rec.stats.recentEvents = [
-      {
-        at: rec.stats.lastScannedAt,
-        device: summarizeDevice(req.get('user-agent')),
-        unlocked: true,
-      },
-      ...rec.stats.recentEvents,
-    ].slice(0, 20);
-    store[rec.slug] = rec;
-    writeDynamicStore(store);
+    recordDynamicScan(req, rec, store);
 
     const token = signUnlockToken(rec.slug);
     res.cookie(`sparkqr_unlock_${rec.slug}`, token, {
@@ -1656,18 +1670,7 @@ export async function createSparkQrApp(options: CreateSparkQrAppOptions = {}): P
       return;
     }
 
-    rec.stats.totalScans += 1;
-    rec.stats.lastScannedAt = new Date().toISOString();
-    rec.stats.recentEvents = [
-      {
-        at: rec.stats.lastScannedAt,
-        device: summarizeDevice(req.get('user-agent')),
-        unlocked: true,
-      },
-      ...rec.stats.recentEvents,
-    ].slice(0, 20);
-    store[rec.slug] = rec;
-    writeDynamicStore(store);
+    recordDynamicScan(req, rec, store);
 
     const sanitizedDynamicSource = {
       ...(rec.destination.sourceSnapshot || {}),
@@ -1775,18 +1778,7 @@ export async function createSparkQrApp(options: CreateSparkQrAppOptions = {}): P
       }
 
       if (safeExternal) {
-        rec.stats.totalScans += 1;
-        rec.stats.lastScannedAt = new Date().toISOString();
-        rec.stats.recentEvents = [
-          {
-            at: rec.stats.lastScannedAt,
-            device: summarizeDevice(req.get('user-agent')),
-            unlocked: true,
-          },
-          ...rec.stats.recentEvents,
-        ].slice(0, 20);
-        store[rec.slug] = rec;
-        writeDynamicStore(store);
+        recordDynamicScan(req, rec, store);
 
         res.redirect(302, rec.destination.payload);
         return;

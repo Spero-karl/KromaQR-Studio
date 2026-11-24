@@ -174,11 +174,7 @@ export const PreviewStage: React.FC<PreviewStageProps> = ({
 
   return (
     <aside className="lg:sticky lg:top-20">
-      <div className="bg-white dark:bg-[#131722] border border-[#E2E6F0] dark:border-[#242B3D] rounded-2xl overflow-hidden shadow-[0_8px_28px_rgba(15,23,42,0.05)] dark:shadow-none">
-        <div
-          aria-hidden="true"
-          className="h-0.5 w-full bg-gradient-to-r from-[#2563EB] via-[#4F46E5] to-[#0EA5E9]"
-        />
+      <div className="bg-white dark:bg-[#131926] border border-[#E2E6F0] dark:border-[#242C3D] rounded-2xl overflow-hidden shadow-[0_2px_10px_rgba(15,23,42,0.03)] dark:shadow-none">
         <div className="p-5 sm:p-6">
           {/* Header: Step 4 + Minimalist Status */}
           <div className="flex flex-wrap items-center justify-between gap-2 pb-4 border-b border-[#EFEFF5] dark:border-[#22283A]">
@@ -265,7 +261,7 @@ export const PreviewStage: React.FC<PreviewStageProps> = ({
                   type="button"
                   disabled={!canGenerate || isGenerating}
                   onClick={onGenerate}
-                  className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 text-xs sm:text-sm font-semibold text-white bg-gradient-to-r from-[#2563EB] to-[#4F46E5] hover:from-[#1D4ED8] hover:to-[#4338CA] shadow-[0_6px_16px_rgba(37,99,235,0.2)] rounded-xl transition-all duration-200 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                  className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 text-xs sm:text-sm font-semibold text-white bg-[#2563EB] hover:bg-[#1D4ED8] dark:bg-[#3B82F6] dark:hover:bg-[#2563EB] rounded-xl transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   <QrCode className="w-4 h-4" aria-hidden="true" />
                   <span>
@@ -464,7 +460,7 @@ export const PreviewStage: React.FC<PreviewStageProps> = ({
             type="button"
             disabled={!isGenerated}
             onClick={handlePng}
-            className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 text-sm font-semibold text-white bg-gradient-to-r from-[#2563EB] to-[#4F46E5] hover:from-[#1D4ED8] hover:to-[#4338CA] shadow-[0_6px_18px_rgba(37,99,235,0.22)] hover:-translate-y-0.5 active:scale-[0.985] rounded-xl transition-all duration-200 whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed disabled:translate-y-0 disabled:shadow-none"
+            className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 text-sm font-semibold text-white bg-[#2563EB] hover:bg-[#1D4ED8] dark:bg-[#3B82F6] dark:hover:bg-[#2563EB] active:scale-[0.985] rounded-xl transition-colors whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
           >
             <Download className="w-4 h-4" aria-hidden="true" />
             <span>Télécharger PNG HD</span>

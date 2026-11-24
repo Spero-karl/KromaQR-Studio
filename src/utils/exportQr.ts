@@ -1,6 +1,6 @@
 import { jsPDF } from 'jspdf';
 import type { ExportOptions } from '../types/qr';
-import { verifyQrDecodeFromImageData } from './qrLogic';
+import { decodeQrFromRgbaBuffer } from './qrImageDecoder';
 
 async function inlineSvgImages(svgClone: SVGSVGElement): Promise<void> {
   const images = Array.from(svgClone.querySelectorAll('image'));
@@ -49,6 +49,14 @@ function getSvgCropBox(
   return { x: 0, y: 0, width: vbWidth, height: vbHeight };
 }
 
+export interface SparkQrSvgMetadata {
+  name?: string;
+  payload: string;
+  source?: unknown;
+  config?: unknown;
+  experience?: unknown;
+}
+
 export async function serializeSvgForExport(
   svgEl: SVGSVGElement,
   options?: {
@@ -56,6 +64,7 @@ export async function serializeSvgForExport(
     height?: number;
     scope?: 'card' | 'qr-only';
     transparentBackground?: boolean;
+    sparkQrMetadata?: SparkQrSvgMetadata;
   }
 ): Promise<string> {
   const scope = options?.scope ?? 'card';
@@ -78,6 +87,17 @@ export async function serializeSvgForExport(
     });
   }
 
+  if (options?.sparkQrMetadata) {
+    try {
+      const metaEl = document.createElementNS('http://www.w3.org/2000/svg', 'metadata');
+      metaEl.setAttribute('data-sparkqr-meta', '1');
+      metaEl.textContent = JSON.stringify(options.sparkQrMetadata);
+      clone.insertBefore(metaEl, clone.firstChild);
+    } catch {
+      // Non-blocking metadata attachment
+    }
+  }
+
   clone.setAttribute('width', String(options?.width ?? box.width));
   clone.setAttribute('height', String(options?.height ?? box.height));
   await inlineSvgImages(clone);
@@ -88,7 +108,11 @@ export async function serializeSvgForExport(
 export async function downloadQrSvg(
   svgEl: SVGSVGElement,
   filename = 'sparkqr-code.svg',
-  options?: { scope?: 'card' | 'qr-only'; transparentBackground?: boolean }
+  options?: {
+    scope?: 'card' | 'qr-only';
+    transparentBackground?: boolean;
+    sparkQrMetadata?: SparkQrSvgMetadata;
+  }
 ): Promise<void> {
   const svgString = await serializeSvgForExport(svgEl, options);
   const blob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
@@ -223,7 +247,8 @@ export async function executeProExport(
   svgEl: SVGSVGElement,
   baseSlug: string,
   options: ExportOptions,
-  title?: string
+  title?: string,
+  sparkQrMetadata?: SparkQrSvgMetadata
 ): Promise<void> {
   const suffix = options.scope === 'qr-only' ? '-qr' : '';
   const safeBase = baseSlug || 'sparkqr';
@@ -232,6 +257,7 @@ export async function executeProExport(
     await downloadQrSvg(svgEl, `${safeBase}${suffix}.svg`, {
       scope: options.scope,
       transparentBackground: options.transparentBackground,
+      sparkQrMetadata,
     });
     return;
   }
@@ -288,7 +314,7 @@ async function rasterizeAndDecodeSvg(
     ctx.fillRect(0, 0, width, height);
     ctx.drawImage(img, pad, pad, drawW, drawH);
     const imgData = ctx.getImageData(0, 0, width, height);
-    return verifyQrDecodeFromImageData(imgData.data, width, height);
+    return decodeQrFromRgbaBuffer(imgData.data, width, height)?.payload ?? null;
   } catch {
     return null;
   } finally {

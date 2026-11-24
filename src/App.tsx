@@ -919,9 +919,19 @@ export default function App() {
     await downloadQrPng(qrSvgRef.current, `${makeFileSlug()}.png`);
   };
 
+  const buildExportMetadata = () => ({
+    name: config.titleText || 'Code QR SparkQR',
+    payload: activePayload,
+    source: activeSource,
+    config,
+    experience: activeExperience,
+  });
+
   const handleDownloadSvg = async () => {
     if (!isGenerated || !qrSvgRef.current) return;
-    await downloadQrSvg(qrSvgRef.current, `${makeFileSlug()}.svg`);
+    await downloadQrSvg(qrSvgRef.current, `${makeFileSlug()}.svg`, {
+      sparkQrMetadata: buildExportMetadata(),
+    });
   };
 
   const handleCopyPng = async () => {
@@ -931,7 +941,13 @@ export default function App() {
 
   const handleProExport = async (options: ExportOptions) => {
     if (!isGenerated || !qrSvgRef.current) return;
-    await executeProExport(qrSvgRef.current, makeFileSlug(), options, config.titleText);
+    await executeProExport(
+      qrSvgRef.current,
+      makeFileSlug(),
+      options,
+      config.titleText,
+      buildExportMetadata()
+    );
   };
 
   const handleSaveToHistory = () => {
@@ -1159,7 +1175,7 @@ export default function App() {
 
           <nav
             aria-label="Navigation principale"
-            className="hidden md:flex items-center gap-5 text-sm font-medium text-[#5C5E66] dark:text-[#94A3B8]"
+            className="hidden md:flex items-center gap-6 text-sm font-medium text-[#5C5E66] dark:text-[#94A3B8]"
           >
             <button
               type="button"
@@ -1209,30 +1225,20 @@ export default function App() {
                 {unreadNotificationsCount > 0 ? ` (${unreadNotificationsCount})` : ''}
               </span>
             </button>
+          </nav>
 
+          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
             <button
               type="button"
               data-testid="nav-workspace-btn"
               onClick={() => setWorkspaceModalOpen(true)}
-              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-[#EEF2FF] hover:bg-[#E0E7FF] text-[#4F46E5] dark:bg-[#1E293B] dark:hover:bg-[#293548] dark:text-[#A5B4FC] text-xs font-semibold transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+              className="hidden md:inline-flex items-center gap-1.5 px-3 py-1.5 min-h-[36px] rounded-xl border border-[#E2E6F0] dark:border-[#242C3D] bg-white dark:bg-[#131926] hover:bg-[#F5F7FA] dark:hover:bg-[#1E293B] text-[#111214] dark:text-[#E2E8F0] text-xs font-semibold transition-colors whitespace-nowrap shrink-0 cursor-pointer"
             >
-              <UserCheck className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
+              <UserCheck className="w-3.5 h-3.5 text-[#2563EB] dark:text-[#60A5FA] shrink-0" aria-hidden="true" />
               <span className="max-w-[130px] truncate">
                 {workspace?.name || 'Mon espace'}
               </span>
             </button>
-
-            <button
-              type="button"
-              disabled={!isGenerated}
-              onClick={() => isGenerated && setPreviewModalOpen(true)}
-              className="hidden lg:inline-block py-1.5 hover:text-[#111214] dark:hover:text-[#F8FAFC] transition-colors whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              Aperçu scan
-            </button>
-          </nav>
-
-          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
             <button
               type="button"
               data-testid="ui-theme-toggle"
@@ -1265,9 +1271,9 @@ export default function App() {
             <button
               type="button"
               onClick={() => setWorkspaceModalOpen(true)}
-              className="md:hidden inline-flex items-center gap-1 px-2.5 py-1.5 min-h-[36px] rounded-xl bg-[#EEF2FF] hover:bg-[#E0E7FF] text-[#4F46E5] dark:bg-[#1E293B] dark:hover:bg-[#293548] dark:text-[#A5B4FC] text-xs font-semibold transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+              className="md:hidden inline-flex items-center gap-1 px-2.5 py-1.5 min-h-[36px] rounded-xl border border-[#E2E6F0] dark:border-[#242C3D] bg-white dark:bg-[#131926] text-[#111214] dark:text-[#E2E8F0] text-xs font-semibold transition-colors whitespace-nowrap shrink-0 cursor-pointer"
             >
-              <UserCheck className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
+              <UserCheck className="w-3.5 h-3.5 text-[#2563EB] dark:text-[#60A5FA] shrink-0" aria-hidden="true" />
               <span>Espace</span>
             </button>
             <button
@@ -1371,10 +1377,17 @@ export default function App() {
             <section
               data-testid="welcome-intro-card"
               aria-label="Bienvenue sur SparkQR"
-              className="rounded-2xl border border-[#E2E6F0] dark:border-[#242C3D] bg-white dark:bg-[#131926] px-4 py-3.5 sm:px-6 sm:py-4"
+              className="rounded-2xl border border-[#E2E6F0] dark:border-[#242C3D] bg-white dark:bg-[#131926] px-4 py-3.5 sm:px-6 sm:py-4 flex flex-wrap items-center justify-between gap-2"
             >
               <p className="font-display text-base sm:text-xl font-bold tracking-tight text-[#111214] dark:text-[#F8FAFC] leading-snug">
                 Transformez vos idées en codes QR.
+              </p>
+              <p className="hidden sm:flex items-center gap-2 text-xs font-medium text-[#5C5E66] dark:text-[#94A3B8] tabular-nums">
+                <span>1. Contenu</span>
+                <span aria-hidden="true">·</span>
+                <span>2. Modèle &amp; Style</span>
+                <span aria-hidden="true">·</span>
+                <span>3. Aperçu &amp; Export</span>
               </p>
             </section>
 

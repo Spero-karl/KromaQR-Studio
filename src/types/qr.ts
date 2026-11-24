@@ -178,12 +178,20 @@ export interface DynamicSecurityConfig {
 export interface DynamicScanEvent {
   at: string;
   device: string;
+  deviceType?: 'mobile' | 'desktop' | 'other';
+  location?: string;
   unlocked: boolean;
 }
 
 export interface DynamicQrStats {
   totalScans: number;
   lastScannedAt: string | null;
+  deviceBreakdown?: {
+    mobile: number;
+    desktop: number;
+    other: number;
+  };
+  locationCounts?: Record<string, number>;
   recentEvents: DynamicScanEvent[];
 }
 

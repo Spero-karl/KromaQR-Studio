@@ -565,12 +565,19 @@ export const CustomizePanel: React.FC<CustomizePanelProps> = ({
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+            <div
+              className={`grid grid-cols-1 sm:grid-cols-2 gap-2.5 ${
+                collectionTab === 'all' ? 'max-h-[430px] overflow-y-auto pr-1' : ''
+              }`}
+            >
               {visibleThemes.map((theme) => {
                 const isSelected = config.themeId === theme.id;
                 const [bgSwatch, fgSwatch, accentSwatch] = theme.swatches;
                 const isMaster = theme.collection === 'master';
                 const isPremium = theme.collection === 'premium';
+                const hasGradient = theme.patch.gradientType && theme.patch.gradientType !== 'solid';
+                const eyeFill = theme.patch.eyeColor || accentSwatch || fgSwatch;
+                const gradId = `swatch-grad-${theme.id}`;
                 return (
                   <button
                     key={theme.id}
@@ -593,36 +600,74 @@ export const CustomizePanel: React.FC<CustomizePanelProps> = ({
                       isSelected
                         ? 'border-[#2563EB] dark:border-[#60A5FA] bg-[#F4F8FF] dark:bg-[#1E293B] shadow-[0_4px_14px_rgba(37,99,235,0.12)]'
                         : isMaster
-                        ? 'border-[#D4AF37]/65 dark:border-[#D4AF37]/45 bg-[#FFFDF7] dark:bg-[#191610] hover:border-[#B45309] dark:hover:border-[#FBBF24]'
+                        ? 'border-[#D4AF37]/60 dark:border-[#D4AF37]/45 bg-[#FFFDF8] dark:bg-[#191610] hover:border-[#B45309] dark:hover:border-[#FBBF24]'
                         : isPremium
-                        ? 'border-[#C7D2FE] dark:border-[#4338CA]/50 bg-[#FBFBFF] dark:bg-[#151A2C] hover:border-[#818CF8]'
+                        ? 'border-[#CBD5E1] dark:border-[#334155] bg-[#FAFBFD] dark:bg-[#151A2C] hover:border-[#6366F1]'
                         : 'border-[#E2E6F0] dark:border-[#242C3D] bg-[#FAFBFD] dark:bg-[#161D2B] hover:border-[#CBD5E1] dark:hover:border-[#3B4760]'
                     }`}
                   >
-                    <div
+                    <svg
+                      viewBox="0 0 36 36"
                       aria-hidden="true"
-                      className="w-9 h-10 rounded-lg border border-black/15 dark:border-white/15 shrink-0 p-1.5 grid grid-cols-2 gap-1"
-                      style={{ backgroundColor: bgSwatch }}
+                      className="w-10 h-10 rounded-lg shrink-0 border border-black/15 dark:border-white/15"
                     >
-                      <span className="rounded-[2px]" style={{ backgroundColor: accentSwatch }} />
-                      <span className="rounded-full" style={{ backgroundColor: fgSwatch }} />
-                      <span className="rounded-full" style={{ backgroundColor: fgSwatch }} />
-                      <span className="rounded-[2px]" style={{ backgroundColor: accentSwatch }} />
-                    </div>
+                      {hasGradient && (
+                        <defs>
+                          <linearGradient id={gradId} x1="0" y1="0" x2="1" y2="1">
+                            <stop offset="0%" stopColor={fgSwatch} />
+                            <stop offset="100%" stopColor={accentSwatch} />
+                          </linearGradient>
+                        </defs>
+                      )}
+                      <rect x="0" y="0" width="36" height="36" rx="7" fill={bgSwatch} />
+                      <rect
+                        x="1.5"
+                        y="1.5"
+                        width="33"
+                        height="33"
+                        rx="5.5"
+                        fill="none"
+                        stroke={accentSwatch}
+                        strokeOpacity="0.45"
+                        strokeWidth="1"
+                      />
+                      {/* Top-left finder */}
+                      <rect x="5" y="5" width="9" height="9" rx="2" fill="none" stroke={eyeFill} strokeWidth="1.8" />
+                      <rect x="7.8" y="7.8" width="3.4" height="3.4" rx="0.8" fill={eyeFill} />
+                      {/* Top-right finder */}
+                      <rect x="22" y="5" width="9" height="9" rx="2" fill="none" stroke={eyeFill} strokeWidth="1.8" />
+                      <rect x="24.8" y="7.8" width="3.4" height="3.4" rx="0.8" fill={eyeFill} />
+                      {/* Bottom-left finder */}
+                      <rect x="5" y="22" width="9" height="9" rx="2" fill="none" stroke={eyeFill} strokeWidth="1.8" />
+                      <rect x="7.8" y="24.8" width="3.4" height="3.4" rx="0.8" fill={eyeFill} />
+                      {/* Matrix dots */}
+                      <g fill={hasGradient ? `url(#${gradId})` : fgSwatch}>
+                        <circle cx="18" cy="7" r="1.4" />
+                        <circle cx="18" cy="11.5" r="1.4" />
+                        <circle cx="7" cy="18" r="1.4" />
+                        <circle cx="12" cy="18" r="1.4" />
+                        <rect x="16.2" y="16.2" width="3.6" height="3.6" rx="1" fill={accentSwatch} />
+                        <circle cx="24" cy="18" r="1.4" />
+                        <circle cx="29" cy="18" r="1.4" />
+                        <circle cx="18" cy="24" r="1.4" />
+                        <circle cx="23.5" cy="23.5" r="1.4" />
+                        <circle cx="29" cy="23.5" r="1.4" />
+                        <circle cx="18" cy="29" r="1.4" />
+                        <circle cx="25" cy="29" r="1.4" />
+                        <circle cx="29" cy="29" r="1.4" />
+                      </g>
+                    </svg>
                     <div className="min-w-0">
-                      <span className="inline-flex items-center gap-1 text-xs font-bold text-[#111214] dark:text-[#F1F5F9] truncate max-w-full">
-                        <span className="truncate">{theme.name}</span>
-                        {(isMaster || isPremium) && (
-                          <Sparkles
-                            className={`w-3 h-3 shrink-0 ${
-                              isMaster
-                                ? 'text-[#B45309] dark:text-[#FBBF24]'
-                                : 'text-[#4F46E5] dark:text-[#818CF8]'
-                            }`}
-                            aria-hidden="true"
-                          />
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <span className="font-display text-xs font-bold text-[#111214] dark:text-[#F1F5F9] truncate">
+                          {theme.name}
+                        </span>
+                        {isMaster && (
+                          <span className="text-[10px] font-semibold uppercase tracking-wider text-[#B45309] dark:text-[#FBBF24] shrink-0">
+                            Master
+                          </span>
                         )}
-                      </span>
+                      </div>
                       <span className="block text-[11px] text-[#6E7078] dark:text-[#94A3B8] line-clamp-2 leading-snug mt-0.5">
                         {theme.tagline}
                       </span>
