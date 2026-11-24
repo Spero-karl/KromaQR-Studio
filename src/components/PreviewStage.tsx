@@ -174,19 +174,19 @@ export const PreviewStage: React.FC<PreviewStageProps> = ({
 
   return (
     <aside className="lg:sticky lg:top-20">
-      <div className="bg-white/95 border border-[#E2E6F0] rounded-2xl overflow-hidden shadow-[0_8px_28px_rgba(37,99,235,0.06)]">
+      <div className="bg-white dark:bg-[#131722] border border-[#E2E6F0] dark:border-[#242B3D] rounded-2xl overflow-hidden shadow-[0_8px_28px_rgba(15,23,42,0.05)] dark:shadow-none">
         <div
           aria-hidden="true"
-          className="h-1 w-full bg-gradient-to-r from-[#2563EB] via-[#7C3AED] to-[#EC4899]"
+          className="h-0.5 w-full bg-gradient-to-r from-[#2563EB] via-[#4F46E5] to-[#0EA5E9]"
         />
         <div className="p-5 sm:p-6">
           {/* Header: Step 4 + Minimalist Status */}
-          <div className="flex flex-wrap items-center justify-between gap-2 pb-4 border-b border-[#EFEFF5]">
+          <div className="flex flex-wrap items-center justify-between gap-2 pb-4 border-b border-[#EFEFF5] dark:border-[#22283A]">
             <div>
-              <span className="block text-[11px] font-semibold uppercase tracking-[0.14em] text-[#4F46E5]">
+              <span className="block text-[11px] font-semibold uppercase tracking-[0.14em] text-[#4F46E5] dark:text-[#818CF8]">
                 Étape 4 · Aperçu
               </span>
-              <h2 className="font-display text-lg sm:text-xl font-bold tracking-tight text-[#111214] mt-0.5">
+              <h2 className="font-display text-lg sm:text-xl font-bold tracking-tight text-[#111214] dark:text-[#F1F5F9] mt-0.5">
                 Aperçu et exportation
               </h2>
             </div>
@@ -200,8 +200,8 @@ export const PreviewStage: React.FC<PreviewStageProps> = ({
                 onClick={handleLaserButtonClick}
                 className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-xl border transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
                   laserEnabled
-                    ? 'border-[#1D4ED8]/30 bg-[#F4F7FF] text-[#1D4ED8]'
-                    : 'border-[#E6E4DC] bg-[#FAF9F5] text-[#5C5E66] hover:text-[#111214]'
+                    ? 'border-[#1D4ED8]/30 bg-[#F4F7FF] text-[#1D4ED8] dark:border-[#60A5FA]/40 dark:bg-[#1E293B] dark:text-[#93C5FD]'
+                    : 'border-[#E6E4DC] bg-[#FAF9F5] text-[#5C5E66] hover:text-[#111214] dark:border-[#283145] dark:bg-[#1A202E] dark:text-[#94A3B8] dark:hover:text-white'
                 }`}
               >
                 <ScanLine className="w-3.5 h-3.5" aria-hidden="true" />
@@ -210,8 +210,9 @@ export const PreviewStage: React.FC<PreviewStageProps> = ({
 
               <button
                 type="button"
+                data-testid="preview-test-btn"
                 onClick={triggerSimulatedScan}
-                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold text-[#111214] bg-[#F4F2EC] hover:bg-[#EAE7DF] rounded-xl transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-[#111214] dark:text-[#F1F5F9] bg-[#F4F2EC] dark:bg-[#1E2536] hover:bg-[#EAE7DF] dark:hover:bg-[#283147] rounded-xl transition-colors whitespace-nowrap shrink-0 cursor-pointer"
               >
                 <ExternalLink className="w-3.5 h-3.5" aria-hidden="true" />
                 <span>Tester</span>
@@ -222,14 +223,14 @@ export const PreviewStage: React.FC<PreviewStageProps> = ({
                 onClick={onClearGenerated}
                 title="Masquer le code QR par confidentialité"
                 aria-label="Masquer le code QR"
-                className="p-1.5 text-[#5C5E66] hover:text-[#111214] bg-[#FAF9F5] border border-[#E6E4DC] rounded-xl transition-colors cursor-pointer"
+                className="p-1.5 text-[#5C5E66] dark:text-[#94A3B8] hover:text-[#111214] dark:hover:text-white bg-[#FAF9F5] dark:bg-[#1A202E] border border-[#E6E4DC] dark:border-[#283145] rounded-xl transition-colors cursor-pointer"
               >
                 <EyeOff className="w-3.5 h-3.5" aria-hidden="true" />
               </button>
             </div>
           ) : (
-            <span className="inline-flex items-center gap-1.5 text-xs font-medium text-[#5C5E66]">
-              <Lock className="w-3.5 h-3.5 text-[#1D4ED8]" aria-hidden="true" />
+            <span className="inline-flex items-center gap-1.5 text-xs font-medium text-[#5C5E66] dark:text-[#94A3B8]">
+              <Lock className="w-3.5 h-3.5 text-[#1D4ED8] dark:text-[#60A5FA]" aria-hidden="true" />
               <span>Confidentiel</span>
             </span>
           )}
@@ -240,22 +241,22 @@ export const PreviewStage: React.FC<PreviewStageProps> = ({
           className={`mt-4 rounded-2xl border p-6 sm:p-8 flex flex-col items-center justify-center relative transition-colors duration-200 min-h-[420px] sm:min-h-[460px] ${
             isGenerated && isDarkCard
               ? 'studio-grid-dark border-[#1F2433]'
-              : 'studio-grid-mat border-[#E4E1D7]'
+              : 'studio-grid-mat border-[#E4E1D7] dark:border-[#252D40]'
           }`}
         >
           {!isGenerated ? (
             <div
               data-testid="qr-confidential-placeholder"
-              className="w-full max-w-[320px] rounded-2xl bg-white/95 border border-[#E6E4DC] p-6 sm:p-7 text-center space-y-4 shadow-[0_12px_32px_rgba(17,18,20,0.06)]"
+              className="w-full max-w-[320px] rounded-2xl bg-white/95 dark:bg-[#161B29] border border-[#E6E4DC] dark:border-[#283145] p-6 sm:p-7 text-center space-y-4 shadow-[0_12px_32px_rgba(17,18,20,0.06)] dark:shadow-none"
             >
-              <div className="w-12 h-12 rounded-2xl bg-[#F4F7FF] text-[#1D4ED8] flex items-center justify-center mx-auto">
+              <div className="w-12 h-12 rounded-2xl bg-[#F4F7FF] dark:bg-[#1E293B] text-[#1D4ED8] dark:text-[#60A5FA] flex items-center justify-center mx-auto">
                 <ShieldCheck className="w-6 h-6" aria-hidden="true" />
               </div>
               <div className="space-y-1.5">
-                <h3 className="font-display text-base font-bold text-[#111214]">
+                <h3 className="font-display text-base font-bold text-[#111214] dark:text-[#F1F5F9]">
                   Aperçu confidentiel
                 </h3>
-                <p className="text-xs text-[#5C5E66] leading-relaxed">
+                <p className="text-xs text-[#5C5E66] dark:text-[#94A3B8] leading-relaxed">
                   Votre QR code reste masqué jusqu’à votre validation finale pour préserver votre confidentialité.
                 </p>
               </div>
@@ -400,25 +401,25 @@ export const PreviewStage: React.FC<PreviewStageProps> = ({
                   )}
                   <span>{report.label}</span>
                 </span>
-                <span className={isDarkCard ? 'text-[#8C95A8]' : 'text-[#6E7078]'} aria-hidden="true">
+                <span className={isDarkCard ? 'text-[#8C95A8]' : 'text-[#6E7078] dark:text-[#94A3B8]'} aria-hidden="true">
                   ·
                 </span>
                 <span
                   className={`font-mono tabular-nums ${
-                    isDarkCard ? 'text-[#94A3B8]' : 'text-[#5C5E66]'
+                    isDarkCard ? 'text-[#94A3B8]' : 'text-[#5C5E66] dark:text-[#94A3B8]'
                   }`}
                 >
                   {report.contrastRatio}:1 · {report.effectiveErrorCorrection}
                 </span>
                 {decodeStatus === 'verified' && (
                   <>
-                    <span className={isDarkCard ? 'text-[#8C95A8]' : 'text-[#6E7078]'} aria-hidden="true">
+                    <span className={isDarkCard ? 'text-[#8C95A8]' : 'text-[#6E7078] dark:text-[#94A3B8]'} aria-hidden="true">
                       ·
                     </span>
                     <span
                       data-testid="qr-decode-verified"
                       data-decoded-payload={decodedPayload}
-                      className="inline-flex items-center gap-1 font-semibold text-[#15803D]"
+                      className="inline-flex items-center gap-1 font-semibold text-[#15803D] dark:text-[#4ADE80]"
                     >
                       <CheckCircle2 className="w-3.5 h-3.5" aria-hidden="true" />
                       <span>Décodage vérifié</span>
@@ -428,7 +429,7 @@ export const PreviewStage: React.FC<PreviewStageProps> = ({
                 {decodeStatus === 'mismatch' && (
                   <span
                     data-testid="qr-decode-warning"
-                    className="inline-flex items-center gap-1 font-semibold text-[#B45309]"
+                    className="inline-flex items-center gap-1 font-semibold text-[#B45309] dark:text-[#FBBF24]"
                   >
                     <AlertTriangle className="w-3.5 h-3.5" aria-hidden="true" />
                     <span>Contraste insuffisant</span>
@@ -440,7 +441,7 @@ export const PreviewStage: React.FC<PreviewStageProps> = ({
                 <div
                   data-testid="dynamic-slug-indicator"
                   className={`mt-1.5 text-[11px] font-semibold text-center ${
-                    isDarkCard ? 'text-[#93C5FD]' : 'text-[#4F46E5]'
+                    isDarkCard ? 'text-[#93C5FD]' : 'text-[#4F46E5] dark:text-[#818CF8]'
                   }`}
                 >
                   <span>QR dynamique actif</span>
@@ -452,7 +453,7 @@ export const PreviewStage: React.FC<PreviewStageProps> = ({
         </div>
 
         {exportError && (
-          <p role="alert" className="mt-3 text-xs font-medium text-[#B91C1C]">
+          <p role="alert" className="mt-3 text-xs font-medium text-[#B91C1C] dark:text-[#F87171]">
             {exportError}
           </p>
         )}
@@ -474,7 +475,7 @@ export const PreviewStage: React.FC<PreviewStageProps> = ({
               type="button"
               disabled={!isGenerated}
               onClick={handleSvg}
-              className="inline-flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold text-[#111214] bg-[#F4F2EC] hover:bg-[#EAE7DF] rounded-xl transition-colors whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+              className="inline-flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold text-[#111214] dark:text-[#E2E8F0] bg-[#F4F2EC] dark:bg-[#1E2536] hover:bg-[#EAE7DF] dark:hover:bg-[#283147] rounded-xl transition-colors whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
             >
               <FileCode2 className="w-3.5 h-3.5" aria-hidden="true" />
               <span>SVG</span>
@@ -484,11 +485,11 @@ export const PreviewStage: React.FC<PreviewStageProps> = ({
               type="button"
               disabled={!isGenerated}
               onClick={handleCopy}
-              className="inline-flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold text-[#111214] bg-[#F4F2EC] hover:bg-[#EAE7DF] rounded-xl transition-colors whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+              className="inline-flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-semibold text-[#111214] dark:text-[#E2E8F0] bg-[#F4F2EC] dark:bg-[#1E2536] hover:bg-[#EAE7DF] dark:hover:bg-[#283147] rounded-xl transition-colors whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
             >
               {copied ? (
                 <>
-                  <Check className="w-3.5 h-3.5 text-[#15803D]" aria-hidden="true" />
+                  <Check className="w-3.5 h-3.5 text-[#15803D] dark:text-[#4ADE80]" aria-hidden="true" />
                   <span>Copié</span>
                 </>
               ) : (
@@ -503,11 +504,11 @@ export const PreviewStage: React.FC<PreviewStageProps> = ({
               type="button"
               disabled={!isGenerated}
               onClick={onSaveToHistory}
-              className="inline-flex items-center justify-center gap-1.5 px-3 py-2 min-h-[42px] text-xs font-semibold text-[#111214] border border-[#DFDDD4] hover:bg-[#FAF9F5] rounded-xl transition-colors whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+              className="inline-flex items-center justify-center gap-1.5 px-3 py-2 min-h-[42px] text-xs font-semibold text-[#111214] dark:text-[#E2E8F0] border border-[#DFDDD4] dark:border-[#2A3348] hover:bg-[#FAF9F5] dark:hover:bg-[#1E2536] rounded-xl transition-colors whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
             >
               {justSaved ? (
                 <>
-                  <Check className="w-3.5 h-3.5 text-[#15803D]" aria-hidden="true" />
+                  <Check className="w-3.5 h-3.5 text-[#15803D] dark:text-[#4ADE80]" aria-hidden="true" />
                   <span>Sauvé</span>
                 </>
               ) : (
@@ -540,11 +541,11 @@ export const PreviewStage: React.FC<PreviewStageProps> = ({
                 }
               }}
               title="Copier le code SparkQR complet (design et faisceau laser inclus)"
-              className="inline-flex items-center justify-center gap-1.5 px-3 py-2 min-h-[42px] text-xs font-semibold text-[#4F46E5] bg-[#EEF2FF] hover:bg-[#E0E7FF] rounded-xl transition-colors whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+              className="inline-flex items-center justify-center gap-1.5 px-3 py-2 min-h-[42px] text-xs font-semibold text-[#4F46E5] dark:text-[#A5B4FC] bg-[#EEF2FF] dark:bg-[#1E2440] hover:bg-[#E0E7FF] dark:hover:bg-[#273054] rounded-xl transition-colors whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
             >
               {sharedPackageCopied ? (
                 <>
-                  <Check className="w-3.5 h-3.5 text-[#15803D]" aria-hidden="true" />
+                  <Check className="w-3.5 h-3.5 text-[#15803D] dark:text-[#4ADE80]" aria-hidden="true" />
                   <span>Partagé</span>
                 </>
               ) : (
@@ -562,9 +563,9 @@ export const PreviewStage: React.FC<PreviewStageProps> = ({
               data-testid="open-pro-export-btn"
               disabled={!isGenerated}
               onClick={onOpenProExport}
-              className="w-full inline-flex items-center justify-center gap-2 px-3 py-2.5 min-h-[42px] text-xs font-medium text-[#4B4D54] hover:text-[#111214] bg-[#F8F9FC] hover:bg-[#EFF4FF] border border-[#E2E6F0] rounded-xl transition-colors whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+              className="w-full inline-flex items-center justify-center gap-2 px-3 py-2.5 min-h-[42px] text-xs font-medium text-[#4B4D54] dark:text-[#94A3B8] hover:text-[#111214] dark:hover:text-white bg-[#F8F9FC] dark:bg-[#181E2D] hover:bg-[#EFF4FF] dark:hover:bg-[#212A3F] border border-[#E2E6F0] dark:border-[#263044] rounded-xl transition-colors whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
             >
-              <SlidersHorizontal className="w-3.5 h-3.5 text-[#4F46E5]" aria-hidden="true" />
+              <SlidersHorizontal className="w-3.5 h-3.5 text-[#4F46E5] dark:text-[#818CF8]" aria-hidden="true" />
               <span>Export Pro · PDF A4 · 2400px · Fond transparent</span>
             </button>
           )}

@@ -177,24 +177,20 @@ export const ExperienceSecurityPanel: React.FC<ExperienceSecurityPanelProps> = (
     <section
       aria-labelledby="exp-sec-heading"
       data-testid="experience-security-panel"
-      className="bg-white/95 border border-[#E2E6F0] rounded-2xl overflow-hidden shadow-[0_6px_24px_rgba(13,148,136,0.05)] transition-shadow duration-200 hover:shadow-[0_10px_28px_rgba(13,148,136,0.08)] relative"
+      className="bg-white dark:bg-[#131926] border border-[#E2E6F0] dark:border-[#242C3D] rounded-2xl overflow-hidden shadow-[0_2px_10px_rgba(15,23,42,0.03)] transition-colors"
     >
-      <div
-        aria-hidden="true"
-        className="h-1 w-full bg-gradient-to-r from-[#0D9488] via-[#10B981] to-[#2563EB]"
-      />
-      <div className="px-5 sm:px-6 py-4 bg-gradient-to-r from-[#F0FDFA]/80 via-[#F8FAFC] to-[#EFF6FF]/60 border-b border-[#E2E8F0] flex flex-wrap items-center justify-between gap-3">
+      <div className="px-5 sm:px-6 py-4 bg-[#F8FAFC] dark:bg-[#0F172A] border-b border-[#E2E6F0] dark:border-[#242C3D] flex flex-wrap items-center justify-between gap-3">
         <div className="min-w-0">
-          <span className="block text-[11px] font-semibold uppercase tracking-[0.14em] text-[#0D9488]">
+          <span className="block text-[11px] font-semibold uppercase tracking-[0.14em] text-[#0D9488] dark:text-[#2DD4BF]">
             Étape 3 · Après scan
           </span>
           <h2
             id="exp-sec-heading"
-            className="font-display text-sm sm:text-base font-bold tracking-tight text-[#111214] mt-0.5"
+            className="font-display text-sm sm:text-base font-bold tracking-tight text-[#111214] dark:text-[#F1F5F9] mt-0.5"
           >
             Affichage après scan &amp; Sécurité
           </h2>
-          <p className="text-xs text-[#6E7078] truncate mt-0.5">
+          <p className="text-xs text-[#6E7078] dark:text-[#94A3B8] truncate mt-0.5">
             {activeTemplateMeta?.label || 'Aperçu direct'}
             {' · '}
             Mode {currentReaderTheme === 'dark' ? 'Sombre' : 'Clair'}
@@ -210,7 +206,7 @@ export const ExperienceSecurityPanel: React.FC<ExperienceSecurityPanelProps> = (
           <div
             role="group"
             aria-label="Mode d'affichage après scan"
-            className="inline-flex p-0.5 bg-[#EFECE3] rounded-xl border border-[#E2DFD5]"
+            className="inline-flex p-0.5 bg-[#EEF2F6] dark:bg-[#1E293B] rounded-xl border border-[#DCE2EE] dark:border-[#334155]"
           >
             <button
               type="button"
@@ -219,8 +215,8 @@ export const ExperienceSecurityPanel: React.FC<ExperienceSecurityPanelProps> = (
               onClick={() => updateExp({ readerThemeMode: 'light' })}
               className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold rounded-lg transition-all duration-150 whitespace-nowrap cursor-pointer ${
                 currentReaderTheme === 'light'
-                  ? 'bg-white text-[#111214] shadow-xs'
-                  : 'text-[#5C5E66] hover:text-[#111214]'
+                  ? 'bg-white text-[#111214] shadow-2xs'
+                  : 'text-[#5C5E66] dark:text-[#94A3B8] hover:text-[#111214] dark:hover:text-white'
               }`}
             >
               <Sun className="w-3.5 h-3.5 text-[#D97706]" aria-hidden="true" />
@@ -233,8 +229,8 @@ export const ExperienceSecurityPanel: React.FC<ExperienceSecurityPanelProps> = (
               onClick={() => updateExp({ readerThemeMode: 'dark' })}
               className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold rounded-lg transition-all duration-150 whitespace-nowrap cursor-pointer ${
                 currentReaderTheme === 'dark'
-                  ? 'bg-[#111318] text-white shadow-xs'
-                  : 'text-[#5C5E66] hover:text-[#111214]'
+                  ? 'bg-[#111318] text-white shadow-2xs'
+                  : 'text-[#5C5E66] dark:text-[#94A3B8] hover:text-[#111214] dark:hover:text-white'
               }`}
             >
               <Moon className="w-3.5 h-3.5 text-[#60A5FA]" aria-hidden="true" />
@@ -247,9 +243,9 @@ export const ExperienceSecurityPanel: React.FC<ExperienceSecurityPanelProps> = (
             data-testid="toggle-exp-sec-btn"
             aria-expanded={expanded}
             onClick={() => setExpanded((v) => !v)}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-[#111214] bg-white hover:bg-[#F4F2EC] border border-[#E6E4DC] rounded-xl transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-[#111214] dark:text-[#F1F5F9] bg-white dark:bg-[#131926] hover:bg-[#F1F5F9] dark:hover:bg-[#1E293B] border border-[#DCE2EE] dark:border-[#334155] rounded-xl transition-colors whitespace-nowrap shrink-0 cursor-pointer"
           >
-            <Shield className="w-3.5 h-3.5 text-[#2563EB]" aria-hidden="true" />
+            <Shield className="w-3.5 h-3.5 text-[#2563EB] dark:text-[#60A5FA]" aria-hidden="true" />
             <span>{expanded ? 'Masquer' : 'Personnaliser'}</span>
             {expanded ? (
               <ChevronUp className="w-3.5 h-3.5" aria-hidden="true" />
@@ -263,16 +259,16 @@ export const ExperienceSecurityPanel: React.FC<ExperienceSecurityPanelProps> = (
       {expanded && (
         <div className="p-4 sm:p-5 space-y-4">
           {/* Clean Horizontal Tab + Category Strip */}
-          <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-[#EFECE4]">
-            <div className="inline-flex p-0.5 bg-[#F2F1EB] rounded-xl gap-0.5">
+          <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-[#EFEFF5] dark:border-[#242C3D]">
+            <div className="inline-flex p-0.5 bg-[#F1F5F9] dark:bg-[#0F172A] rounded-xl gap-0.5 border border-[#E2E6F0] dark:border-[#242C3D]">
               <button
                 type="button"
                 data-testid="tab-post-scan"
                 onClick={() => setActiveTab('experience')}
                 className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors whitespace-nowrap cursor-pointer ${
                   activeTab === 'experience'
-                    ? 'bg-white text-[#111214] shadow-2xs'
-                    : 'text-[#5C5E66] hover:text-[#111214]'
+                    ? 'bg-white dark:bg-[#1E293B] text-[#111214] dark:text-white shadow-2xs'
+                    : 'text-[#5C5E66] dark:text-[#94A3B8] hover:text-[#111214] dark:hover:text-white'
                 }`}
               >
                 <Sparkles className="w-3.5 h-3.5" aria-hidden="true" />
@@ -284,8 +280,8 @@ export const ExperienceSecurityPanel: React.FC<ExperienceSecurityPanelProps> = (
                 onClick={() => setActiveTab('security')}
                 className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors whitespace-nowrap cursor-pointer ${
                   activeTab === 'security'
-                    ? 'bg-white text-[#111214] shadow-2xs'
-                    : 'text-[#5C5E66] hover:text-[#111214]'
+                    ? 'bg-white dark:bg-[#1E293B] text-[#111214] dark:text-white shadow-2xs'
+                    : 'text-[#5C5E66] dark:text-[#94A3B8] hover:text-[#111214] dark:hover:text-white'
                 }`}
               >
                 <Lock className="w-3.5 h-3.5" aria-hidden="true" />
@@ -294,14 +290,14 @@ export const ExperienceSecurityPanel: React.FC<ExperienceSecurityPanelProps> = (
             </div>
 
             <div className="flex items-center gap-2">
-              <label htmlFor="project-category-select" className="text-[11px] font-medium text-[#5C5E66]">
+              <label htmlFor="project-category-select" className="text-[11px] font-medium text-[#5C5E66] dark:text-[#94A3B8]">
                 Classement
               </label>
               <select
                 id="project-category-select"
                 value={projectCategory}
                 onChange={(e) => onChangeCategory(e.target.value as ProjectCategory)}
-                className="px-2.5 py-1 text-xs bg-[#FAF9F5] border border-[#DBD8CE] rounded-lg"
+                className="px-2.5 py-1 text-xs bg-[#F8FAFC] dark:bg-[#0F172A] text-[#111214] dark:text-[#F1F5F9] border border-[#DCE2EE] dark:border-[#2A3346] rounded-lg"
               >
                 {PROJECT_CATEGORIES.map((cat) => (
                   <option key={cat} value={cat}>
@@ -315,12 +311,12 @@ export const ExperienceSecurityPanel: React.FC<ExperienceSecurityPanelProps> = (
           {activeTab === 'experience' ? (
             <div className="space-y-4 animate-[fadeIn_160ms_ease-out]">
               {/* Post-Scan Light/Dark Appearance Setting */}
-              <div className="p-3.5 rounded-xl bg-[#FAF9F5] border border-[#E8E6DF] space-y-2.5">
+              <div className="p-3.5 rounded-xl bg-[#F8FAFC] dark:bg-[#0F172A] border border-[#E2E6F0] dark:border-[#242C3D] space-y-2.5">
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <span className="text-xs font-bold text-[#111214]">
+                  <span className="text-xs font-bold text-[#111214] dark:text-[#F1F5F9]">
                     Apparence de la page après scan
                   </span>
-                  <span className="text-[11px] text-[#6E7078]">
+                  <span className="text-[11px] text-[#6E7078] dark:text-[#94A3B8]">
                     Mode affiché automatiquement au visiteur
                   </span>
                 </div>
@@ -331,18 +327,18 @@ export const ExperienceSecurityPanel: React.FC<ExperienceSecurityPanelProps> = (
                     onClick={() => updateExp({ readerThemeMode: 'light' })}
                     className={`flex items-center gap-3 p-3 rounded-xl border text-left transition-all duration-150 cursor-pointer ${
                       currentReaderTheme === 'light'
-                        ? 'border-[#2563EB] bg-white shadow-[0_4px_14px_rgba(37,99,235,0.1)]'
-                        : 'border-[#E6E4DC] bg-white/60 hover:bg-white'
+                        ? 'border-[#2563EB] bg-white dark:bg-[#1E293B]'
+                        : 'border-[#E2E6F0] dark:border-[#242C3D] bg-white/70 dark:bg-[#131926] hover:bg-white dark:hover:bg-[#1E293B]'
                     }`}
                   >
                     <span className="w-9 h-9 rounded-lg bg-[#FFFBEB] text-[#D97706] flex items-center justify-center shrink-0">
                       <Sun className="w-4 h-4" aria-hidden="true" />
                     </span>
                     <div className="min-w-0">
-                      <span className="block text-xs font-bold text-[#111214]">
+                      <span className="block text-xs font-bold text-[#111214] dark:text-[#F1F5F9]">
                         Mode Clair (par défaut)
                       </span>
-                      <span className="block text-[11px] text-[#6E7078] truncate">
+                      <span className="block text-[11px] text-[#6E7078] dark:text-[#94A3B8] truncate">
                         Papier éditorial lumineux et épuré
                       </span>
                     </div>
@@ -353,8 +349,8 @@ export const ExperienceSecurityPanel: React.FC<ExperienceSecurityPanelProps> = (
                     onClick={() => updateExp({ readerThemeMode: 'dark' })}
                     className={`flex items-center gap-3 p-3 rounded-xl border text-left transition-all duration-150 cursor-pointer ${
                       currentReaderTheme === 'dark'
-                        ? 'border-[#2563EB] bg-[#111318] text-white shadow-[0_6px_18px_rgba(17,19,24,0.25)]'
-                        : 'border-[#E6E4DC] bg-white/60 hover:bg-white text-[#111214]'
+                        ? 'border-[#2563EB] bg-[#111318] text-white'
+                        : 'border-[#E2E6F0] dark:border-[#242C3D] bg-white/70 dark:bg-[#131926] hover:bg-white dark:hover:bg-[#1E293B] text-[#111214] dark:text-[#F1F5F9]'
                     }`}
                   >
                     <span className="w-9 h-9 rounded-lg bg-[#1E293B] text-[#60A5FA] flex items-center justify-center shrink-0">
@@ -366,7 +362,7 @@ export const ExperienceSecurityPanel: React.FC<ExperienceSecurityPanelProps> = (
                       </span>
                       <span
                         className={`block text-[11px] truncate ${
-                          currentReaderTheme === 'dark' ? 'text-[#94A3B8]' : 'text-[#6E7078]'
+                          currentReaderTheme === 'dark' ? 'text-[#94A3B8]' : 'text-[#6E7078] dark:text-[#94A3B8]'
                         }`}
                       >
                         Écrin nocturne élégant et contrasté
@@ -388,8 +384,8 @@ export const ExperienceSecurityPanel: React.FC<ExperienceSecurityPanelProps> = (
                       onClick={() => updateExp({ template: tpl.id as PostScanTemplate })}
                       className={`px-3 py-2 rounded-xl border text-left transition-colors cursor-pointer ${
                         active
-                          ? 'border-[#1D4ED8] bg-[#EFF4FF] text-[#1D4ED8]'
-                          : 'border-[#E6E4DC] bg-[#FAF9F5] text-[#2C2E33] hover:bg-white'
+                          ? 'border-[#2563EB] bg-[#EFF4FF] dark:bg-[#1E293B] text-[#1D4ED8] dark:text-[#93C5FD]'
+                          : 'border-[#E2E6F0] dark:border-[#242C3D] bg-[#F8FAFC] dark:bg-[#0F172A] text-[#2C2E33] dark:text-[#CBD5E1] hover:bg-white dark:hover:bg-[#1E293B]'
                       }`}
                     >
                       <span className="block text-xs font-bold truncate">{tpl.label}</span>
@@ -404,7 +400,7 @@ export const ExperienceSecurityPanel: React.FC<ExperienceSecurityPanelProps> = (
               {/* Common headline, mood, description */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
                 <div>
-                  <label htmlFor="exp-headline" className="block text-[11px] font-medium text-[#4B4D54] mb-1">
+                  <label htmlFor="exp-headline" className="block text-[11px] font-medium text-[#4B4D54] dark:text-[#CBD5E1] mb-1">
                     Titre de la page cible
                   </label>
                   <input
@@ -413,12 +409,12 @@ export const ExperienceSecurityPanel: React.FC<ExperienceSecurityPanelProps> = (
                     value={experience.headline}
                     onChange={(e) => updateExp({ headline: e.target.value })}
                     placeholder="Titre principal après scan"
-                    className="w-full px-3 py-1.5 text-xs bg-[#FAF9F5] border border-[#DBD8CE] rounded-xl"
+                    className="w-full px-3 py-1.5 text-xs bg-[#F8FAFC] dark:bg-[#0F172A] text-[#111214] dark:text-[#F1F5F9] border border-[#DCE2EE] dark:border-[#2A3346] rounded-xl"
                   />
                 </div>
 
                 <div>
-                  <label htmlFor="exp-mood" className="block text-[11px] font-medium text-[#4B4D54] mb-1">
+                  <label htmlFor="exp-mood" className="block text-[11px] font-medium text-[#4B4D54] dark:text-[#CBD5E1] mb-1">
                     Ambiance visuelle
                   </label>
                   <select
@@ -429,7 +425,7 @@ export const ExperienceSecurityPanel: React.FC<ExperienceSecurityPanelProps> = (
                         accentMood: e.target.value as PostScanExperience['accentMood'],
                       })
                     }
-                    className="w-full px-3 py-1.5 text-xs bg-[#FAF9F5] border border-[#DBD8CE] rounded-xl"
+                    className="w-full px-3 py-1.5 text-xs bg-[#F8FAFC] dark:bg-[#0F172A] text-[#111214] dark:text-[#F1F5F9] border border-[#DCE2EE] dark:border-[#2A3346] rounded-xl"
                   >
                     {MOOD_OPTIONS.map((m) => (
                       <option key={m.id} value={m.id}>
@@ -440,7 +436,7 @@ export const ExperienceSecurityPanel: React.FC<ExperienceSecurityPanelProps> = (
                 </div>
 
                 <div>
-                  <label htmlFor="exp-cta" className="block text-[11px] font-medium text-[#4B4D54] mb-1">
+                  <label htmlFor="exp-cta" className="block text-[11px] font-medium text-[#4B4D54] dark:text-[#CBD5E1] mb-1">
                     Bouton d’action (optionnel)
                   </label>
                   <input
@@ -449,13 +445,13 @@ export const ExperienceSecurityPanel: React.FC<ExperienceSecurityPanelProps> = (
                     value={experience.ctaLabel}
                     onChange={(e) => updateExp({ ctaLabel: e.target.value })}
                     placeholder="Ex. : Confirmer ma venue"
-                    className="w-full px-3 py-1.5 text-xs bg-[#FAF9F5] border border-[#DBD8CE] rounded-xl"
+                    className="w-full px-3 py-1.5 text-xs bg-[#F8FAFC] dark:bg-[#0F172A] text-[#111214] dark:text-[#F1F5F9] border border-[#DCE2EE] dark:border-[#2A3346] rounded-xl"
                   />
                 </div>
               </div>
 
               <div>
-                <label htmlFor="exp-desc" className="block text-[11px] font-medium text-[#4B4D54] mb-1">
+                <label htmlFor="exp-desc" className="block text-[11px] font-medium text-[#4B4D54] dark:text-[#CBD5E1] mb-1">
                   Description / Texte d’accompagnement
                 </label>
                 <textarea
@@ -464,7 +460,7 @@ export const ExperienceSecurityPanel: React.FC<ExperienceSecurityPanelProps> = (
                   value={experience.description}
                   onChange={(e) => updateExp({ description: e.target.value })}
                   placeholder="Présentation, programme ou légende affichée lors du scan..."
-                  className="w-full px-3 py-2 text-xs bg-[#FAF9F5] border border-[#DBD8CE] rounded-xl"
+                  className="w-full px-3 py-2 text-xs bg-[#F8FAFC] dark:bg-[#0F172A] text-[#111214] dark:text-[#F1F5F9] border border-[#DCE2EE] dark:border-[#2A3346] rounded-xl"
                 />
               </div>
 
@@ -619,10 +615,10 @@ export const ExperienceSecurityPanel: React.FC<ExperienceSecurityPanelProps> = (
               )}
 
               {experience.template === 'mixed-collection' && (
-                <div className="pt-2 border-t border-[#EFECE4] space-y-2">
+                <div className="pt-2 border-t border-[#EFEFF5] dark:border-[#242C3D] space-y-2">
                   <label
                     htmlFor="mixed-text-block"
-                    className="block text-xs font-semibold text-[#111214]"
+                    className="block text-xs font-semibold text-[#111214] dark:text-[#F1F5F9]"
                   >
                     Texte de la collection mixte (retours à la ligne &amp; emojis préservés)
                   </label>
@@ -633,7 +629,7 @@ export const ExperienceSecurityPanel: React.FC<ExperienceSecurityPanelProps> = (
                     value={experience.mixedTextBlock || ''}
                     onChange={(e) => updateExp({ mixedTextBlock: e.target.value })}
                     placeholder="Ajoutez un texte éditorial, une histoire ou des notes avec emojis ✨ qui accompagneront vos images et vidéos..."
-                    className="w-full px-3 py-2 text-xs bg-[#FAF9F5] border border-[#DBD8CE] rounded-xl resize-y leading-relaxed"
+                    className="w-full px-3 py-2 text-xs bg-[#F8FAFC] dark:bg-[#0F172A] text-[#111214] dark:text-[#F1F5F9] border border-[#DCE2EE] dark:border-[#2A3346] rounded-xl resize-y leading-relaxed"
                   />
                 </div>
               )}
@@ -642,9 +638,9 @@ export const ExperienceSecurityPanel: React.FC<ExperienceSecurityPanelProps> = (
                 experience.template === 'video-gallery' ||
                 experience.template === 'media-gallery' ||
                 experience.template === 'mixed-collection') && (
-                <div className="pt-2 border-t border-[#EFECE4] space-y-2.5">
+                <div className="pt-2 border-t border-[#EFEFF5] dark:border-[#242C3D] space-y-2.5">
                   <div className="flex flex-wrap items-center justify-between gap-2">
-                    <span className="text-xs font-semibold text-[#111214]">
+                    <span className="text-xs font-semibold text-[#111214] dark:text-[#F1F5F9]">
                       Éléments multimédia ({experience.galleryItems.length})
                     </span>
                     <div className="flex flex-wrap items-center gap-2">
@@ -666,7 +662,7 @@ export const ExperienceSecurityPanel: React.FC<ExperienceSecurityPanelProps> = (
                         type="button"
                         disabled={uploadingGallery}
                         onClick={() => galleryFileRef.current?.click()}
-                        className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-semibold text-white bg-[#111214] rounded-lg cursor-pointer"
+                        className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-semibold text-white bg-[#111214] dark:bg-[#2563EB] rounded-lg cursor-pointer"
                       >
                         <ImagePlus className="w-3.5 h-3.5" aria-hidden="true" />
                         <span>{uploadingGallery ? 'Envoi...' : 'Importer fichiers'}</span>
@@ -695,7 +691,7 @@ export const ExperienceSecurityPanel: React.FC<ExperienceSecurityPanelProps> = (
                               ],
                             });
                           }}
-                          className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold text-[#1D4ED8] bg-[#EFF4FF] rounded-lg cursor-pointer"
+                          className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold text-[#1D4ED8] dark:text-[#93C5FD] bg-[#EFF4FF] dark:bg-[#1E293B] rounded-lg cursor-pointer"
                         >
                           <Plus className="w-3 h-3" aria-hidden="true" />
                           <span>+ Image démo</span>
@@ -731,7 +727,7 @@ export const ExperienceSecurityPanel: React.FC<ExperienceSecurityPanelProps> = (
                               ],
                             });
                           }}
-                          className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold text-[#1D4ED8] bg-[#EFF4FF] rounded-lg cursor-pointer"
+                          className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold text-[#1D4ED8] dark:text-[#93C5FD] bg-[#EFF4FF] dark:bg-[#1E293B] rounded-lg cursor-pointer"
                         >
                           <Plus className="w-3 h-3" aria-hidden="true" />
                           <span>+ Vidéo démo</span>
@@ -740,13 +736,13 @@ export const ExperienceSecurityPanel: React.FC<ExperienceSecurityPanelProps> = (
                     </div>
                   </div>
                   {galleryError && (
-                    <p className="text-[11px] text-[#B91C1C]">{galleryError}</p>
+                    <p className="text-[11px] text-[#B91C1C] dark:text-[#F87171]">{galleryError}</p>
                   )}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     {experience.galleryItems.map((item, idx) => (
                       <div
                         key={item.id}
-                        className="flex flex-col gap-1.5 p-2 rounded-xl bg-[#FAF9F5] border border-[#E6E4DC]"
+                        className="flex flex-col gap-1.5 p-2 rounded-xl bg-[#F8FAFC] dark:bg-[#0F172A] border border-[#E2E6F0] dark:border-[#242C3D]"
                       >
                         <div className="flex items-center gap-2">
                           {item.type === 'video' ? (
@@ -754,21 +750,21 @@ export const ExperienceSecurityPanel: React.FC<ExperienceSecurityPanelProps> = (
                               src={localThumbs[item.url] || item.url}
                               poster={item.posterUrl || undefined}
                               muted
-                              className="w-10 h-10 rounded-lg object-cover bg-black shrink-0"
+                              className="w-10 h-10 rounded-lg object-contain bg-black shrink-0"
                             />
                           ) : item.type === 'document' ? (
-                            <div className="w-10 h-10 rounded-lg bg-[#EFF4FF] text-[#1D4ED8] flex items-center justify-center shrink-0">
+                            <div className="w-10 h-10 rounded-lg bg-[#EFF4FF] dark:bg-[#1E293B] text-[#1D4ED8] dark:text-[#93C5FD] flex items-center justify-center shrink-0">
                               <FileText className="w-4 h-4" aria-hidden="true" />
                             </div>
                           ) : item.type === 'audio' ? (
-                            <div className="w-10 h-10 rounded-lg bg-[#F5F3FF] text-[#7C3AED] flex items-center justify-center shrink-0">
+                            <div className="w-10 h-10 rounded-lg bg-[#F5F3FF] dark:bg-[#2E1065]/40 text-[#7C3AED] dark:text-[#C4B5FD] flex items-center justify-center shrink-0">
                               <Music className="w-4 h-4" aria-hidden="true" />
                             </div>
                           ) : (
                             <img
                               src={localThumbs[item.url] || item.url}
                               alt=""
-                              className="w-10 h-10 rounded-lg object-cover shrink-0"
+                              className="w-10 h-10 rounded-lg object-contain bg-white dark:bg-[#131926] shrink-0"
                             />
                           )}
                           <input
@@ -780,7 +776,7 @@ export const ExperienceSecurityPanel: React.FC<ExperienceSecurityPanelProps> = (
                               updateExp({ galleryItems: next });
                             }}
                             placeholder="Titre personnalisé (optionnel)..."
-                            className="flex-1 min-w-0 px-2 py-1 text-xs bg-white border border-[#DBD8CE] rounded-lg"
+                            className="flex-1 min-w-0 px-2 py-1 text-xs bg-white dark:bg-[#131926] text-[#111214] dark:text-[#F1F5F9] border border-[#DCE2EE] dark:border-[#2A3346] rounded-lg"
                           />
                           <button
                             type="button"
@@ -792,21 +788,21 @@ export const ExperienceSecurityPanel: React.FC<ExperienceSecurityPanelProps> = (
                                 ),
                               })
                             }
-                            className="p-1 text-[#6E7078] hover:text-[#B91C1C] cursor-pointer"
+                            className="p-1 text-[#6E7078] dark:text-[#94A3B8] hover:text-[#B91C1C] cursor-pointer"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
                         </div>
                         {item.type === 'video' && (
                           item.posterUrl && isInternalMediaPath(item.posterUrl) ? (
-                            <div className="flex items-center justify-between gap-2 px-2 py-1 bg-white border border-[#DBD8CE] rounded-lg">
+                            <div className="flex items-center justify-between gap-2 px-2 py-1 bg-white dark:bg-[#131926] border border-[#DCE2EE] dark:border-[#2A3346] rounded-lg">
                               <div className="flex items-center gap-2 min-w-0">
                                 <img
                                   src={localThumbs[item.posterUrl] || item.posterUrl}
                                   alt="Miniature vidéo"
-                                  className="w-6 h-6 rounded object-cover shrink-0"
+                                  className="w-6 h-6 rounded object-contain shrink-0"
                                 />
-                                <span className="text-[11px] font-medium text-[#15803D] truncate">
+                                <span className="text-[11px] font-medium text-[#15803D] dark:text-[#34D399] truncate">
                                   Miniature prête
                                 </span>
                               </div>
@@ -817,7 +813,7 @@ export const ExperienceSecurityPanel: React.FC<ExperienceSecurityPanelProps> = (
                                   next[idx] = { ...item, posterUrl: '' };
                                   updateExp({ galleryItems: next });
                                 }}
-                                className="text-[11px] text-[#6E7078] hover:text-[#B91C1C] cursor-pointer"
+                                className="text-[11px] text-[#6E7078] dark:text-[#94A3B8] hover:text-[#B91C1C] cursor-pointer"
                               >
                                 Retirer
                               </button>
@@ -832,7 +828,7 @@ export const ExperienceSecurityPanel: React.FC<ExperienceSecurityPanelProps> = (
                                 updateExp({ galleryItems: next });
                               }}
                               placeholder="Lien HTTPS miniature vidéo (optionnel)..."
-                              className="w-full px-2 py-1 text-[11px] bg-white border border-[#DBD8CE] rounded-lg"
+                              className="w-full px-2 py-1 text-[11px] bg-white dark:bg-[#131926] text-[#111214] dark:text-[#F1F5F9] border border-[#DCE2EE] dark:border-[#2A3346] rounded-lg"
                             />
                           )
                         )}
@@ -844,15 +840,15 @@ export const ExperienceSecurityPanel: React.FC<ExperienceSecurityPanelProps> = (
             </div>
           ) : (
             <div className="space-y-4">
-              <div className="flex flex-wrap items-center justify-between gap-3 p-3.5 rounded-xl bg-[#FAF9F5] border border-[#E6E4DC]">
+              <div className="flex flex-wrap items-center justify-between gap-3 p-3.5 rounded-xl bg-[#F8FAFC] dark:bg-[#0F172A] border border-[#E2E6F0] dark:border-[#242C3D]">
                 <div>
                   <label
                     htmlFor="dynamic-enabled-toggle"
-                    className="text-xs font-bold text-[#111214] cursor-pointer"
+                    className="text-xs font-bold text-[#111214] dark:text-[#F1F5F9] cursor-pointer"
                   >
                     Activer le QR code modifiable (dynamique)
                   </label>
-                  <p className="text-[11px] text-[#5C5E66] mt-0.5">
+                  <p className="text-[11px] text-[#5C5E66] dark:text-[#94A3B8] mt-0.5">
                     Permet de modifier le contenu après création, compter les scans, protéger par code PIN ou définir une durée d’accessibilité.
                   </p>
                 </div>
@@ -862,7 +858,7 @@ export const ExperienceSecurityPanel: React.FC<ExperienceSecurityPanelProps> = (
                   type="checkbox"
                   checked={dynamicSecurity.enabled}
                   onChange={(e) => updateSec({ enabled: e.target.checked })}
-                  className="w-4 h-4 accent-[#1D4ED8] cursor-pointer"
+                  className="w-4 h-4 accent-[#2563EB] cursor-pointer"
                 />
               </div>
 
@@ -871,7 +867,7 @@ export const ExperienceSecurityPanel: React.FC<ExperienceSecurityPanelProps> = (
                   <div>
                     <label
                       htmlFor="dynamic-pin-input"
-                      className="block text-[11px] font-medium text-[#4B4D54] mb-1"
+                      className="block text-[11px] font-medium text-[#4B4D54] dark:text-[#CBD5E1] mb-1"
                     >
                       Code PIN / Mot de passe
                     </label>
@@ -882,14 +878,14 @@ export const ExperienceSecurityPanel: React.FC<ExperienceSecurityPanelProps> = (
                       value={dynamicSecurity.pinCode}
                       onChange={(e) => updateSec({ pinCode: e.target.value })}
                       placeholder={dynamicSecurity.hasPin ? 'Laisser vide pour conserver' : 'Ex. : 2468'}
-                      className="w-full px-3 py-1.5 text-xs bg-[#FAF9F5] border border-[#DBD8CE] rounded-xl"
+                      className="w-full px-3 py-1.5 text-xs bg-[#F8FAFC] dark:bg-[#0F172A] text-[#111214] dark:text-[#F1F5F9] border border-[#DCE2EE] dark:border-[#2A3346] rounded-xl"
                     />
                   </div>
 
                   <div>
                     <label
                       htmlFor="dynamic-max-scans"
-                      className="block text-[11px] font-medium text-[#4B4D54] mb-1"
+                      className="block text-[11px] font-medium text-[#4B4D54] dark:text-[#CBD5E1] mb-1"
                     >
                       Limite de scans
                     </label>
@@ -905,14 +901,14 @@ export const ExperienceSecurityPanel: React.FC<ExperienceSecurityPanelProps> = (
                         })
                       }
                       placeholder="Illimité"
-                      className="w-full px-3 py-1.5 text-xs bg-[#FAF9F5] border border-[#DBD8CE] rounded-xl tabular-nums"
+                      className="w-full px-3 py-1.5 text-xs bg-[#F8FAFC] dark:bg-[#0F172A] text-[#111214] dark:text-[#F1F5F9] border border-[#DCE2EE] dark:border-[#2A3346] rounded-xl tabular-nums"
                     />
                   </div>
 
                   <div>
                     <label
                       htmlFor="dynamic-expires-at"
-                      className="block text-[11px] font-medium text-[#4B4D54] mb-1"
+                      className="block text-[11px] font-medium text-[#4B4D54] dark:text-[#CBD5E1] mb-1"
                     >
                       <span className="inline-flex items-center gap-1">
                         <Calendar className="w-3 h-3" aria-hidden="true" />
@@ -925,19 +921,19 @@ export const ExperienceSecurityPanel: React.FC<ExperienceSecurityPanelProps> = (
                       type="datetime-local"
                       value={dynamicSecurity.expiresAt}
                       onChange={(e) => updateSec({ expiresAt: e.target.value })}
-                      className="w-full px-3 py-1.5 text-xs bg-[#FAF9F5] border border-[#DBD8CE] rounded-xl"
+                      className="w-full px-3 py-1.5 text-xs bg-[#F8FAFC] dark:bg-[#0F172A] text-[#111214] dark:text-[#F1F5F9] border border-[#DCE2EE] dark:border-[#2A3346] rounded-xl"
                     />
                   </div>
 
                   <div className="flex flex-col justify-end">
-                    <label className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-[#FAF9F5] border border-[#DBD8CE] cursor-pointer">
+                    <label className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-[#F8FAFC] dark:bg-[#0F172A] border border-[#DCE2EE] dark:border-[#2A3346] cursor-pointer">
                       <input
                         type="checkbox"
                         checked={dynamicSecurity.active}
                         onChange={(e) => updateSec({ active: e.target.checked })}
-                        className="w-3.5 h-3.5 accent-[#1D4ED8]"
+                        className="w-3.5 h-3.5 accent-[#2563EB]"
                       />
-                      <span className="text-xs font-semibold text-[#111214]">
+                      <span className="text-xs font-semibold text-[#111214] dark:text-[#F1F5F9]">
                         {dynamicSecurity.active ? 'Lien actif' : 'Lien suspendu'}
                       </span>
                     </label>

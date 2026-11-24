@@ -28,17 +28,17 @@ export const PrivacyTermsModal: React.FC<PrivacyTermsModalProps> = ({ open, onCl
     >
       <div
         data-testid="privacy-terms-modal"
-        className="w-full max-w-2xl bg-white border border-[#E2E6F0] rounded-t-3xl sm:rounded-2xl p-5 sm:p-7 pb-safe shadow-2xl space-y-5 max-h-[92dvh] overflow-y-auto animate-modal-enter"
+        className="w-full max-w-2xl bg-white dark:bg-[#131926] border border-[#E2E6F0] dark:border-[#242C3D] rounded-t-3xl sm:rounded-2xl p-5 sm:p-7 pb-safe shadow-2xl space-y-5 max-h-[92dvh] overflow-y-auto animate-modal-enter"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-start justify-between gap-3 pb-3 border-b border-[#EFEFF5]">
+        <div className="flex items-start justify-between gap-3 pb-3 border-b border-[#EFEFF5] dark:border-[#242C3D]">
           <div>
-            <span className="block text-[11px] font-semibold uppercase tracking-[0.14em] text-[#2563EB]">
+            <span className="block text-[11px] font-semibold uppercase tracking-[0.14em] text-[#2563EB] dark:text-[#60A5FA]">
               Transparence &amp; Sécurité
             </span>
             <h2
               id="privacy-modal-title"
-              className="font-display text-lg sm:text-xl font-bold text-[#111214] mt-0.5"
+              className="font-display text-lg sm:text-xl font-bold text-[#111214] dark:text-[#F1F5F9] mt-0.5"
             >
               Confidentialité &amp; Conditions
             </h2>
@@ -47,16 +47,16 @@ export const PrivacyTermsModal: React.FC<PrivacyTermsModalProps> = ({ open, onCl
             type="button"
             onClick={onClose}
             aria-label="Fermer"
-            className="p-2 text-[#5C5E66] hover:text-[#111214] rounded-xl cursor-pointer"
+            className="p-2 text-[#5C5E66] dark:text-[#94A3B8] hover:text-[#111214] dark:hover:text-white rounded-xl cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
 
-        <div className="space-y-4 text-xs sm:text-sm text-[#4B4D54] leading-relaxed">
-          <section className="rounded-2xl border border-[#DCE6FF] bg-[#F5F8FF] p-4 space-y-1.5">
-            <div className="flex items-center gap-2 font-bold text-[#111214]">
-              <Lock className="w-4 h-4 text-[#2563EB]" aria-hidden="true" />
+        <div className="space-y-4 text-xs sm:text-sm text-[#4B4D54] dark:text-[#CBD5E1] leading-relaxed">
+          <section className="rounded-xl border border-[#DCE6FF] dark:border-[#334155] bg-[#F5F8FF] dark:bg-[#0F172A] p-4 space-y-1.5">
+            <div className="flex items-center gap-2 font-bold text-[#111214] dark:text-[#F1F5F9]">
+              <Lock className="w-4 h-4 text-[#2563EB] dark:text-[#60A5FA]" aria-hidden="true" />
               <h3>1. Chiffrement de bout en bout</h3>
             </div>
             <p>
@@ -67,22 +67,22 @@ export const PrivacyTermsModal: React.FC<PrivacyTermsModalProps> = ({ open, onCl
             </p>
           </section>
 
-          <section className="rounded-2xl border border-[#FDE68A] bg-[#FFFBEB] p-4 space-y-1.5">
-            <div className="flex items-center gap-2 font-bold text-[#92400E]">
-              <ShieldCheck className="w-4 h-4 text-[#D97706]" aria-hidden="true" />
+          <section className="rounded-xl border border-[#FDE68A] dark:border-[#78350F] bg-[#FFFBEB] dark:bg-[#451A03]/30 p-4 space-y-1.5">
+            <div className="flex items-center gap-2 font-bold text-[#92400E] dark:text-[#FCD34D]">
+              <ShieldCheck className="w-4 h-4 text-[#D97706] dark:text-[#FBBF24]" aria-hidden="true" />
               <h3>2. Partage et accès sécurisés</h3>
             </div>
-            <p className="text-[#78350F]">
+            <p className="text-[#78350F] dark:text-[#FDE68A]">
               Toute personne qui scanne votre QR code ou dispose du lien complet peut consulter le contenu tant que celui-ci est actif. Partagez uniquement vos créations privées avec des destinataires de confiance.
             </p>
-            <p className="text-[#78350F]">
+            <p className="text-[#78350F] dark:text-[#FDE68A]">
               Si le lien ou le QR code d’origine est perdu, le contenu protégé ne peut pas être restauré ni déchiffré.
             </p>
           </section>
 
-          <section className="rounded-2xl border border-[#E2E6F0] bg-[#FAF9F5] p-4 space-y-1.5">
-            <div className="flex items-center gap-2 font-bold text-[#111214]">
-              <Clock className="w-4 h-4 text-[#4F46E5]" aria-hidden="true" />
+          <section className="rounded-xl border border-[#E2E6F0] dark:border-[#242C3D] bg-[#F8FAFC] dark:bg-[#0F172A] p-4 space-y-1.5">
+            <div className="flex items-center gap-2 font-bold text-[#111214] dark:text-[#F1F5F9]">
+              <Clock className="w-4 h-4 text-[#4F46E5] dark:text-[#818CF8]" aria-hidden="true" />
               <h3>3. Durée de conservation : 7 jours gratuits ou 1 mois à 1 an</h3>
             </div>
             <p>
@@ -93,9 +93,9 @@ export const PrivacyTermsModal: React.FC<PrivacyTermsModalProps> = ({ open, onCl
             </p>
           </section>
 
-          <section className="rounded-2xl border border-[#E2E6F0] bg-[#FAF9F5] p-4 space-y-1.5">
-            <div className="flex items-center gap-2 font-bold text-[#111214]">
-              <Trash2 className="w-4 h-4 text-[#B91C1C]" aria-hidden="true" />
+          <section className="rounded-xl border border-[#E2E6F0] dark:border-[#242C3D] bg-[#F8FAFC] dark:bg-[#0F172A] p-4 space-y-1.5">
+            <div className="flex items-center gap-2 font-bold text-[#111214] dark:text-[#F1F5F9]">
+              <Trash2 className="w-4 h-4 text-[#B91C1C] dark:text-[#F87171]" aria-hidden="true" />
               <h3>4. Suppression automatique et manuelle</h3>
             </div>
             <p>
@@ -104,11 +104,11 @@ export const PrivacyTermsModal: React.FC<PrivacyTermsModalProps> = ({ open, onCl
           </section>
         </div>
 
-        <div className="flex justify-end pt-2 border-t border-[#EFEFF5]">
+        <div className="flex justify-end pt-2 border-t border-[#EFEFF5] dark:border-[#242C3D]">
           <button
             type="button"
             onClick={onClose}
-            className="px-5 py-2.5 text-xs font-semibold text-white bg-[#111214] hover:bg-[#27292E] rounded-xl cursor-pointer"
+            className="px-5 py-2.5 text-xs font-semibold text-white bg-[#111214] dark:bg-[#2563EB] hover:bg-[#27292E] dark:hover:bg-[#1D4ED8] rounded-xl cursor-pointer"
           >
             Compris
           </button>

@@ -219,22 +219,89 @@ function sanitizeParsedPackage(
   return { ok: true, item, originKind: 'sparkqr-package' };
 }
 
+export function isValidQrPayloadFormat(raw: string): boolean {
+  const trimmed = (raw || '').trim();
+  if (!trimmed || trimmed.length > 4200 || isUnsafePayloadString(trimmed)) {
+    return false;
+  }
+  if (/^https?:\/\/[^\s/$.?#].[^\s]*$/i.test(trimmed)) {
+    try {
+      const parsed = new URL(trimmed);
+      return Boolean(parsed.hostname && (parsed.hostname.includes('.') || parsed.hostname === 'localhost'));
+    } catch {
+      return false;
+    }
+  }
+  if (/^WIFI:T:(?:WPA|WEP|nopass|WPA2);S:[^;]+;.*;;?$/i.test(trimmed)) {
+    return true;
+  }
+  if (/^mailto:[^\s@]+@[^\s@]+\.[^\s@]+/i.test(trimmed)) {
+    return true;
+  }
+  if (/^tel:[+0-9().\-\s]{5,}$/i.test(trimmed)) {
+    return true;
+  }
+  if (/^sms:[+0-9().\-\s]{5,}/i.test(trimmed)) {
+    return true;
+  }
+  if (/^BEGIN:VCARD[\s\S]+END:VCARD$/i.test(trimmed)) {
+    return true;
+  }
+  if (/^MATMSG:TO:[^;]+;/i.test(trimmed)) {
+    return true;
+  }
+  if (/^geo:-?\d+(?:\.\d+)?,-?\d+(?:\.\d+)?/i.test(trimmed)) {
+    return true;
+  }
+  return false;
+}
+
+export function extractSparkQrReaderEndpoint(
+  payload: string
+): { kind: 'media' | 'dynamic'; id: string; keyFragment: string | null } | null {
+  const trimmed = (payload || '').trim();
+  if (!trimmed) return null;
+  try {
+    const parsed = /^https?:\/\//i.test(trimmed)
+      ? new URL(trimmed)
+      : trimmed.startsWith('/')
+      ? new URL(`https://sparkqr.local${trimmed}`)
+      : null;
+    if (!parsed) return null;
+
+    const hashParams = new URLSearchParams((parsed.hash || '').replace(/^#/, ''));
+    const keyFragment = hashParams.get('k') || hashParams.get('key') || null;
+
+    const mediaMatch = parsed.pathname.match(/^\/m\/([a-zA-Z0-9_-]{4,64})$/);
+    if (mediaMatch?.[1]) {
+      return { kind: 'media', id: mediaMatch[1], keyFragment };
+    }
+    const dynamicMatch = parsed.pathname.match(/^\/d\/([a-zA-Z0-9_-]{3,64})$/);
+    if (dynamicMatch?.[1]) {
+      return { kind: 'dynamic', id: dynamicMatch[1], keyFragment };
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
 export function parseReceivedQrInput(
   rawInput: string,
-  options?: { fallbackTitle?: string; laserEnabled?: boolean }
+  options?: { fallbackTitle?: string; laserEnabled?: boolean; fromDecodedImage?: boolean }
 ): { ok: true; item: SavedQrItem; originKind: 'sparkqr-package' | 'raw-qr' } | { ok: false; error: string } {
   const trimmed = (rawInput || '').trim();
   if (!trimmed) {
     return {
       ok: false,
-      error: 'Collez un code SparkQR, un lien reçu ou importez une image QR.',
+      error: 'Importez une image contenant un QR code ou collez un lien QR valide.',
     };
   }
   if (isUnsafePayloadString(trimmed)) {
-    return { ok: false, error: 'Lien non sécurisé refusé.' };
+    return { ok: false, error: 'Contenu non sécurisé refusé.' };
   }
 
-  // 1. Check SPARKQR1:... prefix (either directly or inside ?sq= / #sq= param)
+  // 1. Check SparkQR shared wrapper (directly or inside ?sq= / #sq= param)
   let token = '';
   if (trimmed.startsWith(SHARE_PREFIX)) {
     token = trimmed.slice(SHARE_PREFIX.length).trim();
@@ -254,23 +321,31 @@ export function parseReceivedQrInput(
       const parsed = JSON.parse(jsonText) as Record<string, unknown>;
       return sanitizeParsedPackage(parsed, options?.fallbackTitle);
     } catch {
-      return { ok: false, error: 'Code de partage SparkQR invalide ou incomplet.' };
+      return { ok: false, error: 'Ce code partagé est invalide ou incomplet.' };
     }
   }
 
-  // 2. Check raw JSON object (.sparkqr.json content)
-  if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+  // 2. Check structured JSON export object
+  if (trimmed.startsWith('{') || trimmed.endsWith('}')) {
     try {
       const parsed = JSON.parse(trimmed) as Record<string, unknown>;
       if (typeof parsed.payload === 'string') {
         return sanitizeParsedPackage(parsed, options?.fallbackTitle);
       }
+      return { ok: false, error: 'Ce fichier ne contient aucun QR code exploitable.' };
     } catch {
-      return { ok: false, error: 'Fichier JSON SparkQR invalide.' };
+      return { ok: false, error: 'Format de fichier QR invalide ou corrompu.' };
     }
   }
 
-  // 3. Plain QR payload (URL, Wi-Fi, or text decoded from an image or pasted link)
+  // 3. Strict validation when pasted as text (must be a real QR payload scheme, unless genuinely decoded from a QR matrix image)
+  if (!options?.fromDecodedImage && !isValidQrPayloadFormat(trimmed)) {
+    return {
+      ok: false,
+      error: 'Texte non reconnu comme un QR code valide. Collez un lien (https://…), un code Wi-Fi ou importez directement l’image du QR code.',
+    };
+  }
+
   const source = buildSourceFromPlainPayload(trimmed);
   let derivedTitle = options?.fallbackTitle || '';
   if (!derivedTitle) {
@@ -278,7 +353,7 @@ export function parseReceivedQrInput(
       try {
         derivedTitle = new URL(trimmed).hostname.replace(/^www\./, '');
       } catch {
-        derivedTitle = 'Lien reçu';
+        derivedTitle = 'Lien QR';
       }
     } else if (source.textMode === 'wifi') {
       derivedTitle = `Wi-Fi ${source.wifiSsid}`;
@@ -290,7 +365,7 @@ export function parseReceivedQrInput(
   const nowIso = new Date().toISOString();
   const item: SavedQrItem = {
     id: `imported-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
-    name: derivedTitle || 'QR reçu',
+    name: derivedTitle || 'QR importé',
     category: 'Personnel',
     createdAt: nowIso,
     updatedAt: nowIso,
@@ -298,7 +373,7 @@ export function parseReceivedQrInput(
     source,
     config: {
       ...DEFAULT_CONFIG,
-      titleText: derivedTitle || 'Code QR reçu',
+      titleText: derivedTitle || 'Mon Code QR',
       subtitleText: 'Scannez pour découvrir',
       laserEnabled: options?.laserEnabled ?? true,
     },

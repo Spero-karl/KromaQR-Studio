@@ -26,9 +26,15 @@ import {
   UserCheck,
   X,
 } from 'lucide-react';
-import { DEFAULT_EXPERIENCE, PROJECT_CATEGORIES } from '../data/presets';
+import {
+  DEFAULT_CONFIG,
+  DEFAULT_EXPERIENCE,
+  DEFAULT_SOURCE,
+  PROJECT_CATEGORIES,
+} from '../data/presets';
 import type {
   DynamicQrRecord,
+  PostScanExperience,
   ProjectCategory,
   QrConfig,
   QrSourceState,
@@ -37,6 +43,8 @@ import type {
   WorkspaceInfo,
 } from '../types/qr';
 import { updateDynamicQr } from '../utils/dynamicApi';
+import { decryptJsonWithKey, isValidE2eeEnvelope } from '../utils/e2eeCrypto';
+import { normalizeConfigWithDefaults } from '../utils/historyReducer';
 import { resolveMediaDownloadUrl } from '../utils/mediaReaderLogic';
 import { relativeLuminance, verifyQrDecodeFromImageData } from '../utils/qrLogic';
 import {
@@ -46,6 +54,7 @@ import {
 import {
   encodeSparkQrJsonFile,
   encodeSparkQrSharePackage,
+  extractSparkQrReaderEndpoint,
   isUnsafePayloadString,
   parseReceivedQrInput,
 } from '../utils/sharedQrPackage';
@@ -69,27 +78,31 @@ function getAccessibilityStyles(
     case 'permanent':
     case 'active':
       return {
-        container: 'bg-[#ECFDF5] border-[#A7F3D0] text-[#065F46]',
-        headline: 'text-[#047857]',
-        icon: 'text-[#059669]',
+        container:
+          'bg-[#ECFDF5] dark:bg-[#0D261D] border-[#A7F3D0] dark:border-[#14532D] text-[#065F46] dark:text-[#A7F3D0]',
+        headline: 'text-[#047857] dark:text-[#6EE7B7]',
+        icon: 'text-[#059669] dark:text-[#34D399]',
       };
     case 'expiring':
       return {
-        container: 'bg-[#FFFBEB] border-[#FDE68A] text-[#92400E]',
-        headline: 'text-[#B45309]',
-        icon: 'text-[#D97706]',
+        container:
+          'bg-[#FFFBEB] dark:bg-[#291F09] border-[#FDE68A] dark:border-[#78350F] text-[#92400E] dark:text-[#FDE68A]',
+        headline: 'text-[#B45309] dark:text-[#FBBF24]',
+        icon: 'text-[#D97706] dark:text-[#F59E0B]',
       };
     case 'paused':
       return {
-        container: 'bg-[#F5F3FF] border-[#DDD6FE] text-[#5B21B6]',
-        headline: 'text-[#6D28D9]',
-        icon: 'text-[#7C3AED]',
+        container:
+          'bg-[#F5F3FF] dark:bg-[#1E1635] border-[#DDD6FE] dark:border-[#4C1D95] text-[#5B21B6] dark:text-[#DDD6FE]',
+        headline: 'text-[#6D28D9] dark:text-[#C4B5FD]',
+        icon: 'text-[#7C3AED] dark:text-[#A78BFA]',
       };
     case 'expired':
       return {
-        container: 'bg-[#FEF2F2] border-[#FECACA] text-[#991B1B]',
-        headline: 'text-[#B91C1C]',
-        icon: 'text-[#DC2626]',
+        container:
+          'bg-[#FEF2F2] dark:bg-[#2A1215] border-[#FECACA] dark:border-[#7F1D1D] text-[#991B1B] dark:text-[#FECACA]',
+        headline: 'text-[#B91C1C] dark:text-[#FCA5A5]',
+        icon: 'text-[#DC2626] dark:text-[#F87171]',
       };
   }
 }
@@ -102,40 +115,116 @@ function getLaserAccentColor(config: QrConfig): string {
   return '#2563EB';
 }
 
+function thresholdImageData(
+  src: Uint8ClampedArray,
+  cutoff: number
+): Uint8ClampedArray {
+  const out = new Uint8ClampedArray(src.length);
+  for (let i = 0; i < src.length; i += 4) {
+    const luma = src[i] * 0.299 + src[i + 1] * 0.587 + src[i + 2] * 0.114;
+    const val = luma < cutoff ? 0 : 255;
+    out[i] = val;
+    out[i + 1] = val;
+    out[i + 2] = val;
+    out[i + 3] = 255;
+  }
+  return out;
+}
+
+function tryDecodeCanvas(
+  ctx: CanvasRenderingContext2D,
+  width: number,
+  height: number
+): string | null {
+  const imageData = ctx.getImageData(0, 0, width, height);
+  const direct = verifyQrDecodeFromImageData(imageData.data, width, height);
+  if (direct) return direct;
+
+  for (const cutoff of [120, 165, 90]) {
+    const bin = thresholdImageData(imageData.data, cutoff);
+    const decoded = verifyQrDecodeFromImageData(bin, width, height);
+    if (decoded) return decoded;
+  }
+  return null;
+}
+
 function decodeQrImageFile(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const objectUrl = URL.createObjectURL(file);
     const img = new Image();
     img.onload = () => {
       try {
-        const maxSide = 1200;
-        const scale = Math.min(1, maxSide / Math.max(img.width || 1, img.height || 1));
-        const width = Math.max(120, Math.round((img.width || 400) * scale));
-        const height = Math.max(120, Math.round((img.height || 400) * scale));
+        const natW = img.naturalWidth || img.width || 960;
+        const natH = img.naturalHeight || img.height || 960;
+        const maxSide = 1400;
+        const minSide = 420;
+        const rawMax = Math.max(natW, natH, 1);
+        const scale =
+          rawMax > maxSide
+            ? maxSide / rawMax
+            : rawMax < minSide
+            ? minSide / rawMax
+            : 1;
+        const width = Math.max(240, Math.round(natW * scale));
+        const height = Math.max(240, Math.round(natH * scale));
+
         const canvas = document.createElement('canvas');
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext('2d');
+        const ctx = canvas.getContext('2d', { willReadFrequently: true });
         if (!ctx) {
           URL.revokeObjectURL(objectUrl);
           reject(new Error('Canvas indisponible pour lire l’image QR.'));
           return;
         }
+
+        // Pass 1: Crisp scaled full image
+        canvas.width = width;
+        canvas.height = height;
         ctx.fillStyle = '#FFFFFF';
         ctx.fillRect(0, 0, width, height);
         ctx.drawImage(img, 0, 0, width, height);
-        const imageData = ctx.getImageData(0, 0, width, height);
-        const decoded = verifyQrDecodeFromImageData(imageData.data, width, height);
-        URL.revokeObjectURL(objectUrl);
-        if (!decoded) {
-          reject(
-            new Error(
-              'Aucun QR code lisible détecté dans cette image. Essayez avec une image plus nette ou collez le code SparkQR.'
-            )
-          );
+        const pass1 = tryDecodeCanvas(ctx, width, height);
+        if (pass1) {
+          URL.revokeObjectURL(objectUrl);
+          resolve(pass1);
           return;
         }
-        resolve(decoded);
+
+        // Pass 2: Quiet-zone padded full image (+48px white border)
+        const pad = 48;
+        canvas.width = width + pad * 2;
+        canvas.height = height + pad * 2;
+        ctx.fillStyle = '#FFFFFF';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(img, pad, pad, width, height);
+        const pass2 = tryDecodeCanvas(ctx, canvas.width, canvas.height);
+        if (pass2) {
+          URL.revokeObjectURL(objectUrl);
+          resolve(pass2);
+          return;
+        }
+
+        // Pass 3: Center-cropped pass (isolates QR code inside exported SparkQR cards)
+        const cropW = Math.max(160, Math.round(natW * 0.84));
+        const cropH = Math.max(160, Math.round(natH * 0.76));
+        const cropX = Math.round((natW - cropW) / 2);
+        const cropY = Math.round((natH - cropH) / 2);
+        canvas.width = 960;
+        canvas.height = 960;
+        ctx.fillStyle = '#FFFFFF';
+        ctx.fillRect(0, 0, 960, 960);
+        ctx.drawImage(img, cropX, cropY, cropW, cropH, 48, 48, 864, 864);
+        const pass3 = tryDecodeCanvas(ctx, 960, 960);
+        URL.revokeObjectURL(objectUrl);
+        if (pass3) {
+          resolve(pass3);
+          return;
+        }
+
+        reject(
+          new Error(
+            'Aucun QR code valide détecté dans cette image. Importez une image contenant un QR code lisible.'
+          )
+        );
       } catch (err) {
         URL.revokeObjectURL(objectUrl);
         reject(
@@ -147,7 +236,7 @@ function decodeQrImageFile(file: File): Promise<string> {
     };
     img.onerror = () => {
       URL.revokeObjectURL(objectUrl);
-      reject(new Error('Format d’image non reconnu.'));
+      reject(new Error('Format d’image non reconnu ou fichier corrompu.'));
     };
     img.src = objectUrl;
   });
@@ -237,6 +326,7 @@ export const HistoryGallery: React.FC<HistoryGalleryProps> = ({
   const [importError, setImportError] = useState<string | null>(null);
   const [importBusy, setImportBusy] = useState(false);
   const importFileInputRef = useRef<HTMLInputElement | null>(null);
+  const importSeqRef = useRef(0);
 
   const openViewerForSavedItem = (item: SavedQrItem) => {
     setViewerItem(item);
@@ -245,20 +335,29 @@ export const HistoryGallery: React.FC<HistoryGalleryProps> = ({
   };
 
   const openImportModal = () => {
+    importSeqRef.current += 1;
     setImportRawInput('');
     setImportParsed(null);
     setImportError(null);
+    setImportBusy(false);
     setImportModalOpen(true);
   };
 
-  const applyParsedInput = (raw: string) => {
+  const applyParsedInput = async (
+    raw: string,
+    opts?: { fromDecodedImage?: boolean }
+  ) => {
+    const seq = ++importSeqRef.current;
     setImportRawInput(raw);
     if (!raw.trim()) {
       setImportParsed(null);
       setImportError(null);
       return;
     }
-    const parsed = parseReceivedQrInput(raw);
+
+    const parsed = parseReceivedQrInput(raw, {
+      fromDecodedImage: opts?.fromDecodedImage,
+    });
     if (!parsed.ok) {
       setImportParsed(null);
       setImportError(
@@ -268,15 +367,136 @@ export const HistoryGallery: React.FC<HistoryGalleryProps> = ({
       );
       return;
     }
+
     setImportError(null);
+    let nextName = parsed.item.name;
+    let nextPayload = parsed.item.payload;
+    let nextSource = parsed.item.source;
+    let nextConfig = parsed.item.config;
+    let nextExperience = parsed.item.experience ?? DEFAULT_EXPERIENCE;
+    const nextCategory = parsed.item.category || 'Personnel';
+
+    const endpointInfo = extractSparkQrReaderEndpoint(parsed.item.payload);
+    if (endpointInfo) {
+      setImportBusy(true);
+      try {
+        const apiUrl =
+          endpointInfo.kind === 'media'
+            ? `/api/reader/media/${encodeURIComponent(endpointInfo.id)}`
+            : `/api/reader/dynamic/${encodeURIComponent(endpointInfo.id)}`;
+        const res = await fetch(apiUrl);
+        if (res.ok) {
+          const body = (await res.json()) as {
+            config?: Partial<QrConfig>;
+            cardTheme?: Partial<QrConfig>;
+            source?: Partial<QrSourceState>;
+            experience?: Partial<PostScanExperience>;
+            mediaType?: string;
+            title?: string;
+            payload?: string;
+            isEncrypted?: boolean;
+            encryptedMeta?: unknown;
+            locked?: boolean;
+          };
+
+          if (seq !== importSeqRef.current) return;
+
+          if (body.config) {
+            nextConfig = normalizeConfigWithDefaults(body.config, DEFAULT_CONFIG);
+          } else if (body.cardTheme) {
+            nextConfig = normalizeConfigWithDefaults(body.cardTheme, DEFAULT_CONFIG);
+          }
+
+          if (body.source) {
+            nextSource = {
+              ...DEFAULT_SOURCE,
+              ...body.source,
+              imageName: '',
+              videoName: '',
+            };
+          }
+
+          if (body.experience) {
+            nextExperience = { ...DEFAULT_EXPERIENCE, ...body.experience };
+          }
+
+          if (
+            (body.mediaType === 'document' || body.mediaType === 'audio') &&
+            nextExperience.galleryItems.every(
+              (g) => !g.url.includes(`/api/media/${endpointInfo.id}/file`)
+            )
+          ) {
+            nextExperience = {
+              ...nextExperience,
+              template: 'media-gallery',
+              galleryItems: [
+                {
+                  id: `media-${endpointInfo.id}`,
+                  type: body.mediaType,
+                  url: `/api/media/${endpointInfo.id}/file`,
+                  caption: '',
+                  isEncrypted: Boolean(body.isEncrypted),
+                },
+              ],
+            };
+          }
+
+          if (!body.locked && body.isEncrypted && endpointInfo.keyFragment && isValidE2eeEnvelope(body.encryptedMeta)) {
+            const decrypted = await decryptJsonWithKey<{
+              source?: Partial<QrSourceState>;
+              experience?: Partial<PostScanExperience>;
+              title?: string;
+            }>(body.encryptedMeta, endpointInfo.keyFragment);
+
+            if (seq !== importSeqRef.current) return;
+
+            if (decrypted.source) {
+              nextSource = {
+                ...nextSource,
+                ...decrypted.source,
+                imageName: '',
+                videoName: '',
+                e2eeEnabled: true,
+                e2eeKeyFragment: endpointInfo.keyFragment,
+              };
+            } else {
+              nextSource = {
+                ...nextSource,
+                e2eeEnabled: true,
+                e2eeKeyFragment: endpointInfo.keyFragment,
+              };
+            }
+            if (decrypted.experience) {
+              nextExperience = { ...nextExperience, ...decrypted.experience };
+            }
+            if (decrypted.title && decrypted.title !== 'Contenu chiffré') {
+              nextName = decrypted.title;
+            }
+          } else if (body.title && body.title !== 'Contenu chiffré') {
+            nextName = body.title;
+          } else if (nextConfig.titleText && nextConfig.titleText !== 'Mon Code QR') {
+            nextName = nextConfig.titleText;
+          }
+        }
+      } catch {
+        // Keep parsed QR fallback gracefully if offline or external origin
+      } finally {
+        if (seq === importSeqRef.current) {
+          setImportBusy(false);
+        }
+      }
+    }
+
+    if (seq !== importSeqRef.current) return;
+
     setImportParsed({
-      name: parsed.item.name,
-      payload: parsed.item.payload,
-      source: parsed.item.source,
-      config: parsed.item.config,
-      experience: parsed.item.experience,
-      category: parsed.item.category || 'Personnel',
-      laserEnabled: parsed.item.config.laserEnabled !== false,
+      name: nextName,
+      payload: nextPayload,
+      source: nextSource,
+      config: nextConfig,
+      experience: nextExperience,
+      category: nextCategory,
+      laserEnabled: nextConfig.laserEnabled !== false,
     });
   };
 
@@ -287,12 +507,13 @@ export const HistoryGallery: React.FC<HistoryGalleryProps> = ({
       const lower = file.name.toLowerCase();
       if (lower.endsWith('.json') || file.type === 'application/json') {
         const text = await file.text();
-        applyParsedInput(text);
+        await applyParsedInput(text, { fromDecodedImage: false });
       } else {
         const decoded = await decodeQrImageFile(file);
-        applyParsedInput(decoded);
+        await applyParsedInput(decoded, { fromDecodedImage: true });
       }
     } catch (err) {
+      setImportParsed(null);
       setImportError(
         err instanceof Error ? err.message : 'Erreur lors de la lecture du fichier QR.'
       );
@@ -359,15 +580,15 @@ export const HistoryGallery: React.FC<HistoryGalleryProps> = ({
           onClick={() => setViewerItem(null)}
         >
           <div
-            className="w-full max-w-lg bg-white border border-[#E2E6F0] rounded-t-3xl sm:rounded-2xl p-5 sm:p-6 pb-safe shadow-2xl space-y-4 max-h-[92dvh] overflow-y-auto animate-modal-enter"
+            className="w-full max-w-lg bg-white dark:bg-[#131926] border border-[#E2E6F0] dark:border-[#242C3D] rounded-t-3xl sm:rounded-2xl p-5 sm:p-6 pb-safe shadow-2xl space-y-4 max-h-[92dvh] overflow-y-auto animate-modal-enter"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
-                <span className="block text-[11px] font-semibold uppercase tracking-[0.12em] text-[#4F46E5]">
+                <span className="block text-[11px] font-semibold uppercase tracking-[0.12em] text-[#4F46E5] dark:text-[#818CF8]">
                   Aperçu interactif
                 </span>
-                <h3 className="font-display text-lg font-bold text-[#111214] truncate mt-0.5">
+                <h3 className="font-display text-lg font-bold text-[#111214] dark:text-[#F1F5F9] truncate mt-0.5">
                   {viewerItem.name || viewerItem.config.titleText || 'Code QR SparkQR'}
                 </h3>
               </div>
@@ -377,10 +598,10 @@ export const HistoryGallery: React.FC<HistoryGalleryProps> = ({
                   data-testid="viewer-laser-toggle"
                   aria-pressed={viewerLaserActive}
                   onClick={() => setViewerLaserActive((v) => !v)}
-                  className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 min-h-[36px] text-xs font-semibold rounded-xl border transition-colors cursor-pointer ${
+                  className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 min-h-[36px] text-xs font-semibold rounded-xl border transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
                     viewerLaserActive
-                      ? 'border-[#2563EB]/30 bg-[#EFF4FF] text-[#1D4ED8]'
-                      : 'border-[#E2E6F0] bg-[#F8FAFC] text-[#5C5E66]'
+                      ? 'border-[#2563EB]/30 dark:border-[#60A5FA]/40 bg-[#EFF4FF] dark:bg-[#1E293B] text-[#1D4ED8] dark:text-[#93C5FD]'
+                      : 'border-[#E2E6F0] dark:border-[#2A3347] bg-[#F8FAFC] dark:bg-[#0F172A] text-[#5C5E66] dark:text-[#94A3B8]'
                   }`}
                 >
                   <ScanLine className="w-3.5 h-3.5" aria-hidden="true" />
@@ -390,7 +611,7 @@ export const HistoryGallery: React.FC<HistoryGalleryProps> = ({
                   type="button"
                   onClick={() => setViewerItem(null)}
                   aria-label="Fermer la visualisation"
-                  className="p-2 min-h-[36px] min-w-[36px] flex items-center justify-center text-[#5C5E66] hover:text-[#111214] rounded-xl cursor-pointer"
+                  className="p-2 min-h-[36px] min-w-[36px] flex items-center justify-center text-[#5C5E66] dark:text-[#94A3B8] hover:text-[#111214] dark:hover:text-white rounded-xl cursor-pointer"
                 >
                   <X className="w-4 h-4" />
                 </button>
@@ -406,7 +627,7 @@ export const HistoryGallery: React.FC<HistoryGalleryProps> = ({
                   className={`rounded-2xl border p-6 flex flex-col items-center justify-center ${
                     isDarkViewer
                       ? 'studio-grid-dark border-[#1F2433]'
-                      : 'studio-grid-mat border-[#E4E1D7]'
+                      : 'studio-grid-mat border-[#E4E1D7] dark:border-[#242C3D]'
                   }`}
                 >
                   <div className="relative w-full max-w-[300px] animate-qr-reveal">
@@ -485,7 +706,7 @@ export const HistoryGallery: React.FC<HistoryGalleryProps> = ({
                     setViewerItem(null);
                     onOpenTargetPreview(target);
                   }}
-                  className="flex-1 min-w-[140px] inline-flex items-center justify-center gap-1.5 px-4 py-2.5 min-h-[42px] text-xs font-semibold text-white bg-gradient-to-r from-[#2563EB] to-[#4F46E5] hover:from-[#1D4ED8] hover:to-[#4338CA] rounded-xl cursor-pointer"
+                  className="flex-1 min-w-[140px] inline-flex items-center justify-center gap-1.5 px-4 py-2.5 min-h-[42px] text-xs font-semibold text-white bg-[#2563EB] hover:bg-[#1D4ED8] rounded-xl cursor-pointer whitespace-nowrap shrink-0"
                 >
                   <ExternalLink className="w-3.5 h-3.5" aria-hidden="true" />
                   <span>Ouvrir le contenu</span>
@@ -519,16 +740,16 @@ export const HistoryGallery: React.FC<HistoryGalleryProps> = ({
                     const url = URL.createObjectURL(blob);
                     const a = document.createElement('a');
                     a.href = url;
-                    a.download = 'code-sparkqr.sparkqr.json';
+                    a.download = 'code-sparkqr.json';
                     a.click();
                     setTimeout(() => URL.revokeObjectURL(url), 1000);
                   }
                 }}
-                className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2.5 min-h-[42px] text-xs font-semibold text-[#4F46E5] bg-[#EEF2FF] hover:bg-[#E0E7FF] rounded-xl cursor-pointer"
+                className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2.5 min-h-[42px] text-xs font-semibold text-[#4F46E5] dark:text-[#A5B4FC] bg-[#EEF2FF] dark:bg-[#1E1B4B]/60 hover:bg-[#E0E7FF] dark:hover:bg-[#312E81]/60 rounded-xl cursor-pointer whitespace-nowrap shrink-0"
               >
                 {viewerCopiedShare ? (
                   <>
-                    <Check className="w-3.5 h-3.5 text-[#15803D]" aria-hidden="true" />
+                    <Check className="w-3.5 h-3.5 text-[#15803D] dark:text-[#6EE7B7]" aria-hidden="true" />
                     <span>Code copié</span>
                   </>
                 ) : (
@@ -546,7 +767,7 @@ export const HistoryGallery: React.FC<HistoryGalleryProps> = ({
                   setViewerItem(null);
                   onLoadItem(target);
                 }}
-                className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2.5 min-h-[42px] text-xs font-semibold text-[#111214] bg-[#F4F2EC] hover:bg-[#EAE7DF] rounded-xl cursor-pointer"
+                className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2.5 min-h-[42px] text-xs font-semibold text-[#111214] dark:text-[#F1F5F9] bg-[#F3F4F8] dark:bg-[#1E293B] hover:bg-[#E8EAF2] dark:hover:bg-[#334155] rounded-xl cursor-pointer whitespace-nowrap shrink-0"
               >
                 <ArrowUpRight className="w-3.5 h-3.5" aria-hidden="true" />
                 <span>Éditer</span>
@@ -567,26 +788,26 @@ export const HistoryGallery: React.FC<HistoryGalleryProps> = ({
           onClick={() => setImportModalOpen(false)}
         >
           <div
-            className="w-full max-w-xl bg-white border border-[#E2E6F0] rounded-t-3xl sm:rounded-2xl p-5 sm:p-6 pb-safe shadow-2xl space-y-4 max-h-[92dvh] overflow-y-auto animate-modal-enter"
+            className="w-full max-w-xl bg-white dark:bg-[#131926] border border-[#E2E6F0] dark:border-[#242C3D] rounded-t-3xl sm:rounded-2xl p-5 sm:p-6 pb-safe shadow-2xl space-y-4 max-h-[92dvh] overflow-y-auto animate-modal-enter"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-start justify-between gap-3">
               <div>
-                <span className="block text-[11px] font-semibold uppercase tracking-[0.12em] text-[#4F46E5]">
+                <span className="block text-[11px] font-semibold uppercase tracking-[0.12em] text-[#4F46E5] dark:text-[#818CF8]">
                   Réception &amp; visualisation
                 </span>
-                <h3 className="font-display text-lg font-bold text-[#111214] mt-0.5">
+                <h3 className="font-display text-lg font-bold text-[#111214] dark:text-[#F1F5F9] mt-0.5">
                   Importer un QR code reçu
                 </h3>
-                <p className="text-xs text-[#5C5E66] mt-0.5">
-                  Importez une image QR, un fichier <span className="font-mono">.sparkqr.json</span> ou collez un code partagé pour le visualiser avec l’animation laser et l’enregistrer ici.
+                <p className="text-xs text-[#5C5E66] dark:text-[#94A3B8] mt-0.5">
+                  Importez une image contenant un QR code ou collez un lien QR reçu pour le visualiser et l’enregistrer dans votre espace.
                 </p>
               </div>
               <button
                 type="button"
                 onClick={() => setImportModalOpen(false)}
                 aria-label="Fermer l’importation"
-                className="p-2 min-h-[36px] min-w-[36px] flex items-center justify-center text-[#5C5E66] hover:text-[#111214] rounded-xl cursor-pointer"
+                className="p-2 min-h-[36px] min-w-[36px] flex items-center justify-center text-[#5C5E66] dark:text-[#94A3B8] hover:text-[#111214] dark:hover:text-white rounded-xl cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -594,16 +815,16 @@ export const HistoryGallery: React.FC<HistoryGalleryProps> = ({
 
             <div className="space-y-3">
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <label htmlFor="import-qr-textarea" className="text-xs font-semibold text-[#111214]">
-                  Code SparkQR, lien reçu ou texte
+                <label htmlFor="import-qr-textarea" className="text-xs font-semibold text-[#111214] dark:text-[#F1F5F9]">
+                  Lien QR ou code partagé
                 </label>
                 <div className="flex items-center gap-2">
                   <input
                     ref={importFileInputRef}
                     type="file"
-                    accept="image/*,.json,.sparkqr.json,application/json"
+                    accept="image/*,.json,application/json"
                     data-testid="import-qr-file-input"
-                    aria-label="Importer un fichier image QR ou .sparkqr.json"
+                    aria-label="Importer une image contenant un QR code ou un fichier QR"
                     className="sr-only"
                     onChange={(e) => {
                       const file = e.target.files?.[0];
@@ -615,10 +836,10 @@ export const HistoryGallery: React.FC<HistoryGalleryProps> = ({
                     type="button"
                     disabled={importBusy}
                     onClick={() => importFileInputRef.current?.click()}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 min-h-[34px] text-xs font-semibold text-[#4F46E5] bg-[#EEF2FF] hover:bg-[#E0E7FF] rounded-xl cursor-pointer disabled:opacity-60"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 min-h-[34px] text-xs font-semibold text-[#4F46E5] dark:text-[#A5B4FC] bg-[#EEF2FF] dark:bg-[#1E1B4B]/60 hover:bg-[#E0E7FF] dark:hover:bg-[#312E81]/60 rounded-xl cursor-pointer disabled:opacity-60 whitespace-nowrap shrink-0"
                   >
                     <FileUp className="w-3.5 h-3.5" aria-hidden="true" />
-                    <span>{importBusy ? 'Lecture…' : 'Image QR / Fichier'}</span>
+                    <span>{importBusy ? 'Analyse du QR…' : 'Choisir une image QR'}</span>
                   </button>
                 </div>
               </div>
@@ -628,25 +849,25 @@ export const HistoryGallery: React.FC<HistoryGalleryProps> = ({
                 data-testid="import-qr-text-input"
                 rows={3}
                 value={importRawInput}
-                onChange={(e) => applyParsedInput(e.target.value)}
-                placeholder="Collez un code SPARKQR1:..., une URL (https://...) ou un texte reçu…"
-                className="w-full px-3.5 py-2.5 text-xs bg-[#F8FAFC] border border-[#DCE2EE] rounded-xl focus:outline-none focus:border-[#2563EB]"
+                onChange={(e) => void applyParsedInput(e.target.value, { fromDecodedImage: false })}
+                placeholder="Collez un lien QR (https://…) ou un contenu partagé…"
+                className="w-full px-3.5 py-2.5 text-xs bg-[#F8FAFC] dark:bg-[#0F172A] border border-[#DCE2EE] dark:border-[#2A3347] text-[#111214] dark:text-[#F1F5F9] placeholder:text-[#94A3B8] dark:placeholder:text-[#64748B] rounded-xl focus:outline-none focus:border-[#2563EB]"
               />
 
               {importError && (
-                <p role="alert" className="text-xs font-medium text-[#B91C1C]">
+                <p role="alert" data-testid="import-qr-error" className="text-xs font-medium text-[#B91C1C] dark:text-[#FCA5A5]">
                   {importError}
                 </p>
               )}
             </div>
 
             {importParsed && (
-              <div className="space-y-4 pt-2 border-t border-[#EFEFF5]">
+              <div className="space-y-4 pt-2 border-t border-[#EFEFF5] dark:border-[#242C3D]">
                 <div className="grid grid-cols-1 sm:grid-cols-[1fr_140px] gap-2.5">
                   <div>
                     <label
                       htmlFor="import-qr-name"
-                      className="block text-[11px] font-medium text-[#4B4D54] mb-1"
+                      className="block text-[11px] font-medium text-[#4B4D54] dark:text-[#CBD5E1] mb-1"
                     >
                       Nom dans Mes QR
                     </label>
@@ -659,13 +880,13 @@ export const HistoryGallery: React.FC<HistoryGalleryProps> = ({
                           prev ? { ...prev, name: e.target.value } : prev
                         )
                       }
-                      className="w-full px-3 py-2 text-xs bg-[#F8FAFC] border border-[#DCE2EE] rounded-xl"
+                      className="w-full px-3 py-2 text-xs bg-[#F8FAFC] dark:bg-[#0F172A] border border-[#DCE2EE] dark:border-[#2A3347] text-[#111214] dark:text-[#F1F5F9] rounded-xl"
                     />
                   </div>
                   <div>
                     <label
                       htmlFor="import-qr-cat"
-                      className="block text-[11px] font-medium text-[#4B4D54] mb-1"
+                      className="block text-[11px] font-medium text-[#4B4D54] dark:text-[#CBD5E1] mb-1"
                     >
                       Catégorie
                     </label>
@@ -679,7 +900,7 @@ export const HistoryGallery: React.FC<HistoryGalleryProps> = ({
                             : prev
                         )
                       }
-                      className="w-full px-3 py-2 text-xs bg-[#F8FAFC] border border-[#DCE2EE] rounded-xl"
+                      className="w-full px-3 py-2 text-xs bg-[#F8FAFC] dark:bg-[#0F172A] border border-[#DCE2EE] dark:border-[#2A3347] text-[#111214] dark:text-[#F1F5F9] rounded-xl"
                     >
                       {PROJECT_CATEGORIES.map((c) => (
                         <option key={c} value={c}>
@@ -700,7 +921,7 @@ export const HistoryGallery: React.FC<HistoryGalleryProps> = ({
                       className={`rounded-2xl border p-5 flex flex-col items-center justify-center relative ${
                         isDarkPreview
                           ? 'studio-grid-dark border-[#1F2433]'
-                          : 'studio-grid-mat border-[#E4E1D7]'
+                          : 'studio-grid-mat border-[#E4E1D7] dark:border-[#242C3D]'
                       }`}
                     >
                       <div className="relative w-full max-w-[230px]">
@@ -739,7 +960,7 @@ export const HistoryGallery: React.FC<HistoryGalleryProps> = ({
                   );
                 })()}
 
-                <label className="flex items-center justify-between gap-2 px-3 py-2.5 rounded-xl bg-[#F8FAFC] border border-[#E2E6F0] cursor-pointer text-xs font-medium text-[#111214]">
+                <label className="flex items-center justify-between gap-2 px-3 py-2.5 rounded-xl bg-[#F8FAFC] dark:bg-[#161D2B] border border-[#E2E6F0] dark:border-[#242C3D] cursor-pointer text-xs font-medium text-[#111214] dark:text-[#F1F5F9]">
                   <span>Animation laser lumineuse sur l’aperçu</span>
                   <input
                     type="checkbox"
@@ -761,7 +982,7 @@ export const HistoryGallery: React.FC<HistoryGalleryProps> = ({
                         const previewItem = buildPreviewSavedItemFromImport();
                         if (previewItem) onOpenTargetPreview(previewItem);
                       }}
-                      className="inline-flex items-center gap-1.5 px-3.5 py-2.5 min-h-[40px] text-xs font-semibold text-[#111214] bg-[#F4F2EC] hover:bg-[#EAE7DF] rounded-xl cursor-pointer"
+                      className="inline-flex items-center gap-1.5 px-3.5 py-2.5 min-h-[40px] text-xs font-semibold text-[#111214] dark:text-[#F1F5F9] bg-[#F3F4F8] dark:bg-[#1E293B] hover:bg-[#E8EAF2] dark:hover:bg-[#334155] rounded-xl cursor-pointer whitespace-nowrap shrink-0"
                     >
                       <ExternalLink className="w-3.5 h-3.5" aria-hidden="true" />
                       <span>Ouvrir le contenu</span>
@@ -773,7 +994,7 @@ export const HistoryGallery: React.FC<HistoryGalleryProps> = ({
                       type="button"
                       data-testid="confirm-import-qr-btn"
                       onClick={handleSaveImportedQr}
-                      className="inline-flex items-center gap-1.5 px-4 py-2.5 min-h-[40px] text-xs font-semibold text-white bg-gradient-to-r from-[#2563EB] to-[#4F46E5] hover:from-[#1D4ED8] hover:to-[#4338CA] rounded-xl cursor-pointer"
+                      className="inline-flex items-center gap-1.5 px-4 py-2.5 min-h-[40px] text-xs font-semibold text-white bg-[#2563EB] hover:bg-[#1D4ED8] rounded-xl cursor-pointer whitespace-nowrap shrink-0"
                     >
                       <Plus className="w-3.5 h-3.5" aria-hidden="true" />
                       <span>Enregistrer dans Mes QR</span>
@@ -939,26 +1160,22 @@ export const HistoryGallery: React.FC<HistoryGalleryProps> = ({
   if (items.length === 0 && dynamicRecords.length === 0 && hostedMedia.length === 0) {
     return (
       <section className="space-y-5 max-w-2xl mx-auto">
-        <div className="bg-white/95 border border-[#E2E6F0] rounded-3xl overflow-hidden shadow-[0_12px_36px_rgba(37,99,235,0.08)] text-center">
-          <div
-            aria-hidden="true"
-            className="h-1.5 w-full bg-gradient-to-r from-[#2563EB] via-[#7C3AED] to-[#EC4899]"
-          />
+        <div className="bg-white dark:bg-[#131926] border border-[#E2E6F0] dark:border-[#242C3D] rounded-3xl overflow-hidden shadow-[0_6px_24px_rgba(15,23,42,0.04)] dark:shadow-none text-center">
           <div className="p-8 sm:p-12 space-y-4">
-            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-[#2563EB] to-[#7C3AED] text-white flex items-center justify-center mx-auto shadow-[0_10px_24px_rgba(79,70,229,0.28)]">
+            <div className="w-14 h-14 rounded-2xl bg-[#EEF2FF] dark:bg-[#1E293B] text-[#2563EB] dark:text-[#60A5FA] border border-[#C7D2FE] dark:border-[#2A3347] flex items-center justify-center mx-auto">
               <QrCode className="w-7 h-7" aria-hidden="true" />
             </div>
-            <h2 className="font-display text-xl sm:text-2xl font-bold text-[#111214]">
+            <h2 className="font-display text-xl sm:text-2xl font-bold text-[#111214] dark:text-[#F1F5F9]">
               Votre espace Mes QR codes est prêt
             </h2>
-            <p className="text-sm text-[#5C5E66] max-w-md mx-auto leading-relaxed">
+            <p className="text-sm text-[#5C5E66] dark:text-[#94A3B8] max-w-md mx-auto leading-relaxed">
               Chaque QR code généré dans le studio apparaît automatiquement ici avec sa durée d’accessibilité, ses réglages et vos médias associés.
             </p>
             <div className="pt-2 flex flex-wrap items-center justify-center gap-3">
               <button
                 type="button"
                 onClick={onBackToStudio}
-                className="inline-flex items-center gap-2 px-5 py-3 min-h-[44px] text-sm font-semibold text-white bg-gradient-to-r from-[#2563EB] to-[#4F46E5] hover:from-[#1D4ED8] hover:to-[#4338CA] shadow-[0_8px_20px_rgba(37,99,235,0.25)] rounded-xl transition-all whitespace-nowrap shrink-0 cursor-pointer"
+                className="inline-flex items-center gap-2 px-5 py-3 min-h-[44px] text-sm font-semibold text-white bg-[#2563EB] hover:bg-[#1D4ED8] rounded-xl transition-all whitespace-nowrap shrink-0 cursor-pointer"
               >
                 <Plus className="w-4 h-4" aria-hidden="true" />
                 <span>Créer mon premier QR code</span>
@@ -968,7 +1185,7 @@ export const HistoryGallery: React.FC<HistoryGalleryProps> = ({
                   type="button"
                   data-testid="open-import-qr-btn"
                   onClick={openImportModal}
-                  className="inline-flex items-center gap-2 px-4 py-3 min-h-[44px] text-xs sm:text-sm font-semibold text-[#111214] bg-[#F4F2EC] hover:bg-[#EAE7DF] rounded-xl transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+                  className="inline-flex items-center gap-2 px-4 py-3 min-h-[44px] text-xs sm:text-sm font-semibold text-[#111214] dark:text-[#F1F5F9] bg-[#F3F4F8] dark:bg-[#1E293B] hover:bg-[#E8EAF2] dark:hover:bg-[#334155] border border-[#E2E6F0] dark:border-[#2A3347] rounded-xl transition-colors whitespace-nowrap shrink-0 cursor-pointer"
                 >
                   <Upload className="w-4 h-4" aria-hidden="true" />
                   <span>Importer un QR reçu</span>
@@ -978,7 +1195,7 @@ export const HistoryGallery: React.FC<HistoryGalleryProps> = ({
                 <button
                   type="button"
                   onClick={onOpenWorkspaceModal}
-                  className="inline-flex items-center gap-2 px-4 py-3 min-h-[44px] text-xs sm:text-sm font-semibold text-[#4F46E5] bg-[#EEF2FF] hover:bg-[#E0E7FF] rounded-xl transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+                  className="inline-flex items-center gap-2 px-4 py-3 min-h-[44px] text-xs sm:text-sm font-semibold text-[#4F46E5] dark:text-[#A5B4FC] bg-[#EEF2FF] dark:bg-[#1E1B4B]/60 hover:bg-[#E0E7FF] dark:hover:bg-[#312E81]/60 rounded-xl transition-colors whitespace-nowrap shrink-0 cursor-pointer"
                 >
                   <UserCheck className="w-4 h-4" aria-hidden="true" />
                   <span>{workspace.name}</span>
@@ -997,10 +1214,10 @@ export const HistoryGallery: React.FC<HistoryGalleryProps> = ({
       {/* Header + Action */}
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <span className="block text-[11px] font-semibold uppercase tracking-[0.14em] text-[#4F46E5]">
+          <span className="block text-[11px] font-semibold uppercase tracking-[0.14em] text-[#4F46E5] dark:text-[#818CF8]">
             Espace personnel SparkQR
           </span>
-          <h2 id="gallery-heading" className="font-display text-2xl sm:text-3xl font-bold text-[#111214] mt-0.5">
+          <h2 id="gallery-heading" className="font-display text-2xl sm:text-3xl font-bold text-[#111214] dark:text-[#F1F5F9] mt-0.5">
             Mes QR codes
           </h2>
         </div>
@@ -1011,7 +1228,7 @@ export const HistoryGallery: React.FC<HistoryGalleryProps> = ({
               type="button"
               data-testid="open-import-qr-btn"
               onClick={openImportModal}
-              className="inline-flex items-center gap-2 px-3.5 py-2.5 min-h-[42px] text-xs font-semibold text-[#111214] bg-[#F4F2EC] hover:bg-[#EAE7DF] border border-[#E2DFD5] rounded-xl transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+              className="inline-flex items-center gap-2 px-3.5 py-2.5 min-h-[42px] text-xs font-semibold text-[#111214] dark:text-[#F1F5F9] bg-white dark:bg-[#131926] hover:bg-[#F3F4F8] dark:hover:bg-[#1E293B] border border-[#E2E6F0] dark:border-[#242C3D] rounded-xl transition-colors whitespace-nowrap shrink-0 cursor-pointer"
             >
               <Upload className="w-4 h-4" aria-hidden="true" />
               <span>Importer un QR reçu</span>
@@ -1022,7 +1239,7 @@ export const HistoryGallery: React.FC<HistoryGalleryProps> = ({
               type="button"
               data-testid="gallery-workspace-btn"
               onClick={onOpenWorkspaceModal}
-              className="inline-flex items-center gap-2 px-3.5 py-2.5 min-h-[42px] text-xs font-semibold text-[#4F46E5] bg-[#EEF2FF] hover:bg-[#E0E7FF] border border-[#C7D2FE] rounded-xl transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+              className="inline-flex items-center gap-2 px-3.5 py-2.5 min-h-[42px] text-xs font-semibold text-[#4F46E5] dark:text-[#A5B4FC] bg-[#EEF2FF] dark:bg-[#1E1B4B]/60 hover:bg-[#E0E7FF] dark:hover:bg-[#312E81]/60 border border-[#C7D2FE] dark:border-[#4338CA]/50 rounded-xl transition-colors whitespace-nowrap shrink-0 cursor-pointer"
             >
               <UserCheck className="w-4 h-4" aria-hidden="true" />
               <span>{workspace.name}</span>
@@ -1031,7 +1248,7 @@ export const HistoryGallery: React.FC<HistoryGalleryProps> = ({
           <button
             type="button"
             onClick={onBackToStudio}
-            className="inline-flex items-center gap-2 px-4 py-2.5 min-h-[42px] text-xs sm:text-sm font-semibold text-white bg-gradient-to-r from-[#2563EB] to-[#4F46E5] hover:from-[#1D4ED8] hover:to-[#4338CA] shadow-[0_6px_18px_rgba(37,99,235,0.22)] rounded-xl transition-all whitespace-nowrap shrink-0 cursor-pointer"
+            className="inline-flex items-center gap-2 px-4 py-2.5 min-h-[42px] text-xs sm:text-sm font-semibold text-white bg-[#2563EB] hover:bg-[#1D4ED8] rounded-xl transition-all whitespace-nowrap shrink-0 cursor-pointer"
           >
             <Plus className="w-4 h-4" aria-hidden="true" />
             <span>Nouveau QR code</span>
@@ -1039,45 +1256,45 @@ export const HistoryGallery: React.FC<HistoryGalleryProps> = ({
         </div>
       </div>
 
-      {/* Vibrant Summary Cards */}
+      {/* Summary KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
-        <div className="rounded-2xl border border-[#DCE6FF] bg-gradient-to-br from-[#F0F5FF] to-white p-4 flex items-center gap-3.5 shadow-[0_4px_14px_rgba(37,99,235,0.06)]">
-          <div className="w-11 h-11 rounded-xl bg-[#2563EB] text-white flex items-center justify-center shrink-0 shadow-[0_6px_14px_rgba(37,99,235,0.25)]">
+        <div className="rounded-2xl border border-[#E2E6F0] dark:border-[#242C3D] bg-white dark:bg-[#131926] p-4 flex items-center gap-3.5">
+          <div className="w-11 h-11 rounded-xl bg-[#EFF6FF] dark:bg-[#1E293B] text-[#2563EB] dark:text-[#60A5FA] flex items-center justify-center shrink-0">
             <QrCode className="w-5 h-5" aria-hidden="true" />
           </div>
           <div>
-            <span className="block text-[11px] font-semibold uppercase tracking-wider text-[#2563EB]">
+            <span className="block text-[11px] font-semibold uppercase tracking-wider text-[#2563EB] dark:text-[#60A5FA]">
               Créations
             </span>
-            <span className="font-display text-xl font-bold text-[#111214] tabular-nums">
+            <span className="font-display text-xl font-bold text-[#111214] dark:text-[#F1F5F9] tabular-nums">
               {items.length} code{items.length > 1 ? 's' : ''} QR
             </span>
           </div>
         </div>
 
-        <div className="rounded-2xl border border-[#DDD6FE] bg-gradient-to-br from-[#F5F3FF] to-white p-4 flex items-center gap-3.5 shadow-[0_4px_14px_rgba(124,58,237,0.06)]">
-          <div className="w-11 h-11 rounded-xl bg-[#7C3AED] text-white flex items-center justify-center shrink-0 shadow-[0_6px_14px_rgba(124,58,237,0.25)]">
+        <div className="rounded-2xl border border-[#E2E6F0] dark:border-[#242C3D] bg-white dark:bg-[#131926] p-4 flex items-center gap-3.5">
+          <div className="w-11 h-11 rounded-xl bg-[#F5F3FF] dark:bg-[#231942] text-[#7C3AED] dark:text-[#A78BFA] flex items-center justify-center shrink-0">
             <ShieldCheck className="w-5 h-5" aria-hidden="true" />
           </div>
           <div>
-            <span className="block text-[11px] font-semibold uppercase tracking-wider text-[#7C3AED]">
+            <span className="block text-[11px] font-semibold uppercase tracking-wider text-[#7C3AED] dark:text-[#A78BFA]">
               QR dynamiques
             </span>
-            <span className="font-display text-xl font-bold text-[#111214] tabular-nums">
+            <span className="font-display text-xl font-bold text-[#111214] dark:text-[#F1F5F9] tabular-nums">
               {activeDynamicCount} actif{activeDynamicCount > 1 ? 's' : ''}
             </span>
           </div>
         </div>
 
-        <div className="rounded-2xl border border-[#CCF3E3] bg-gradient-to-br from-[#ECFDF5] to-white p-4 flex items-center gap-3.5 shadow-[0_4px_14px_rgba(5,150,105,0.06)]">
-          <div className="w-11 h-11 rounded-xl bg-[#059669] text-white flex items-center justify-center shrink-0 shadow-[0_6px_14px_rgba(5,150,105,0.25)]">
+        <div className="rounded-2xl border border-[#E2E6F0] dark:border-[#242C3D] bg-white dark:bg-[#131926] p-4 flex items-center gap-3.5">
+          <div className="w-11 h-11 rounded-xl bg-[#ECFDF5] dark:bg-[#0D261D] text-[#059669] dark:text-[#34D399] flex items-center justify-center shrink-0">
             <Activity className="w-5 h-5" aria-hidden="true" />
           </div>
           <div>
-            <span className="block text-[11px] font-semibold uppercase tracking-wider text-[#059669]">
+            <span className="block text-[11px] font-semibold uppercase tracking-wider text-[#059669] dark:text-[#34D399]">
               Consultations
             </span>
-            <span className="font-display text-xl font-bold text-[#111214] tabular-nums">
+            <span className="font-display text-xl font-bold text-[#111214] dark:text-[#F1F5F9] tabular-nums">
               {totalScans} scan{totalScans > 1 ? 's' : ''}
             </span>
           </div>
@@ -1085,10 +1302,10 @@ export const HistoryGallery: React.FC<HistoryGalleryProps> = ({
       </div>
 
       {/* Filter & Search Toolbar */}
-      <div className="bg-white/95 border border-[#E2E6F0] rounded-2xl p-3.5 flex flex-wrap items-center justify-between gap-3">
+      <div className="bg-white dark:bg-[#131926] border border-[#E2E6F0] dark:border-[#242C3D] rounded-2xl p-3.5 flex flex-wrap items-center justify-between gap-3">
         <div className="relative flex-1 min-w-[200px] max-w-sm">
           <Search
-            className="w-4 h-4 text-[#6E7078] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none"
+            className="w-4 h-4 text-[#6E7078] dark:text-[#94A3B8] absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none"
             aria-hidden="true"
           />
           <input
@@ -1097,7 +1314,7 @@ export const HistoryGallery: React.FC<HistoryGalleryProps> = ({
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Rechercher par titre ou contenu..."
-            className="w-full pl-9 pr-3 py-2 text-xs bg-[#F8FAFC] border border-[#DCE2EE] rounded-xl focus:outline-none focus:border-[#2563EB]"
+            className="w-full pl-9 pr-3 py-2 text-xs bg-[#F8FAFC] dark:bg-[#0F172A] border border-[#DCE2EE] dark:border-[#2A3347] text-[#111214] dark:text-[#F1F5F9] placeholder:text-[#94A3B8] dark:placeholder:text-[#64748B] rounded-xl focus:outline-none focus:border-[#2563EB]"
           />
         </div>
 
@@ -1107,8 +1324,8 @@ export const HistoryGallery: React.FC<HistoryGalleryProps> = ({
             onClick={() => setCategoryFilter('all')}
             className={`px-3 py-1.5 min-h-[34px] text-[11px] font-semibold rounded-lg border transition-colors cursor-pointer ${
               categoryFilter === 'all'
-                ? 'border-[#2563EB] bg-[#EFF4FF] text-[#1D4ED8]'
-                : 'border-[#E2E6F0] bg-[#F8FAFC] text-[#4B4D54]'
+                ? 'border-[#2563EB] dark:border-[#60A5FA] bg-[#EFF4FF] dark:bg-[#1E293B] text-[#1D4ED8] dark:text-[#93C5FD]'
+                : 'border-[#E2E6F0] dark:border-[#242C3D] bg-[#F8FAFC] dark:bg-[#161D2B] text-[#4B4D54] dark:text-[#CBD5E1]'
             }`}
           >
             Tous
@@ -1120,8 +1337,8 @@ export const HistoryGallery: React.FC<HistoryGalleryProps> = ({
               onClick={() => setCategoryFilter(cat)}
               className={`px-3 py-1.5 min-h-[34px] text-[11px] font-semibold rounded-lg border transition-colors cursor-pointer ${
                 categoryFilter === cat
-                  ? 'border-[#2563EB] bg-[#EFF4FF] text-[#1D4ED8]'
-                  : 'border-[#E2E6F0] bg-[#F8FAFC] text-[#4B4D54]'
+                  ? 'border-[#2563EB] dark:border-[#60A5FA] bg-[#EFF4FF] dark:bg-[#1E293B] text-[#1D4ED8] dark:text-[#93C5FD]'
+                  : 'border-[#E2E6F0] dark:border-[#242C3D] bg-[#F8FAFC] dark:bg-[#161D2B] text-[#4B4D54] dark:text-[#CBD5E1]'
               }`}
             >
               {cat}
@@ -1133,7 +1350,7 @@ export const HistoryGallery: React.FC<HistoryGalleryProps> = ({
           aria-label="Trier les créations"
           value={sortBy}
           onChange={(e) => setSortBy(e.target.value as 'recent' | 'scans' | 'name')}
-          className="px-3 py-2 text-xs bg-[#F8FAFC] border border-[#DCE2EE] rounded-xl"
+          className="px-3 py-2 text-xs bg-[#F8FAFC] dark:bg-[#0F172A] border border-[#DCE2EE] dark:border-[#2A3347] text-[#111214] dark:text-[#F1F5F9] rounded-xl"
         >
           <option value="recent">Plus récents</option>
           <option value="scans">Plus scannés</option>
@@ -1144,7 +1361,7 @@ export const HistoryGallery: React.FC<HistoryGalleryProps> = ({
       {itemActionError && (
         <div
           role="alert"
-          className="rounded-xl border border-[#FECACA] bg-[#FEF2F2] px-4 py-3 text-xs font-medium text-[#B91C1C]"
+          className="rounded-xl border border-[#FECACA] dark:border-[#7F1D1D] bg-[#FEF2F2] dark:bg-[#2A1215] px-4 py-3 text-xs font-medium text-[#B91C1C] dark:text-[#FCA5A5]"
         >
           {itemActionError}
         </div>
@@ -1176,29 +1393,25 @@ export const HistoryGallery: React.FC<HistoryGalleryProps> = ({
             <article
               key={item.id}
               data-testid={`dashboard-card-${item.id}`}
-              className="bg-white/95 border border-[#E2E6F0] rounded-2xl overflow-hidden flex flex-col justify-between shadow-[0_6px_22px_rgba(17,18,20,0.04)] hover:shadow-[0_12px_28px_rgba(37,99,235,0.08)] transition-shadow"
+              className="bg-white dark:bg-[#131926] border border-[#E2E6F0] dark:border-[#242C3D] rounded-2xl overflow-hidden flex flex-col justify-between shadow-[0_2px_10px_rgba(15,23,42,0.03)] dark:shadow-none hover:border-[#CBD5E1] dark:hover:border-[#334155] transition-colors"
             >
-              <div
-                aria-hidden="true"
-                className="h-1 w-full bg-gradient-to-r from-[#2563EB] via-[#7C3AED] to-[#EC4899]"
-              />
               <div className="p-5 flex-1 flex flex-col justify-between gap-4">
                 <div>
                   <div className="flex items-start justify-between gap-2">
-                    <h3 className="text-base font-bold text-[#111214] truncate">
+                    <h3 className="text-base font-bold text-[#111214] dark:text-[#F1F5F9] truncate">
                       {item.name || item.config.titleText || 'Code QR sans titre'}
                     </h3>
                     {dyn && (
                       <span
                         className={`text-[10px] font-semibold shrink-0 ${
-                          dyn.active ? 'text-[#059669]' : 'text-[#B91C1C]'
+                          dyn.active ? 'text-[#059669] dark:text-[#34D399]' : 'text-[#B91C1C] dark:text-[#F87171]'
                         }`}
                       >
                         {dyn.active ? 'Actif' : 'Suspendu'}
                       </span>
                     )}
                   </div>
-                  <p className="text-xs text-[#6E7078] mt-1 tabular-nums">
+                  <p className="text-xs text-[#6E7078] dark:text-[#94A3B8] mt-1 tabular-nums">
                     <span>{item.category || 'Personnel'}</span>
                     <span aria-hidden="true"> · </span>
                     <span>{sourceLabel}</span>
@@ -1207,7 +1420,7 @@ export const HistoryGallery: React.FC<HistoryGalleryProps> = ({
                     {dyn && (
                       <>
                         <span aria-hidden="true"> · </span>
-                        <span className="font-semibold text-[#111214]">
+                        <span className="font-semibold text-[#111214] dark:text-[#F1F5F9]">
                           {dyn.stats.totalScans} scan{dyn.stats.totalScans > 1 ? 's' : ''}
                         </span>
                       </>
@@ -1219,7 +1432,7 @@ export const HistoryGallery: React.FC<HistoryGalleryProps> = ({
                   className={`rounded-xl p-4 flex items-center justify-center border ${
                     isDark
                       ? 'studio-grid-dark border-[#1F2433]'
-                      : 'studio-grid-mat border-[#E2E6F0]'
+                      : 'studio-grid-mat border-[#E2E6F0] dark:border-[#242C3D]'
                   }`}
                 >
                   <div className="w-40">
@@ -1231,7 +1444,7 @@ export const HistoryGallery: React.FC<HistoryGalleryProps> = ({
                   </div>
                 </div>
 
-                {/* Server Accessibility Duration Box (always visible on every generated QR) */}
+                {/* Server Accessibility Duration Box */}
                 <div
                   data-testid={`qr-accessibility-${item.id}`}
                   className={`rounded-xl border px-3 py-2.5 flex items-start gap-2.5 ${availStyles.container}`}
@@ -1252,7 +1465,7 @@ export const HistoryGallery: React.FC<HistoryGalleryProps> = ({
                     type="button"
                     data-testid={`view-saved-qr-${item.id}`}
                     onClick={() => openViewerForSavedItem(item)}
-                    className="inline-flex items-center justify-center gap-1 px-3 py-2 min-h-[40px] text-xs font-semibold text-[#111214] bg-[#F4F2EC] hover:bg-[#EAE7DF] rounded-xl transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+                    className="inline-flex items-center justify-center gap-1 px-3 py-2 min-h-[40px] text-xs font-semibold text-[#111214] dark:text-[#F1F5F9] bg-[#F3F4F8] dark:bg-[#1E293B] hover:bg-[#E8EAF2] dark:hover:bg-[#334155] rounded-xl transition-colors whitespace-nowrap shrink-0 cursor-pointer"
                   >
                     <Eye className="w-3.5 h-3.5" aria-hidden="true" />
                     <span>Voir</span>
@@ -1261,7 +1474,7 @@ export const HistoryGallery: React.FC<HistoryGalleryProps> = ({
                   <button
                     type="button"
                     onClick={() => onLoadItem(item)}
-                    className="flex-1 inline-flex items-center justify-center gap-1 px-3 py-2 min-h-[40px] text-xs font-semibold text-white bg-gradient-to-r from-[#2563EB] to-[#4F46E5] hover:from-[#1D4ED8] hover:to-[#4338CA] rounded-xl transition-all whitespace-nowrap shrink-0 cursor-pointer"
+                    className="flex-1 inline-flex items-center justify-center gap-1 px-3 py-2 min-h-[40px] text-xs font-semibold text-white bg-[#2563EB] hover:bg-[#1D4ED8] rounded-xl transition-all whitespace-nowrap shrink-0 cursor-pointer"
                   >
                     <span>Éditer</span>
                     <ArrowUpRight className="w-3.5 h-3.5" aria-hidden="true" />
@@ -1279,7 +1492,7 @@ export const HistoryGallery: React.FC<HistoryGalleryProps> = ({
                         })
                       }
                       title="Prolonger la durée de conservation (1 mois, 3 mois, 6 mois ou 1 an)"
-                      className="inline-flex items-center gap-1 px-2.5 py-2 min-h-[40px] text-xs font-semibold text-[#1D4ED8] bg-[#EFF4FF] border border-[#BFDBFE] hover:bg-[#DBEAFE] rounded-xl transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+                      className="inline-flex items-center gap-1 px-2.5 py-2 min-h-[40px] text-xs font-semibold text-[#1D4ED8] dark:text-[#93C5FD] bg-[#EFF4FF] dark:bg-[#1E293B] border border-[#BFDBFE] dark:border-[#334155] hover:bg-[#DBEAFE] dark:hover:bg-[#334155] rounded-xl transition-colors whitespace-nowrap shrink-0 cursor-pointer"
                     >
                       <Clock className="w-3.5 h-3.5" aria-hidden="true" />
                       <span>Prolonger</span>
@@ -1292,7 +1505,7 @@ export const HistoryGallery: React.FC<HistoryGalleryProps> = ({
                       data-testid={`manage-dynamic-${dyn.slug}`}
                       onClick={() => openManageDrawer(dyn)}
                       title="Gérer le QR dynamique et ses statistiques"
-                      className="inline-flex items-center gap-1 px-2.5 py-2 min-h-[40px] text-xs font-semibold text-[#111214] bg-[#F8FAFC] border border-[#DCE2EE] hover:bg-[#EFF4FF] rounded-xl transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+                      className="inline-flex items-center gap-1 px-2.5 py-2 min-h-[40px] text-xs font-semibold text-[#111214] dark:text-[#F1F5F9] bg-[#F8FAFC] dark:bg-[#0F172A] border border-[#DCE2EE] dark:border-[#2A3347] hover:bg-[#EFF4FF] dark:hover:bg-[#1E293B] rounded-xl transition-colors whitespace-nowrap shrink-0 cursor-pointer"
                     >
                       <Settings2 className="w-3.5 h-3.5" aria-hidden="true" />
                       <span>Gérer</span>
@@ -1304,7 +1517,7 @@ export const HistoryGallery: React.FC<HistoryGalleryProps> = ({
                     title="Dupliquer ce projet"
                     aria-label={`Dupliquer ${item.name || 'ce code QR'}`}
                     onClick={() => onDuplicateItem(item)}
-                    className="p-2.5 min-h-[40px] min-w-[40px] flex items-center justify-center text-[#5C5E66] hover:text-[#111214] hover:bg-[#EFF4FF] rounded-xl transition-colors cursor-pointer"
+                    className="p-2.5 min-h-[40px] min-w-[40px] flex items-center justify-center text-[#5C5E66] dark:text-[#94A3B8] hover:text-[#111214] dark:hover:text-white hover:bg-[#EFF4FF] dark:hover:bg-[#1E293B] rounded-xl transition-colors cursor-pointer"
                   >
                     <CopyPlus className="w-4 h-4" />
                   </button>
@@ -1314,7 +1527,7 @@ export const HistoryGallery: React.FC<HistoryGalleryProps> = ({
                     disabled={deletingItemId === item.id}
                     aria-label={`Supprimer ${item.name || 'ce code QR'}`}
                     onClick={() => void handleDeleteSavedCard(item.id)}
-                    className="p-2.5 min-h-[40px] min-w-[40px] flex items-center justify-center text-[#6E7078] hover:text-[#B91C1C] hover:bg-[#FEF2F2] rounded-xl transition-colors cursor-pointer disabled:opacity-50"
+                    className="p-2.5 min-h-[40px] min-w-[40px] flex items-center justify-center text-[#6E7078] dark:text-[#94A3B8] hover:text-[#B91C1C] dark:hover:text-[#FCA5A5] hover:bg-[#FEF2F2] dark:hover:bg-[#2A1215] rounded-xl transition-colors cursor-pointer disabled:opacity-50"
                   >
                     <Trash2 className="w-4 h-4" />
                   </button>
@@ -1327,14 +1540,14 @@ export const HistoryGallery: React.FC<HistoryGalleryProps> = ({
 
       {/* Dynamic QRs Quick Overview */}
       {dynamicRecords.length > 0 && (
-        <div className="bg-white/95 border border-[#E2E6F0] rounded-2xl p-5 space-y-3">
+        <div className="bg-white dark:bg-[#131926] border border-[#E2E6F0] dark:border-[#242C3D] rounded-2xl p-5 space-y-3">
           <div className="flex items-center gap-2">
-            <Activity className="w-4 h-4 text-[#7C3AED]" aria-hidden="true" />
-            <h3 className="font-display text-sm font-bold text-[#111214]">
+            <Activity className="w-4 h-4 text-[#7C3AED] dark:text-[#A78BFA]" aria-hidden="true" />
+            <h3 className="font-display text-sm font-bold text-[#111214] dark:text-[#F1F5F9]">
               Mes QR dynamiques ({dynamicRecords.length})
             </h3>
           </div>
-          <div className="divide-y divide-[#EFEFF5]">
+          <div className="divide-y divide-[#EFEFF5] dark:divide-[#242C3D]">
             {dynamicRecords.map((rec) => {
               const durationText = rec.expiresAt
                 ? formatRemainingDuration(rec.expiresAt).headline
@@ -1345,32 +1558,32 @@ export const HistoryGallery: React.FC<HistoryGalleryProps> = ({
                   className="py-2.5 flex flex-wrap items-center justify-between gap-3 text-xs"
                 >
                   <div className="min-w-0 space-y-0.5">
-                    <span className="block font-semibold text-[#111214] truncate">
+                    <span className="block font-semibold text-[#111214] dark:text-[#F1F5F9] truncate">
                       {rec.destination.title || 'Code QR dynamique'}
                     </span>
-                    <span className="block text-[11px] text-[#5C5E66]">
+                    <span className="block text-[11px] text-[#5C5E66] dark:text-[#94A3B8]">
                       {rec.active ? durationText : 'Accessibilité serveur : Suspendu'}
                     </span>
                   </div>
                   <div className="flex items-center gap-3 tabular-nums">
-                    <span className="text-[#5C5E66]">
+                    <span className="text-[#5C5E66] dark:text-[#94A3B8]">
                       {rec.stats.totalScans} scan{rec.stats.totalScans > 1 ? 's' : ''}
                       {rec.maxScans ? ` / ${rec.maxScans}` : ''}
                     </span>
                     <span
                       className={
                         rec.active
-                          ? 'text-[#059669] font-semibold'
-                          : 'text-[#B91C1C] font-semibold'
+                          ? 'text-[#059669] dark:text-[#34D399] font-semibold'
+                          : 'text-[#B91C1C] dark:text-[#F87171] font-semibold'
                       }
                     >
                       {rec.active ? 'Actif' : 'Suspendu'}
                     </span>
-                    {rec.hasPin && <Lock className="w-3.5 h-3.5 text-[#7C3AED]" aria-hidden="true" />}
+                    {rec.hasPin && <Lock className="w-3.5 h-3.5 text-[#7C3AED] dark:text-[#A78BFA]" aria-hidden="true" />}
                     <button
                       type="button"
                       onClick={() => openManageDrawer(rec)}
-                      className="px-3 py-1.5 min-h-[34px] text-[11px] font-semibold text-[#111214] bg-[#F8FAFC] border border-[#DCE2EE] hover:bg-[#EFF4FF] rounded-lg cursor-pointer"
+                      className="px-3 py-1.5 min-h-[34px] text-[11px] font-semibold text-[#111214] dark:text-[#F1F5F9] bg-[#F8FAFC] dark:bg-[#0F172A] border border-[#DCE2EE] dark:border-[#2A3347] hover:bg-[#EFF4FF] dark:hover:bg-[#1E293B] rounded-lg cursor-pointer whitespace-nowrap shrink-0"
                     >
                       Gérer &amp; Stats
                     </button>
@@ -1380,7 +1593,7 @@ export const HistoryGallery: React.FC<HistoryGalleryProps> = ({
                         disabled={deletingDynamicSlug === rec.slug}
                         aria-label={`Supprimer le QR dynamique ${rec.destination.title || rec.slug}`}
                         onClick={() => void handleDeleteDynamicRow(rec.slug)}
-                        className="inline-flex items-center gap-1 px-2.5 py-1.5 min-h-[34px] text-[11px] font-semibold text-[#B91C1C] bg-[#FEF2F2] border border-[#FECACA] hover:bg-[#FEE2E2] rounded-lg transition-colors cursor-pointer disabled:opacity-50"
+                        className="inline-flex items-center gap-1 px-2.5 py-1.5 min-h-[34px] text-[11px] font-semibold text-[#B91C1C] dark:text-[#FCA5A5] bg-[#FEF2F2] dark:bg-[#2A1215] border border-[#FECACA] dark:border-[#7F1D1D] hover:bg-[#FEE2E2] dark:hover:bg-[#3B171B] rounded-lg transition-colors cursor-pointer disabled:opacity-50 whitespace-nowrap shrink-0"
                       >
                         <Trash2 className="w-3.5 h-3.5" aria-hidden="true" />
                         <span>{deletingDynamicSlug === rec.slug ? '...' : 'Supprimer'}</span>
@@ -1394,15 +1607,15 @@ export const HistoryGallery: React.FC<HistoryGalleryProps> = ({
         </div>
       )}
 
-      {/* Personal Media Library (clean, zero technical storage or server links) */}
+      {/* Personal Media Library */}
       <div
         data-testid="hosted-media-library"
-        className="bg-white/95 border border-[#E2E6F0] rounded-2xl p-5 space-y-4"
+        className="bg-white dark:bg-[#131926] border border-[#E2E6F0] dark:border-[#242C3D] rounded-2xl p-5 space-y-4"
       >
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2">
-            <FolderHeart className="w-4 h-4 text-[#D97706]" aria-hidden="true" />
-            <h3 className="font-display text-sm font-bold text-[#111214]">
+            <FolderHeart className="w-4 h-4 text-[#D97706] dark:text-[#FBBF24]" aria-hidden="true" />
+            <h3 className="font-display text-sm font-bold text-[#111214] dark:text-[#F1F5F9]">
               Mes photos et vidéos ({hostedMedia.length})
             </h3>
           </div>
@@ -1411,7 +1624,7 @@ export const HistoryGallery: React.FC<HistoryGalleryProps> = ({
               type="button"
               onClick={() => void handleRefreshMedia()}
               disabled={refreshingMedia}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 min-h-[34px] text-[11px] font-semibold text-[#4B4D54] bg-[#F8FAFC] hover:bg-[#EFF4FF] border border-[#DCE2EE] rounded-xl transition-colors whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-60"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 min-h-[34px] text-[11px] font-semibold text-[#4B4D54] dark:text-[#CBD5E1] bg-[#F8FAFC] dark:bg-[#0F172A] hover:bg-[#EFF4FF] dark:hover:bg-[#1E293B] border border-[#DCE2EE] dark:border-[#2A3347] rounded-xl transition-colors whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-60"
             >
               <RefreshCw
                 className={`w-3.5 h-3.5 ${refreshingMedia ? 'animate-spin' : ''}`}
@@ -1423,17 +1636,17 @@ export const HistoryGallery: React.FC<HistoryGalleryProps> = ({
         </div>
 
         {mediaActionError && (
-          <p role="alert" className="text-xs font-medium text-[#B91C1C]">
+          <p role="alert" className="text-xs font-medium text-[#B91C1C] dark:text-[#FCA5A5]">
             {mediaActionError}
           </p>
         )}
 
         {hostedMedia.length === 0 ? (
-          <p className="text-xs text-[#6E7078]">
+          <p className="text-xs text-[#6E7078] dark:text-[#94A3B8]">
             Aucune photo ou vidéo importée dans cet espace pour le moment. Importez un média dans le studio pour l’associer à un QR code.
           </p>
         ) : (
-          <div className="divide-y divide-[#EFEFF5]">
+          <div className="divide-y divide-[#EFEFF5] dark:divide-[#242C3D]">
             {hostedMedia.map((media) => {
               const downloadHref =
                 media.downloadUrl || resolveMediaDownloadUrl(media.fileUrl || media.url);
@@ -1460,36 +1673,36 @@ export const HistoryGallery: React.FC<HistoryGalleryProps> = ({
                   className="py-3 flex flex-wrap items-center justify-between gap-3"
                 >
                   <div className="flex items-center gap-3 min-w-0 flex-1">
-                    <div className="w-12 h-12 rounded-xl overflow-hidden bg-[#F8FAFC] border border-[#E2E6F0] flex items-center justify-center shrink-0">
+                    <div className="w-12 h-12 rounded-xl overflow-hidden bg-white dark:bg-[#0F172A] border border-[#E2E6F0] dark:border-[#242C3D] flex items-center justify-center shrink-0 p-0.5">
                       {media.isEncrypted ? (
-                        <Lock className="w-5 h-5 text-[#2563EB]" aria-hidden="true" />
+                        <Lock className="w-5 h-5 text-[#2563EB] dark:text-[#60A5FA]" aria-hidden="true" />
                       ) : media.type === 'image' ? (
                         <img
                           src={media.fileUrl || media.url}
                           alt={genericMediaTitle}
-                          className="w-full h-full object-cover"
+                          className="w-full h-full object-contain rounded-lg"
                         />
                       ) : (
-                        <Film className="w-5 h-5 text-[#E11D48]" aria-hidden="true" />
+                        <Film className="w-5 h-5 text-[#E11D48] dark:text-[#FB7185]" aria-hidden="true" />
                       )}
                     </div>
                     <div className="min-w-0 space-y-0.5">
                       <div className="flex items-center gap-1.5">
                         {media.type === 'image' ? (
-                          <ImageIcon className="w-3.5 h-3.5 text-[#D97706] shrink-0" aria-hidden="true" />
+                          <ImageIcon className="w-3.5 h-3.5 text-[#D97706] dark:text-[#FBBF24] shrink-0" aria-hidden="true" />
                         ) : (
-                          <Film className="w-3.5 h-3.5 text-[#E11D48] shrink-0" aria-hidden="true" />
+                          <Film className="w-3.5 h-3.5 text-[#E11D48] dark:text-[#FB7185] shrink-0" aria-hidden="true" />
                         )}
-                        <span className="text-xs font-semibold text-[#111214] truncate">
+                        <span className="text-xs font-semibold text-[#111214] dark:text-[#F1F5F9] truncate">
                           {genericMediaTitle}
                         </span>
                         {media.isEncrypted && (
-                          <span className="text-[10px] font-semibold text-[#2563EB] shrink-0">
-                            · E2EE
+                          <span className="text-[10px] font-semibold text-[#2563EB] dark:text-[#60A5FA] shrink-0">
+                            · Protégé
                           </span>
                         )}
                       </div>
-                      <p className="text-[11px] text-[#6E7078] tabular-nums truncate">
+                      <p className="text-[11px] text-[#6E7078] dark:text-[#94A3B8] tabular-nums truncate">
                         {formatBytes(media.size)} · {mediaDuration}
                       </p>
                     </div>
@@ -1500,7 +1713,7 @@ export const HistoryGallery: React.FC<HistoryGalleryProps> = ({
                       href={media.pageUrl}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 px-3 py-1.5 min-h-[36px] text-[11px] font-semibold text-[#111214] bg-[#F8FAFC] border border-[#DCE2EE] hover:bg-[#EFF4FF] rounded-lg transition-colors"
+                      className="inline-flex items-center gap-1 px-3 py-1.5 min-h-[36px] text-[11px] font-semibold text-[#111214] dark:text-[#F1F5F9] bg-[#F8FAFC] dark:bg-[#0F172A] border border-[#DCE2EE] dark:border-[#2A3347] hover:bg-[#EFF4FF] dark:hover:bg-[#1E293B] rounded-lg transition-colors whitespace-nowrap shrink-0"
                     >
                       <ExternalLink className="w-3.5 h-3.5" aria-hidden="true" />
                       <span>Voir</span>
@@ -1508,7 +1721,7 @@ export const HistoryGallery: React.FC<HistoryGalleryProps> = ({
                     <a
                       href={downloadHref}
                       download={safeDownloadName}
-                      className="inline-flex items-center gap-1 px-3 py-1.5 min-h-[36px] text-[11px] font-semibold text-[#1D4ED8] bg-[#EFF4FF] border border-[#BFDBFE] hover:bg-[#DBEAFE] rounded-lg transition-colors"
+                      className="inline-flex items-center gap-1 px-3 py-1.5 min-h-[36px] text-[11px] font-semibold text-[#1D4ED8] dark:text-[#93C5FD] bg-[#EFF4FF] dark:bg-[#1E293B] border border-[#BFDBFE] dark:border-[#334155] hover:bg-[#DBEAFE] dark:hover:bg-[#334155] rounded-lg transition-colors whitespace-nowrap shrink-0"
                     >
                       <Download className="w-3.5 h-3.5" aria-hidden="true" />
                       <span>Télécharger</span>
@@ -1519,7 +1732,7 @@ export const HistoryGallery: React.FC<HistoryGalleryProps> = ({
                         disabled={isDeleting}
                         aria-label={`Supprimer ${genericMediaTitle}`}
                         onClick={() => void handleDeleteMedia(media.id)}
-                        className="inline-flex items-center gap-1 px-3 py-1.5 min-h-[36px] text-[11px] font-semibold text-[#B91C1C] bg-[#FEF2F2] border border-[#FECACA] hover:bg-[#FEE2E2] rounded-lg transition-colors cursor-pointer disabled:opacity-60"
+                        className="inline-flex items-center gap-1 px-3 py-1.5 min-h-[36px] text-[11px] font-semibold text-[#B91C1C] dark:text-[#FCA5A5] bg-[#FEF2F2] dark:bg-[#2A1215] border border-[#FECACA] dark:border-[#7F1D1D] hover:bg-[#FEE2E2] dark:hover:bg-[#3B171B] rounded-lg transition-colors cursor-pointer disabled:opacity-60 whitespace-nowrap shrink-0"
                       >
                         <Trash2 className="w-3.5 h-3.5" aria-hidden="true" />
                         <span>{isDeleting ? 'Suppression...' : 'Supprimer'}</span>
@@ -1543,15 +1756,15 @@ export const HistoryGallery: React.FC<HistoryGalleryProps> = ({
         >
           <div
             data-testid="dynamic-manage-modal"
-            className="w-full max-w-lg bg-white border border-[#E2E6F0] rounded-t-3xl sm:rounded-2xl p-5 sm:p-6 pb-safe shadow-2xl space-y-4 max-h-[90dvh] overflow-y-auto"
+            className="w-full max-w-lg bg-white dark:bg-[#131926] border border-[#E2E6F0] dark:border-[#242C3D] rounded-t-3xl sm:rounded-2xl p-5 sm:p-6 pb-safe shadow-2xl space-y-4 max-h-[90dvh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-start justify-between gap-3">
               <div>
-                <h3 className="font-display text-lg font-bold text-[#111214]">
+                <h3 className="font-display text-lg font-bold text-[#111214] dark:text-[#F1F5F9]">
                   Réglages du QR dynamique
                 </h3>
-                <p className="text-xs text-[#6E7078] tabular-nums">
+                <p className="text-xs text-[#6E7078] dark:text-[#94A3B8] tabular-nums">
                   {managedRecord.stats.totalScans} consultation(s) enregistrée(s)
                   {managedRecord.stats.lastScannedAt
                     ? ` · Dernier scan : ${new Date(
@@ -1564,7 +1777,7 @@ export const HistoryGallery: React.FC<HistoryGalleryProps> = ({
                 type="button"
                 onClick={() => setManagedSlug(null)}
                 aria-label="Fermer"
-                className="p-2 text-[#5C5E66] hover:text-[#111214] rounded-lg cursor-pointer"
+                className="p-2 text-[#5C5E66] dark:text-[#94A3B8] hover:text-[#111214] dark:hover:text-white rounded-lg cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
@@ -1572,19 +1785,19 @@ export const HistoryGallery: React.FC<HistoryGalleryProps> = ({
 
             <form onSubmit={(e) => void handleSaveDynamicChanges(e)} className="space-y-3">
               <div>
-                <label className="block text-[11px] font-medium text-[#4B4D54] mb-1">
+                <label className="block text-[11px] font-medium text-[#4B4D54] dark:text-[#CBD5E1] mb-1">
                   Titre affiché
                 </label>
                 <input
                   type="text"
                   value={editTitle}
                   onChange={(e) => setEditTitle(e.target.value)}
-                  className="w-full px-3 py-2 text-xs bg-[#F8FAFC] border border-[#DCE2EE] rounded-xl"
+                  className="w-full px-3 py-2 text-xs bg-[#F8FAFC] dark:bg-[#0F172A] border border-[#DCE2EE] dark:border-[#2A3347] text-[#111214] dark:text-[#F1F5F9] rounded-xl"
                 />
               </div>
 
               <div>
-                <label className="block text-[11px] font-medium text-[#4B4D54] mb-1">
+                <label className="block text-[11px] font-medium text-[#4B4D54] dark:text-[#CBD5E1] mb-1">
                   Destination (URL ou texte, modifiable sans réimprimer le QR)
                 </label>
                 <input
@@ -1592,13 +1805,13 @@ export const HistoryGallery: React.FC<HistoryGalleryProps> = ({
                   data-testid="manage-dest-payload-input"
                   value={editDestPayload}
                   onChange={(e) => setEditDestPayload(e.target.value)}
-                  className="w-full px-3 py-2 text-xs bg-[#F8FAFC] border border-[#DCE2EE] rounded-xl"
+                  className="w-full px-3 py-2 text-xs bg-[#F8FAFC] dark:bg-[#0F172A] border border-[#DCE2EE] dark:border-[#2A3347] text-[#111214] dark:text-[#F1F5F9] rounded-xl"
                 />
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-[11px] font-medium text-[#4B4D54] mb-1">
+                  <label className="block text-[11px] font-medium text-[#4B4D54] dark:text-[#CBD5E1] mb-1">
                     Nouveau code PIN (laisser vide = inchangé)
                   </label>
                   <input
@@ -1606,11 +1819,11 @@ export const HistoryGallery: React.FC<HistoryGalleryProps> = ({
                     value={editPin}
                     onChange={(e) => setEditPin(e.target.value)}
                     placeholder={managedRecord.hasPin ? 'PIN actif' : 'Aucun PIN'}
-                    className="w-full px-3 py-2 text-xs bg-[#F8FAFC] border border-[#DCE2EE] rounded-xl"
+                    className="w-full px-3 py-2 text-xs bg-[#F8FAFC] dark:bg-[#0F172A] border border-[#DCE2EE] dark:border-[#2A3347] text-[#111214] dark:text-[#F1F5F9] rounded-xl"
                   />
                 </div>
                 <div>
-                  <label className="block text-[11px] font-medium text-[#4B4D54] mb-1">
+                  <label className="block text-[11px] font-medium text-[#4B4D54] dark:text-[#CBD5E1] mb-1">
                     Limite maximale de scans
                   </label>
                   <input
@@ -1619,26 +1832,26 @@ export const HistoryGallery: React.FC<HistoryGalleryProps> = ({
                     value={editMaxScans}
                     onChange={(e) => setEditMaxScans(e.target.value)}
                     placeholder="Illimité"
-                    className="w-full px-3 py-2 text-xs bg-[#F8FAFC] border border-[#DCE2EE] rounded-xl tabular-nums"
+                    className="w-full px-3 py-2 text-xs bg-[#F8FAFC] dark:bg-[#0F172A] border border-[#DCE2EE] dark:border-[#2A3347] text-[#111214] dark:text-[#F1F5F9] rounded-xl tabular-nums"
                   />
                 </div>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-center">
                 <div>
-                  <label className="block text-[11px] font-medium text-[#4B4D54] mb-1">
+                  <label className="block text-[11px] font-medium text-[#4B4D54] dark:text-[#CBD5E1] mb-1">
                     Durée d’accessibilité (expiration)
                   </label>
                   <input
                     type="datetime-local"
                     value={editExpiresAt}
                     onChange={(e) => setEditExpiresAt(e.target.value)}
-                    className="w-full px-3 py-2 text-xs bg-[#F8FAFC] border border-[#DCE2EE] rounded-xl"
+                    className="w-full px-3 py-2 text-xs bg-[#F8FAFC] dark:bg-[#0F172A] border border-[#DCE2EE] dark:border-[#2A3347] text-[#111214] dark:text-[#F1F5F9] rounded-xl"
                   />
                 </div>
 
                 <div className="space-y-1.5 pt-2 sm:pt-4">
-                  <label className="flex items-center gap-2 text-xs font-semibold text-[#111214] cursor-pointer">
+                  <label className="flex items-center gap-2 text-xs font-semibold text-[#111214] dark:text-[#F1F5F9] cursor-pointer">
                     <input
                       type="checkbox"
                       data-testid="manage-active-checkbox"
@@ -1649,7 +1862,7 @@ export const HistoryGallery: React.FC<HistoryGalleryProps> = ({
                     <span>Code QR actif</span>
                   </label>
                   {managedRecord.hasPin && (
-                    <label className="flex items-center gap-2 text-[11px] text-[#5C5E66] cursor-pointer">
+                    <label className="flex items-center gap-2 text-[11px] text-[#5C5E66] dark:text-[#94A3B8] cursor-pointer">
                       <input
                         type="checkbox"
                         checked={clearPin}
@@ -1663,11 +1876,11 @@ export const HistoryGallery: React.FC<HistoryGalleryProps> = ({
               </div>
 
               {managedRecord.stats.recentEvents.length > 0 && (
-                <div className="pt-2 border-t border-[#EFEFF5] space-y-1.5">
-                  <span className="text-[11px] font-semibold text-[#111214]">
+                <div className="pt-2 border-t border-[#EFEFF5] dark:border-[#242C3D] space-y-1.5">
+                  <span className="text-[11px] font-semibold text-[#111214] dark:text-[#F1F5F9]">
                     Journal des derniers scans
                   </span>
-                  <div className="max-h-28 overflow-y-auto space-y-1 text-[11px] text-[#5C5E66] tabular-nums">
+                  <div className="max-h-28 overflow-y-auto space-y-1 text-[11px] text-[#5C5E66] dark:text-[#94A3B8] tabular-nums">
                     {managedRecord.stats.recentEvents.map((ev, i) => (
                       <div key={i} className="flex items-center justify-between">
                         <span>{ev.device}</span>
@@ -1679,16 +1892,16 @@ export const HistoryGallery: React.FC<HistoryGalleryProps> = ({
               )}
 
               {dynamicError && (
-                <p role="alert" className="text-xs text-[#B91C1C]">
+                <p role="alert" className="text-xs text-[#B91C1C] dark:text-[#FCA5A5]">
                   {dynamicError}
                 </p>
               )}
 
-              <div className="flex items-center justify-end gap-2 pt-2 border-t border-[#EFEFF5]">
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-[#EFEFF5] dark:border-[#242C3D]">
                 <button
                   type="button"
                   onClick={() => setManagedSlug(null)}
-                  className="px-3.5 py-2.5 min-h-[40px] text-xs font-semibold text-[#5C5E66] rounded-xl cursor-pointer"
+                  className="px-3.5 py-2.5 min-h-[40px] text-xs font-semibold text-[#5C5E66] dark:text-[#94A3B8] hover:text-[#111214] dark:hover:text-white rounded-xl cursor-pointer"
                 >
                   Fermer
                 </button>
@@ -1696,7 +1909,7 @@ export const HistoryGallery: React.FC<HistoryGalleryProps> = ({
                   type="submit"
                   data-testid="save-dynamic-manage-btn"
                   disabled={savingDynamic}
-                  className="px-4 py-2.5 min-h-[40px] text-xs font-semibold text-white bg-gradient-to-r from-[#2563EB] to-[#4F46E5] hover:from-[#1D4ED8] hover:to-[#4338CA] rounded-xl cursor-pointer"
+                  className="px-4 py-2.5 min-h-[40px] text-xs font-semibold text-white bg-[#2563EB] hover:bg-[#1D4ED8] rounded-xl cursor-pointer whitespace-nowrap shrink-0"
                 >
                   {savingDynamic ? 'Enregistrement...' : 'Enregistrer les modifications'}
                 </button>

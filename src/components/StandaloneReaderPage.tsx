@@ -43,6 +43,20 @@ export const StandaloneReaderPage: React.FC<StandaloneReaderPageProps> = ({
   const [data, setData] = useState<ReaderApiPayload | null>(null);
   const [refreshNonce, setRefreshNonce] = useState(0);
 
+  const [bootProgress, setBootProgress] = useState(18);
+
+  useEffect(() => {
+    if (!loading) {
+      setBootProgress(100);
+      return;
+    }
+    setBootProgress(18);
+    const id = window.setInterval(() => {
+      setBootProgress((p) => (p >= 90 ? 90 : p + 12));
+    }, 140);
+    return () => window.clearInterval(id);
+  }, [loading]);
+
   useEffect(() => {
     const onHashChange = () => setRefreshNonce((n) => n + 1);
     window.addEventListener('hashchange', onHashChange);
@@ -154,7 +168,7 @@ export const StandaloneReaderPage: React.FC<StandaloneReaderPageProps> = ({
           err instanceof Error ? err.message : 'Erreur de chargement du lecteur.';
         setError(
           isMissingOrCryptoError(err)
-            ? 'Impossible de déchiffrer ce contenu. Vérifiez que la clé secrète (#k=...) du lien n’a pas été tronquée.'
+            ? 'Impossible d’ouvrir ce contenu protégé. Vérifiez que le lien d’origine n’a pas été tronqué.'
             : msg
         );
       } finally {
@@ -169,32 +183,43 @@ export const StandaloneReaderPage: React.FC<StandaloneReaderPageProps> = ({
 
   if (loading) {
     return (
-      <div className="min-h-[100dvh] pb-safe pt-safe spark-canvas-bg text-[#0F172A] flex flex-col items-center justify-center gap-3 p-6">
-        <div className="w-11 h-11 rounded-2xl bg-white border border-slate-200/80 shadow-xs flex items-center justify-center">
-          <Loader2 className="w-5 h-5 animate-spin text-[#2563EB]" aria-hidden="true" />
+      <div className="min-h-[100dvh] pb-safe pt-safe spark-canvas-bg text-[#0F172A] dark:text-[#F1F5F9] flex flex-col items-center justify-center p-6">
+        <div className="w-full max-w-xs rounded-2xl bg-white dark:bg-[#141926] border border-slate-200/80 dark:border-slate-800 p-5 shadow-xs space-y-3">
+          <div className="flex items-center justify-between text-xs font-semibold">
+            <span className="inline-flex items-center gap-2">
+              <Loader2 className="w-4 h-4 animate-spin text-[#2563EB] dark:text-[#60A5FA]" aria-hidden="true" />
+              <span>Chargement</span>
+            </span>
+            <span className="font-mono tabular-nums text-[#2563EB] dark:text-[#60A5FA]">
+              {bootProgress}%
+            </span>
+          </div>
+          <div className="w-full h-1.5 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
+            <div
+              className="h-full rounded-full bg-[#2563EB] dark:bg-[#60A5FA] transition-all duration-150"
+              style={{ width: `${bootProgress}%` }}
+            />
+          </div>
         </div>
-        <p className="text-sm font-medium text-slate-600">
-          Chargement du contenu…
-        </p>
       </div>
     );
   }
 
   if (missingKeyError) {
     return (
-      <div className="min-h-[100dvh] pb-safe pt-safe spark-canvas-bg text-[#0F172A] flex items-center justify-center p-4 sm:p-6">
+      <div className="min-h-[100dvh] pb-safe pt-safe spark-canvas-bg text-[#0F172A] dark:text-[#F1F5F9] flex items-center justify-center p-4 sm:p-6">
         <div
           data-testid="e2ee-missing-key"
-          className="max-w-md w-full rounded-2xl bg-white border border-slate-200 p-6 shadow-[0_14px_40px_rgba(15,23,42,0.06)] space-y-3"
+          className="max-w-md w-full rounded-2xl bg-white dark:bg-[#141926] border border-slate-200 dark:border-slate-800 p-6 shadow-[0_14px_40px_rgba(15,23,42,0.06)] space-y-3"
         >
-          <div className="flex items-center gap-2.5 text-[#2563EB]">
+          <div className="flex items-center gap-2.5 text-[#2563EB] dark:text-[#60A5FA]">
             <KeyRound className="w-5 h-5 shrink-0" aria-hidden="true" />
-            <h1 className="font-display text-base font-bold text-[#0F172A]">
-              Clé de déchiffrement manquante
+            <h1 className="font-display text-base font-bold text-[#0F172A] dark:text-[#F1F5F9]">
+              Clé d’accès manquante
             </h1>
           </div>
-          <p className="text-sm text-slate-600 leading-relaxed">
-            Ce contenu est chiffré de bout en bout. Utilisez le lien complet incluant sa clé secrète (<code className="font-mono text-xs bg-slate-100 px-1.5 py-0.5 rounded">#k=...</code>) ou scannez le QR code d’origine.
+          <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
+            Ce contenu est protégé. Utilisez le lien complet d’origine ou scannez directement le QR code.
           </p>
         </div>
       </div>
@@ -203,18 +228,18 @@ export const StandaloneReaderPage: React.FC<StandaloneReaderPageProps> = ({
 
   if (error || !data) {
     return (
-      <div className="min-h-[100dvh] pb-safe pt-safe spark-canvas-bg text-[#0F172A] flex items-center justify-center p-4 sm:p-6">
+      <div className="min-h-[100dvh] pb-safe pt-safe spark-canvas-bg text-[#0F172A] dark:text-[#F1F5F9] flex items-center justify-center p-4 sm:p-6">
         <div
           data-testid="standalone-error-card"
-          className="max-w-md w-full rounded-2xl bg-white border border-slate-200 p-6 shadow-[0_14px_40px_rgba(15,23,42,0.06)] space-y-3"
+          className="max-w-md w-full rounded-2xl bg-white dark:bg-[#141926] border border-slate-200 dark:border-slate-800 p-6 shadow-[0_14px_40px_rgba(15,23,42,0.06)] space-y-3"
         >
-          <div className="flex items-center gap-2.5 text-[#DC2626]">
+          <div className="flex items-center gap-2.5 text-[#DC2626] dark:text-[#F87171]">
             <AlertCircle className="w-5 h-5 shrink-0" aria-hidden="true" />
-            <h1 className="font-display text-base font-bold text-[#0F172A]">
+            <h1 className="font-display text-base font-bold text-[#0F172A] dark:text-[#F1F5F9]">
               Contenu inaccessible
             </h1>
           </div>
-          <p className="text-sm text-slate-600 leading-relaxed">
+          <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
             {error || 'Ce code QR n’est plus disponible.'}
           </p>
         </div>

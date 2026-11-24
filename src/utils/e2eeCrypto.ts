@@ -231,7 +231,8 @@ export async function encryptBufferChunked(
 
 export async function decryptBufferChunked(
   encryptedBytes: Uint8Array,
-  keyBase64Url: string
+  keyBase64Url: string,
+  onProgress?: (fraction: number) => void
 ): Promise<Uint8Array> {
   if (!isEncryptedSpk1Buffer(encryptedBytes)) {
     throw new Error('Format de fichier chiffré SparkQR (SPK1) invalide.');
@@ -277,6 +278,7 @@ export async function decryptBufferChunked(
     const plainSlice = new Uint8Array(plainBuffer);
     plainChunks.push(plainSlice);
     totalPlainSize += plainSlice.length;
+    onProgress?.((i + 1) / chunkCount);
   }
 
   const output = new Uint8Array(totalPlainSize);

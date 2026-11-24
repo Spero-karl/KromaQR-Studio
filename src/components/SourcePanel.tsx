@@ -58,50 +58,50 @@ const INTENT_OPTIONS: Array<{
     label: 'Lien web',
     hint: 'Site ou page',
     icon: LinkIcon,
-    iconSolid: 'bg-[#2563EB] text-white shadow-[0_6px_14px_rgba(37,99,235,0.28)]',
-    idleSurface: 'border-[#DCE6FF] bg-[#F5F8FF] hover:border-[#93C5FD] hover:bg-[#EFF5FF]',
-    activeBorder: 'border-[#2563EB]',
-    activeSurface: 'bg-[#EAF1FF] shadow-[0_10px_24px_rgba(37,99,235,0.16)]',
+    iconSolid: 'bg-[#2563EB] text-white',
+    idleSurface: 'border-[#DCE6FF] dark:border-[#243047] bg-[#F5F8FF] dark:bg-[#0F172A] hover:border-[#93C5FD] dark:hover:border-[#3B82F6] hover:bg-[#EFF5FF] dark:hover:bg-[#162033]',
+    activeBorder: 'border-[#2563EB] dark:border-[#3B82F6]',
+    activeSurface: 'bg-[#EAF1FF] dark:bg-[#1E293B]',
   },
   {
     id: 'text',
     label: 'Texte',
     hint: 'Message libre',
     icon: Type,
-    iconSolid: 'bg-[#7C3AED] text-white shadow-[0_6px_14px_rgba(124,58,237,0.28)]',
-    idleSurface: 'border-[#E6DDFF] bg-[#F7F4FF] hover:border-[#C4B5FD] hover:bg-[#F2ECFF]',
-    activeBorder: 'border-[#7C3AED]',
-    activeSurface: 'bg-[#EFE8FF] shadow-[0_10px_24px_rgba(124,58,237,0.16)]',
+    iconSolid: 'bg-[#7C3AED] text-white',
+    idleSurface: 'border-[#E6DDFF] dark:border-[#2C2444] bg-[#F7F4FF] dark:bg-[#0F172A] hover:border-[#C4B5FD] dark:hover:border-[#8B5CF6] hover:bg-[#F2ECFF] dark:hover:bg-[#162033]',
+    activeBorder: 'border-[#7C3AED] dark:border-[#8B5CF6]',
+    activeSurface: 'bg-[#EFE8FF] dark:bg-[#1E293B]',
   },
   {
     id: 'wifi',
     label: 'Wi-Fi',
     hint: 'Accès instantané',
     icon: Wifi,
-    iconSolid: 'bg-[#059669] text-white shadow-[0_6px_14px_rgba(5,150,105,0.28)]',
-    idleSurface: 'border-[#CCF3E3] bg-[#F2FCF8] hover:border-[#6EE7B7] hover:bg-[#E8FAF2]',
-    activeBorder: 'border-[#059669]',
-    activeSurface: 'bg-[#E2F9EF] shadow-[0_10px_24px_rgba(5,150,105,0.16)]',
+    iconSolid: 'bg-[#059669] text-white',
+    idleSurface: 'border-[#CCF3E3] dark:border-[#1E3A34] bg-[#F2FCF8] dark:bg-[#0F172A] hover:border-[#6EE7B7] dark:hover:border-[#10B981] hover:bg-[#E8FAF2] dark:hover:bg-[#162033]',
+    activeBorder: 'border-[#059669] dark:border-[#10B981]',
+    activeSurface: 'bg-[#E2F9EF] dark:bg-[#1E293B]',
   },
   {
     id: 'image',
     label: 'Image',
     hint: 'Photo ou affiche',
     icon: ImageIcon,
-    iconSolid: 'bg-[#D97706] text-white shadow-[0_6px_14px_rgba(217,119,6,0.28)]',
-    idleSurface: 'border-[#FDE6B8] bg-[#FFFBEB] hover:border-[#FCD34D] hover:bg-[#FEF5D6]',
-    activeBorder: 'border-[#D97706]',
-    activeSurface: 'bg-[#FEF2C7] shadow-[0_10px_24px_rgba(217,119,6,0.16)]',
+    iconSolid: 'bg-[#D97706] text-white',
+    idleSurface: 'border-[#FDE6B8] dark:border-[#3D2F1C] bg-[#FFFBEB] dark:bg-[#0F172A] hover:border-[#FCD34D] dark:hover:border-[#F59E0B] hover:bg-[#FEF5D6] dark:hover:bg-[#162033]',
+    activeBorder: 'border-[#D97706] dark:border-[#F59E0B]',
+    activeSurface: 'bg-[#FEF2C7] dark:bg-[#1E293B]',
   },
   {
     id: 'video',
     label: 'Vidéo',
     hint: 'Lecteur natif HD',
     icon: Film,
-    iconSolid: 'bg-[#E11D48] text-white shadow-[0_6px_14px_rgba(225,29,72,0.28)]',
-    idleSurface: 'border-[#FFD5DF] bg-[#FFF4F6] hover:border-[#FDA4AF] hover:bg-[#FFEAEF]',
-    activeBorder: 'border-[#E11D48]',
-    activeSurface: 'bg-[#FFE4EB] shadow-[0_10px_24px_rgba(225,29,72,0.16)]',
+    iconSolid: 'bg-[#E11D48] text-white',
+    idleSurface: 'border-[#FFD5DF] dark:border-[#3F202C] bg-[#FFF4F6] dark:bg-[#0F172A] hover:border-[#FDA4AF] dark:hover:border-[#F43F5E] hover:bg-[#FFEAEF] dark:hover:bg-[#162033]',
+    activeBorder: 'border-[#E11D48] dark:border-[#F43F5E]',
+    activeSurface: 'bg-[#FFE4EB] dark:bg-[#1E293B]',
   },
 ];
 
@@ -338,28 +338,24 @@ export const SourcePanel: React.FC<SourcePanelProps> = ({
   return (
     <section
       aria-labelledby="source-heading"
-      className="bg-white/95 border border-[#E2E6F0] rounded-2xl p-5 sm:p-6 shadow-[0_6px_24px_rgba(37,99,235,0.05)] transition-all overflow-hidden relative"
+      className="bg-white dark:bg-[#131926] border border-[#E2E6F0] dark:border-[#242C3D] rounded-2xl p-5 sm:p-6 shadow-[0_2px_10px_rgba(15,23,42,0.03)] transition-colors overflow-hidden"
     >
-      <div
-        aria-hidden="true"
-        className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-[#2563EB] via-[#7C3AED] to-[#EC4899]"
-      />
       {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-3 pb-4 border-b border-[#F0F2F8]">
+      <div className="flex flex-wrap items-center justify-between gap-3 pb-4 border-b border-[#EFEFF5] dark:border-[#242C3D]">
         <div>
-          <span className="block text-[11px] font-semibold uppercase tracking-[0.14em] text-[#2563EB]">
+          <span className="block text-[11px] font-semibold uppercase tracking-[0.14em] text-[#2563EB] dark:text-[#60A5FA]">
             Étape 1
           </span>
           <h2
             id="source-heading"
-            className="font-display text-lg sm:text-xl font-bold tracking-tight text-[#111214] mt-0.5"
+            className="font-display text-lg sm:text-xl font-bold tracking-tight text-[#111214] dark:text-[#F1F5F9] mt-0.5"
           >
             Que voulez-vous transformer ?
           </h2>
         </div>
 
-        <span className="inline-flex items-center gap-1.5 text-xs font-medium text-[#475569]">
-          <ShieldCheck className="w-4 h-4 text-[#2563EB]" aria-hidden="true" />
+        <span className="inline-flex items-center gap-1.5 text-xs font-medium text-[#475569] dark:text-[#94A3B8]">
+          <ShieldCheck className="w-4 h-4 text-[#2563EB] dark:text-[#60A5FA]" aria-hidden="true" />
           <span>Privé &amp; sécurisé</span>
         </span>
       </div>
@@ -381,22 +377,22 @@ export const SourcePanel: React.FC<SourcePanelProps> = ({
               aria-selected={active}
               data-testid={`intent-${opt.id}`}
               onClick={() => handleChooseIntent(opt.id)}
-              className={`group w-[calc(50%-0.3125rem)] sm:w-auto min-h-[44px] flex flex-col items-center sm:items-start justify-between gap-2.5 p-3.5 rounded-xl border text-center sm:text-left transition-all duration-200 ease-[cubic-bezier(0.16,1,0.3,1)] hover:-translate-y-0.5 active:scale-[0.98] cursor-pointer ${
+              className={`group w-[calc(50%-0.3125rem)] sm:w-auto min-h-[44px] flex flex-col items-center sm:items-start justify-between gap-2.5 p-3.5 rounded-xl border text-center sm:text-left transition-all duration-150 hover:-translate-y-0.5 active:scale-[0.98] cursor-pointer ${
                 active ? `${opt.activeBorder} ${opt.activeSurface}` : opt.idleSurface
               }`}
             >
               <span
-                className={`w-9 h-9 rounded-xl flex items-center justify-center transition-transform duration-200 ${
+                className={`w-9 h-9 rounded-xl flex items-center justify-center transition-transform duration-150 ${
                   opt.iconSolid
                 } ${active ? 'scale-105' : 'group-hover:scale-105'}`}
               >
                 <Icon className="w-4 h-4" aria-hidden="true" />
               </span>
               <div className="min-w-0 w-full">
-                <span className="block text-sm font-semibold leading-tight text-[#111214] truncate">
+                <span className="block text-sm font-semibold leading-tight text-[#111214] dark:text-[#F1F5F9] truncate">
                   {opt.label}
                 </span>
-                <span className="block text-[11px] text-[#525866] truncate mt-0.5">
+                <span className="block text-[11px] text-[#525866] dark:text-[#94A3B8] truncate mt-0.5">
                   {opt.hint}
                 </span>
               </div>
@@ -409,7 +405,7 @@ export const SourcePanel: React.FC<SourcePanelProps> = ({
       {selectedIntent === 'url' && (
         <div className="pt-5 space-y-2.5 animate-[fadeIn_160ms_ease-out]">
           <div className="flex items-center justify-between gap-2">
-            <label htmlFor="qr-url-input" className="text-xs font-semibold text-[#111214]">
+            <label htmlFor="qr-url-input" className="text-xs font-semibold text-[#111214] dark:text-[#F1F5F9]">
               Adresse web de destination
             </label>
             <button
@@ -422,7 +418,7 @@ export const SourcePanel: React.FC<SourcePanelProps> = ({
                   urlValue: DEMO_SOURCE_SAMPLES.url,
                 })
               }
-              className="inline-flex items-center gap-1 text-xs font-medium text-[#1D4ED8] hover:underline cursor-pointer whitespace-nowrap"
+              className="inline-flex items-center gap-1 text-xs font-medium text-[#1D4ED8] dark:text-[#60A5FA] hover:underline cursor-pointer whitespace-nowrap"
             >
               <Sparkles className="w-3.5 h-3.5" aria-hidden="true" />
               <span>Exemple</span>
@@ -441,7 +437,7 @@ export const SourcePanel: React.FC<SourcePanelProps> = ({
               })
             }
             placeholder="https://votre-site.fr/projet"
-            className="w-full px-4 py-3 text-sm bg-[#FAF9F5] border border-[#DFDDD4] rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1D4ED8]/15 focus:border-[#1D4ED8] transition-colors"
+            className="w-full px-4 py-3 text-sm bg-[#F8FAFC] dark:bg-[#0F172A] text-[#111214] dark:text-[#F1F5F9] border border-[#DCE2EE] dark:border-[#2A3346] rounded-xl focus:outline-none focus:ring-2 focus:ring-[#2563EB]/20 focus:border-[#2563EB] transition-colors"
           />
         </div>
       )}
@@ -450,7 +446,7 @@ export const SourcePanel: React.FC<SourcePanelProps> = ({
       {selectedIntent === 'text' && (
         <div className="pt-5 space-y-3 animate-[fadeIn_160ms_ease-out]">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <label htmlFor="qr-text-input" className="text-xs font-semibold text-[#111214]">
+            <label htmlFor="qr-text-input" className="text-xs font-semibold text-[#111214] dark:text-[#F1F5F9]">
               Message typographique
             </label>
             <div className="flex items-center gap-3">
@@ -464,12 +460,12 @@ export const SourcePanel: React.FC<SourcePanelProps> = ({
                     textValue: DEMO_SOURCE_SAMPLES.text,
                   })
                 }
-                className="inline-flex items-center gap-1 text-xs font-medium text-[#1D4ED8] hover:underline cursor-pointer whitespace-nowrap"
+                className="inline-flex items-center gap-1 text-xs font-medium text-[#1D4ED8] dark:text-[#60A5FA] hover:underline cursor-pointer whitespace-nowrap"
               >
                 <Sparkles className="w-3.5 h-3.5" aria-hidden="true" />
                 <span>Exemple</span>
               </button>
-              <span className="text-xs text-[#6E7078] tabular-nums">
+              <span className="text-xs text-[#6E7078] dark:text-[#94A3B8] tabular-nums">
                 {source.textValue.length} car.
               </span>
             </div>
@@ -494,23 +490,23 @@ export const SourcePanel: React.FC<SourcePanelProps> = ({
               fontStyle: liveTextStyle.fontStyle,
               fontWeight: liveTextStyle.fontWeight,
               textAlign: liveTextStyle.textAlign,
-              color: liveTextStyle.color,
+              color: liveTextStyle.color === '#111214' ? undefined : liveTextStyle.color,
               letterSpacing: liveTextStyle.letterSpacing,
               textDecoration: liveTextStyle.textDecoration,
             }}
-            className="w-full min-h-[148px] px-4 py-3.5 bg-[#FAF9F5] border border-[#DFDDD4] rounded-xl focus:outline-none focus:ring-2 focus:ring-[#1D4ED8]/15 focus:border-[#1D4ED8] transition-colors resize-y leading-relaxed"
+            className="w-full min-h-[148px] px-4 py-3.5 bg-[#F8FAFC] dark:bg-[#0F172A] text-[#111214] dark:text-[#F1F5F9] border border-[#DCE2EE] dark:border-[#2A3346] rounded-xl focus:outline-none focus:ring-2 focus:ring-[#2563EB]/20 focus:border-[#2563EB] transition-colors resize-y leading-relaxed"
           />
 
-          <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-[#5C5E66]">
+          <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-[#5C5E66] dark:text-[#94A3B8]">
             <span>
-              Rendu actif : <strong className="text-[#111214]">{activeFontLabel}</strong> ·{' '}
+              Rendu actif : <strong className="text-[#111214] dark:text-[#F1F5F9]">{activeFontLabel}</strong> ·{' '}
               {liveTextStyle.fontSizePx}px
             </span>
             {onJumpToTypography && (
               <button
                 type="button"
                 onClick={onJumpToTypography}
-                className="text-xs font-semibold text-[#1D4ED8] hover:underline cursor-pointer"
+                className="text-xs font-semibold text-[#1D4ED8] dark:text-[#60A5FA] hover:underline cursor-pointer"
               >
                 Modifier la typographie →
               </button>
@@ -523,7 +519,7 @@ export const SourcePanel: React.FC<SourcePanelProps> = ({
       {selectedIntent === 'wifi' && (
         <div className="pt-5 space-y-3 animate-[fadeIn_160ms_ease-out]">
           <div className="flex items-center justify-between gap-2">
-            <span className="text-xs font-semibold text-[#111214]">
+            <span className="text-xs font-semibold text-[#111214] dark:text-[#F1F5F9]">
               Paramètres du réseau Wi-Fi
             </span>
             <button
@@ -538,7 +534,7 @@ export const SourcePanel: React.FC<SourcePanelProps> = ({
                   wifiSecurity: 'WPA',
                 })
               }
-              className="inline-flex items-center gap-1 text-xs font-medium text-[#1D4ED8] hover:underline cursor-pointer whitespace-nowrap"
+              className="inline-flex items-center gap-1 text-xs font-medium text-[#1D4ED8] dark:text-[#60A5FA] hover:underline cursor-pointer whitespace-nowrap"
             >
               <Sparkles className="w-3.5 h-3.5" aria-hidden="true" />
               <span>Exemple</span>
@@ -548,7 +544,7 @@ export const SourcePanel: React.FC<SourcePanelProps> = ({
             <div>
               <label
                 htmlFor="qr-wifi-ssid"
-                className="block text-xs font-medium text-[#4B4D54] mb-1.5"
+                className="block text-xs font-medium text-[#4B4D54] dark:text-[#CBD5E1] mb-1.5"
               >
                 Nom du réseau (SSID)
               </label>
@@ -565,14 +561,14 @@ export const SourcePanel: React.FC<SourcePanelProps> = ({
                   })
                 }
                 placeholder="Mon_WiFi"
-                className="w-full px-3.5 py-2.5 text-sm bg-[#FAF9F5] border border-[#DFDDD4] rounded-xl focus:outline-none focus:border-[#1D4ED8]"
+                className="w-full px-3.5 py-2.5 text-sm bg-[#F8FAFC] dark:bg-[#0F172A] text-[#111214] dark:text-[#F1F5F9] border border-[#DCE2EE] dark:border-[#2A3346] rounded-xl focus:outline-none focus:border-[#2563EB]"
               />
             </div>
 
             <div>
               <label
                 htmlFor="qr-wifi-pass"
-                className="block text-xs font-medium text-[#4B4D54] mb-1.5"
+                className="block text-xs font-medium text-[#4B4D54] dark:text-[#CBD5E1] mb-1.5"
               >
                 Mot de passe
               </label>
@@ -590,14 +586,14 @@ export const SourcePanel: React.FC<SourcePanelProps> = ({
                   })
                 }
                 placeholder="••••••••"
-                className="w-full px-3.5 py-2.5 text-sm bg-[#FAF9F5] border border-[#DFDDD4] rounded-xl focus:outline-none focus:border-[#1D4ED8] disabled:opacity-50"
+                className="w-full px-3.5 py-2.5 text-sm bg-[#F8FAFC] dark:bg-[#0F172A] text-[#111214] dark:text-[#F1F5F9] border border-[#DCE2EE] dark:border-[#2A3346] rounded-xl focus:outline-none focus:border-[#2563EB] disabled:opacity-50"
               />
             </div>
 
             <div>
               <label
                 htmlFor="qr-wifi-sec"
-                className="block text-xs font-medium text-[#4B4D54] mb-1.5"
+                className="block text-xs font-medium text-[#4B4D54] dark:text-[#CBD5E1] mb-1.5"
               >
                 Sécurité
               </label>
@@ -612,7 +608,7 @@ export const SourcePanel: React.FC<SourcePanelProps> = ({
                     wifiSecurity: e.target.value as 'WPA' | 'WEP' | 'nopass',
                   })
                 }
-                className="w-full px-3.5 py-2.5 text-sm bg-[#FAF9F5] border border-[#DFDDD4] rounded-xl focus:outline-none focus:border-[#1D4ED8]"
+                className="w-full px-3.5 py-2.5 text-sm bg-[#F8FAFC] dark:bg-[#0F172A] text-[#111214] dark:text-[#F1F5F9] border border-[#DCE2EE] dark:border-[#2A3346] rounded-xl focus:outline-none focus:border-[#2563EB]"
               >
                 <option value="WPA">WPA / WPA2</option>
                 <option value="WEP">WEP</option>
@@ -650,8 +646,8 @@ export const SourcePanel: React.FC<SourcePanelProps> = ({
               onDrop={(e) => handleDrop(e, 'image')}
               className={`rounded-xl border px-3.5 py-2.5 transition-colors flex flex-wrap items-center justify-between gap-3 ${
                 dragActive
-                  ? 'border-[#1D4ED8] bg-[#F4F7FF]'
-                  : 'border-[#DCE6FF] bg-[#F8FAFF]'
+                  ? 'border-[#2563EB] bg-[#F4F7FF] dark:bg-[#1E293B]'
+                  : 'border-[#DCE6FF] dark:border-[#243047] bg-[#F8FAFF] dark:bg-[#0F172A]'
               }`}
             >
               <div className="flex items-center gap-3 min-w-0">
@@ -660,28 +656,28 @@ export const SourcePanel: React.FC<SourcePanelProps> = ({
                   alt="Aperçu de l’image"
                   referrerPolicy="no-referrer"
                   data-testid="image-source-thumbnail"
-                  className="w-12 h-12 rounded-lg object-cover border border-[#DCE2EE] bg-white shrink-0"
+                  className="w-12 h-12 rounded-lg object-contain border border-[#DCE2EE] dark:border-[#2A3346] bg-white dark:bg-[#131926] shrink-0"
                 />
                 <div className="min-w-0 space-y-0.5">
-                  <div className="flex flex-wrap items-center gap-1.5">
-                    <span className="text-xs font-bold text-[#111214] inline-flex items-center gap-1">
-                      <CheckCircle2 className="w-3.5 h-3.5 text-[#15803D]" aria-hidden="true" />
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-xs font-bold text-[#111214] dark:text-[#F1F5F9] inline-flex items-center gap-1">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-[#15803D] dark:text-[#34D399]" aria-hidden="true" />
                       <span>{uploading === 'image' ? 'Envoi en cours…' : 'Image prête'}</span>
                     </span>
                     {source.imageEncrypted && (
-                      <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-[#1D4ED8] bg-[#EFF4FF] px-1.5 py-0.5 rounded-md">
+                      <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-[#1D4ED8] dark:text-[#93C5FD]">
                         <Lock className="w-2.5 h-2.5" aria-hidden="true" />
-                        <span>E2EE</span>
+                        <span>Protégée</span>
                       </span>
                     )}
                     {source.imageUrl === DEMO_IMAGE_PATH && (
-                      <span className="text-[10px] font-semibold text-[#7C3AED] bg-[#F5F3FF] px-1.5 py-0.5 rounded-md">
-                        Démo
+                      <span className="text-[10px] font-semibold text-[#7C3AED] dark:text-[#C4B5FD]">
+                        · Démo
                       </span>
                     )}
                   </div>
-                  <p className="text-[11px] text-[#5C5E66]">
-                    Affichée en plein format après scan
+                  <p className="text-[11px] text-[#5C5E66] dark:text-[#94A3B8]">
+                    Affichée en plein format sans rognage après scan
                   </p>
                 </div>
               </div>
@@ -691,7 +687,7 @@ export const SourcePanel: React.FC<SourcePanelProps> = ({
                   type="button"
                   disabled={uploading === 'image'}
                   onClick={() => imageInputRef.current?.click()}
-                  className="inline-flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-semibold text-[#111214] bg-white border border-[#DCE2EE] hover:bg-[#EFF4FF] rounded-lg transition-colors cursor-pointer disabled:opacity-60"
+                  className="inline-flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-semibold text-[#111214] dark:text-[#F1F5F9] bg-white dark:bg-[#131926] border border-[#DCE2EE] dark:border-[#2A3346] hover:bg-[#EFF4FF] dark:hover:bg-[#1E293B] rounded-lg transition-colors cursor-pointer disabled:opacity-60"
                 >
                   <Upload className="w-3 h-3" aria-hidden="true" />
                   <span>Remplacer</span>
@@ -709,7 +705,7 @@ export const SourcePanel: React.FC<SourcePanelProps> = ({
                       imageEncrypted: false,
                     });
                   }}
-                  className="p-1.5 text-[#6E7078] hover:text-[#B91C1C] hover:bg-white rounded-lg cursor-pointer"
+                  className="p-1.5 text-[#6E7078] dark:text-[#94A3B8] hover:text-[#B91C1C] hover:bg-white dark:hover:bg-[#1E293B] rounded-lg cursor-pointer"
                 >
                   <X className="w-3.5 h-3.5" />
                 </button>
@@ -725,21 +721,21 @@ export const SourcePanel: React.FC<SourcePanelProps> = ({
               onDrop={(e) => handleDrop(e, 'image')}
               className={`rounded-xl border border-dashed px-3.5 py-3 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 ${
                 dragActive
-                  ? 'border-[#1D4ED8] bg-[#F4F7FF]'
-                  : 'border-[#DAD7CD] bg-[#FAF9F5]'
+                  ? 'border-[#2563EB] bg-[#F4F7FF] dark:bg-[#1E293B]'
+                  : 'border-[#CBD5E1] dark:border-[#334155] bg-[#F8FAFC] dark:bg-[#0F172A]'
               }`}
             >
               <div className="flex items-center gap-2.5 min-w-0">
-                <div className="w-9 h-9 rounded-lg bg-white border border-[#E6E4DC] flex items-center justify-center shrink-0">
-                  <ImageIcon className="w-4 h-4 text-[#D97706]" aria-hidden="true" />
+                <div className="w-9 h-9 rounded-lg bg-white dark:bg-[#131926] border border-[#E2E6F0] dark:border-[#242C3D] flex items-center justify-center shrink-0">
+                  <ImageIcon className="w-4 h-4 text-[#D97706] dark:text-[#FBBF24]" aria-hidden="true" />
                 </div>
                 <div className="min-w-0">
-                  <p className="text-xs sm:text-sm font-semibold text-[#111214] truncate">
+                  <p className="text-xs sm:text-sm font-semibold text-[#111214] dark:text-[#F1F5F9] truncate">
                     {uploading === 'image'
                       ? 'Hébergement sécurisé...'
                       : 'Importer une image (PNG, JPG, WebP)'}
                   </p>
-                  <p className="text-[11px] text-[#6E7078] truncate">
+                  <p className="text-[11px] text-[#6E7078] dark:text-[#94A3B8] truncate">
                     Qualité d’origine préservée avec zoom &amp; plein écran.
                   </p>
                 </div>
@@ -750,7 +746,7 @@ export const SourcePanel: React.FC<SourcePanelProps> = ({
                   type="button"
                   disabled={uploading === 'image'}
                   onClick={() => imageInputRef.current?.click()}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-[#111214] hover:bg-[#27292E] rounded-xl transition-colors whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-60"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-[#111214] dark:bg-[#2563EB] hover:bg-[#27292E] dark:hover:bg-[#1D4ED8] rounded-xl transition-colors whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-60"
                 >
                   <Upload className="w-3.5 h-3.5" aria-hidden="true" />
                   <span>Importer</span>
@@ -759,7 +755,7 @@ export const SourcePanel: React.FC<SourcePanelProps> = ({
                   type="button"
                   disabled={uploading === 'image'}
                   onClick={handleUseDemoImage}
-                  className="inline-flex items-center px-3 py-1.5 text-xs font-semibold text-[#1D4ED8] bg-[#EFF4FF] hover:bg-[#E0EAFF] rounded-xl transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+                  className="inline-flex items-center px-3 py-1.5 text-xs font-semibold text-[#1D4ED8] dark:text-[#93C5FD] bg-[#EFF4FF] dark:bg-[#1E293B] hover:bg-[#E0EAFF] dark:hover:bg-[#334155] rounded-xl transition-colors whitespace-nowrap shrink-0 cursor-pointer"
                 >
                   <span>Démo</span>
                 </button>
@@ -787,17 +783,17 @@ export const SourcePanel: React.FC<SourcePanelProps> = ({
                   })
                 }
                 placeholder="Ou collez un lien HTTPS externe vers une image…"
-                className="flex-1 px-3 py-2 text-xs bg-[#FAF9F5] border border-[#DFDDD4] rounded-xl focus:outline-none focus:border-[#1D4ED8]"
+                className="flex-1 px-3 py-2 text-xs bg-[#F8FAFC] dark:bg-[#0F172A] text-[#111214] dark:text-[#F1F5F9] border border-[#DCE2EE] dark:border-[#2A3346] rounded-xl focus:outline-none focus:border-[#2563EB]"
               />
 
               {source.imageUrl && !isInternalMediaPath(source.imageUrl) && (
-                <div className="flex items-center gap-2 px-2.5 py-1 bg-[#F4F2EC] rounded-xl shrink-0">
+                <div className="flex items-center gap-2 px-2.5 py-1 bg-[#F4F5F8] dark:bg-[#1E293B] rounded-xl shrink-0">
                   <img
                     src={source.imageUrl}
                     alt="Aperçu de l’image"
                     referrerPolicy="no-referrer"
                     data-testid="image-source-thumbnail"
-                    className="w-7 h-7 rounded-md object-cover border border-black/10"
+                    className="w-7 h-7 rounded-md object-contain border border-black/10 bg-white dark:bg-[#0F172A]"
                   />
                   <button
                     type="button"
@@ -810,7 +806,7 @@ export const SourcePanel: React.FC<SourcePanelProps> = ({
                         imagePageUrl: '',
                       })
                     }
-                    className="p-1 text-[#6E7078] hover:text-[#111214] rounded-md cursor-pointer"
+                    className="p-1 text-[#6E7078] dark:text-[#94A3B8] hover:text-[#111214] dark:hover:text-white rounded-md cursor-pointer"
                   >
                     <X className="w-3.5 h-3.5" />
                   </button>
@@ -822,7 +818,7 @@ export const SourcePanel: React.FC<SourcePanelProps> = ({
               <button
                 type="button"
                 onClick={() => setShowExternalUrlInput('image')}
-                className="text-[11px] font-medium text-[#5C5E66] hover:text-[#1D4ED8] hover:underline cursor-pointer"
+                className="text-[11px] font-medium text-[#5C5E66] dark:text-[#94A3B8] hover:text-[#1D4ED8] dark:hover:text-[#60A5FA] hover:underline cursor-pointer"
               >
                 Utiliser plutôt un lien HTTPS externe
               </button>
@@ -830,7 +826,7 @@ export const SourcePanel: React.FC<SourcePanelProps> = ({
           )}
 
           {imageUrlWarning && (
-            <p role="alert" className="text-xs font-medium text-[#B91C1C]">
+            <p role="alert" className="text-xs font-medium text-[#B91C1C] dark:text-[#F87171]">
               {imageUrlWarning}
             </p>
           )}
@@ -876,12 +872,12 @@ export const SourcePanel: React.FC<SourcePanelProps> = ({
               onDrop={(e) => handleDrop(e, 'video')}
               className={`rounded-xl border px-3.5 py-2.5 transition-colors flex flex-wrap items-center justify-between gap-3 ${
                 dragActive
-                  ? 'border-[#1D4ED8] bg-[#F4F7FF]'
-                  : 'border-[#FFD5DF] bg-[#FFF8FA]'
+                  ? 'border-[#2563EB] bg-[#F4F7FF] dark:bg-[#1E293B]'
+                  : 'border-[#FFD5DF] dark:border-[#3F202C] bg-[#FFF8FA] dark:bg-[#0F172A]'
               }`}
             >
               <div className="flex items-center gap-3 min-w-0">
-                <div className="w-14 h-10 rounded-lg overflow-hidden bg-[#111214] border border-[#DCE2EE] shrink-0">
+                <div className="w-14 h-10 rounded-lg overflow-hidden bg-[#111214] border border-[#DCE2EE] dark:border-[#2A3346] shrink-0">
                   <video
                     src={localPreviews[source.videoUrl] || source.videoUrl}
                     poster={
@@ -892,28 +888,28 @@ export const SourcePanel: React.FC<SourcePanelProps> = ({
                     muted
                     playsInline
                     data-testid="video-source-thumbnail"
-                    className="w-full h-full object-cover"
+                    className="w-full h-full object-contain"
                   />
                 </div>
                 <div className="min-w-0 space-y-0.5">
-                  <div className="flex flex-wrap items-center gap-1.5">
-                    <span className="text-xs font-bold text-[#111214] inline-flex items-center gap-1">
-                      <CheckCircle2 className="w-3.5 h-3.5 text-[#15803D]" aria-hidden="true" />
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-xs font-bold text-[#111214] dark:text-[#F1F5F9] inline-flex items-center gap-1">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-[#15803D] dark:text-[#34D399]" aria-hidden="true" />
                       <span>{uploading === 'video' ? 'Envoi en cours…' : 'Vidéo prête'}</span>
                     </span>
                     {source.videoEncrypted && (
-                      <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-[#1D4ED8] bg-[#EFF4FF] px-1.5 py-0.5 rounded-md">
+                      <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-[#1D4ED8] dark:text-[#93C5FD]">
                         <Lock className="w-2.5 h-2.5" aria-hidden="true" />
-                        <span>E2EE</span>
+                        <span>Protégée</span>
                       </span>
                     )}
                     {source.videoUrl === DEMO_VIDEO_PATH && (
-                      <span className="text-[10px] font-semibold text-[#7C3AED] bg-[#F5F3FF] px-1.5 py-0.5 rounded-md">
-                        Démo
+                      <span className="text-[10px] font-semibold text-[#7C3AED] dark:text-[#C4B5FD]">
+                        · Démo
                       </span>
                     )}
                   </div>
-                  <p className="text-[11px] text-[#6E7078] truncate">
+                  <p className="text-[11px] text-[#6E7078] dark:text-[#94A3B8] truncate">
                     Lecteur intégré plein écran compatible iOS et Android.
                   </p>
                 </div>
@@ -924,7 +920,7 @@ export const SourcePanel: React.FC<SourcePanelProps> = ({
                   type="button"
                   disabled={uploading === 'video'}
                   onClick={() => videoInputRef.current?.click()}
-                  className="inline-flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-semibold text-[#111214] bg-white border border-[#DCE2EE] hover:bg-[#FFF0F3] rounded-lg transition-colors cursor-pointer disabled:opacity-60"
+                  className="inline-flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-semibold text-[#111214] dark:text-[#F1F5F9] bg-white dark:bg-[#131926] border border-[#DCE2EE] dark:border-[#2A3346] hover:bg-[#FFF0F3] dark:hover:bg-[#1E293B] rounded-lg transition-colors cursor-pointer disabled:opacity-60"
                 >
                   <Upload className="w-3 h-3" aria-hidden="true" />
                   <span>Remplacer</span>
@@ -942,7 +938,7 @@ export const SourcePanel: React.FC<SourcePanelProps> = ({
                       videoEncrypted: false,
                     });
                   }}
-                  className="p-1.5 text-[#6E7078] hover:text-[#B91C1C] hover:bg-white rounded-lg cursor-pointer"
+                  className="p-1.5 text-[#6E7078] dark:text-[#94A3B8] hover:text-[#B91C1C] hover:bg-white dark:hover:bg-[#1E293B] rounded-lg cursor-pointer"
                 >
                   <X className="w-3.5 h-3.5" />
                 </button>
@@ -958,21 +954,21 @@ export const SourcePanel: React.FC<SourcePanelProps> = ({
               onDrop={(e) => handleDrop(e, 'video')}
               className={`rounded-xl border border-dashed px-3.5 py-3 transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 ${
                 dragActive
-                  ? 'border-[#1D4ED8] bg-[#F4F7FF]'
-                  : 'border-[#DAD7CD] bg-[#FAF9F5]'
+                  ? 'border-[#2563EB] bg-[#F4F7FF] dark:bg-[#1E293B]'
+                  : 'border-[#CBD5E1] dark:border-[#334155] bg-[#F8FAFC] dark:bg-[#0F172A]'
               }`}
             >
               <div className="flex items-center gap-2.5 min-w-0">
-                <div className="w-9 h-9 rounded-lg bg-white border border-[#E6E4DC] flex items-center justify-center shrink-0">
-                  <Film className="w-4 h-4 text-[#E11D48]" aria-hidden="true" />
+                <div className="w-9 h-9 rounded-lg bg-white dark:bg-[#131926] border border-[#E2E6F0] dark:border-[#242C3D] flex items-center justify-center shrink-0">
+                  <Film className="w-4 h-4 text-[#E11D48] dark:text-[#FB7185]" aria-hidden="true" />
                 </div>
                 <div className="min-w-0">
-                  <p className="text-xs sm:text-sm font-semibold text-[#111214] truncate">
+                  <p className="text-xs sm:text-sm font-semibold text-[#111214] dark:text-[#F1F5F9] truncate">
                     {uploading === 'video'
                       ? 'Téléversement en cours...'
                       : 'Importer une vidéo (MP4, WebM, MOV)'}
                   </p>
-                  <p className="text-[11px] text-[#6E7078] truncate">
+                  <p className="text-[11px] text-[#6E7078] dark:text-[#94A3B8] truncate">
                     Lecteur intégré sans redirection externe.
                   </p>
                 </div>
@@ -983,7 +979,7 @@ export const SourcePanel: React.FC<SourcePanelProps> = ({
                   type="button"
                   disabled={uploading === 'video'}
                   onClick={() => videoInputRef.current?.click()}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-[#111214] hover:bg-[#27292E] rounded-xl transition-colors whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-60"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-[#111214] dark:bg-[#2563EB] hover:bg-[#27292E] dark:hover:bg-[#1D4ED8] rounded-xl transition-colors whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-60"
                 >
                   <Upload className="w-3.5 h-3.5" aria-hidden="true" />
                   <span>Importer</span>
@@ -992,7 +988,7 @@ export const SourcePanel: React.FC<SourcePanelProps> = ({
                   type="button"
                   disabled={uploading === 'video'}
                   onClick={handleUseDemoVideo}
-                  className="inline-flex items-center px-3 py-1.5 text-xs font-semibold text-[#1D4ED8] bg-[#EFF4FF] hover:bg-[#E0EAFF] rounded-xl transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+                  className="inline-flex items-center px-3 py-1.5 text-xs font-semibold text-[#1D4ED8] dark:text-[#93C5FD] bg-[#EFF4FF] dark:bg-[#1E293B] hover:bg-[#E0EAFF] dark:hover:bg-[#334155] rounded-xl transition-colors whitespace-nowrap shrink-0 cursor-pointer"
                 >
                   <span>Démo</span>
                 </button>
@@ -1020,11 +1016,11 @@ export const SourcePanel: React.FC<SourcePanelProps> = ({
                   })
                 }
                 placeholder="Ou collez une URL vidéo HTTPS externe (MP4, WebM, MOV)…"
-                className="flex-1 px-3 py-2 text-xs bg-[#FAF9F5] border border-[#DFDDD4] rounded-xl focus:outline-none focus:border-[#1D4ED8]"
+                className="flex-1 px-3 py-2 text-xs bg-[#F8FAFC] dark:bg-[#0F172A] text-[#111214] dark:text-[#F1F5F9] border border-[#DCE2EE] dark:border-[#2A3346] rounded-xl focus:outline-none focus:border-[#2563EB]"
               />
 
               {source.videoUrl && !isInternalMediaPath(source.videoUrl) && (
-                <div className="flex items-center gap-2 px-2.5 py-1 bg-[#F4F2EC] rounded-xl shrink-0">
+                <div className="flex items-center gap-2 px-2.5 py-1 bg-[#F4F5F8] dark:bg-[#1E293B] rounded-xl shrink-0">
                   <div className="w-10 h-7 rounded overflow-hidden bg-black shrink-0">
                     <video
                       src={source.videoUrl}
@@ -1036,10 +1032,10 @@ export const SourcePanel: React.FC<SourcePanelProps> = ({
                       muted
                       playsInline
                       data-testid="video-source-thumbnail"
-                      className="w-full h-full object-cover"
+                      className="w-full h-full object-contain"
                     />
                   </div>
-                  <span className="text-xs font-medium text-[#15803D] inline-flex items-center gap-1">
+                  <span className="text-xs font-medium text-[#15803D] dark:text-[#34D399] inline-flex items-center gap-1">
                     <CheckCircle2 className="w-3.5 h-3.5" aria-hidden="true" />
                     <span>Prête</span>
                   </span>
@@ -1054,7 +1050,7 @@ export const SourcePanel: React.FC<SourcePanelProps> = ({
                         videoPageUrl: '',
                       })
                     }
-                    className="p-1 text-[#6E7078] hover:text-[#111214] rounded-md cursor-pointer"
+                    className="p-1 text-[#6E7078] dark:text-[#94A3B8] hover:text-[#111214] dark:hover:text-white rounded-md cursor-pointer"
                   >
                     <X className="w-3.5 h-3.5" />
                   </button>
@@ -1066,7 +1062,7 @@ export const SourcePanel: React.FC<SourcePanelProps> = ({
               <button
                 type="button"
                 onClick={() => setShowExternalUrlInput('video')}
-                className="text-[11px] font-medium text-[#5C5E66] hover:text-[#1D4ED8] hover:underline cursor-pointer"
+                className="text-[11px] font-medium text-[#5C5E66] dark:text-[#94A3B8] hover:text-[#1D4ED8] dark:hover:text-[#60A5FA] hover:underline cursor-pointer"
               >
                 Utiliser plutôt un lien HTTPS externe
               </button>
@@ -1074,24 +1070,24 @@ export const SourcePanel: React.FC<SourcePanelProps> = ({
           )}
 
           {/* Optional video poster (never exposes internal path) */}
-          <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 rounded-xl bg-[#FAF9F5] border border-[#E8E6DF]">
+          <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 rounded-xl bg-[#F8FAFC] dark:bg-[#0F172A] border border-[#E2E6F0] dark:border-[#242C3D]">
             <div className="flex items-center gap-2.5 min-w-0 flex-1">
               {source.videoPosterUrl ? (
                 <img
                   src={localPreviews[source.videoPosterUrl] || source.videoPosterUrl}
                   alt="Miniature vidéo"
                   referrerPolicy="no-referrer"
-                  className="w-8 h-8 rounded-md object-cover border border-[#DCE2EE] shrink-0"
+                  className="w-8 h-8 rounded-md object-contain bg-white dark:bg-[#131926] border border-[#DCE2EE] dark:border-[#2A3346] shrink-0"
                 />
               ) : null}
               {source.videoPosterUrl && isInternalMediaPath(source.videoPosterUrl) ? (
-                <span className="text-xs font-medium text-[#15803D] inline-flex items-center gap-1 truncate">
+                <span className="text-xs font-medium text-[#15803D] dark:text-[#34D399] inline-flex items-center gap-1 truncate">
                   <CheckCircle2 className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
                   <span>Miniature de couverture prête</span>
                 </span>
               ) : (
                 <>
-                  <span className="text-xs font-medium text-[#5C5E66] whitespace-nowrap">
+                  <span className="text-xs font-medium text-[#5C5E66] dark:text-[#94A3B8] whitespace-nowrap">
                     Miniature (optionnel)
                   </span>
                   <input
@@ -1109,7 +1105,7 @@ export const SourcePanel: React.FC<SourcePanelProps> = ({
                       })
                     }
                     placeholder="Lien HTTPS d’image de couverture…"
-                    className="flex-1 min-w-[140px] px-2.5 py-1 text-xs bg-white border border-[#DFDDD4] rounded-lg"
+                    className="flex-1 min-w-[140px] px-2.5 py-1 text-xs bg-white dark:bg-[#131926] text-[#111214] dark:text-[#F1F5F9] border border-[#DCE2EE] dark:border-[#2A3346] rounded-lg"
                   />
                 </>
               )}
@@ -1119,7 +1115,7 @@ export const SourcePanel: React.FC<SourcePanelProps> = ({
                 type="button"
                 disabled={uploading === 'poster'}
                 onClick={() => posterInputRef.current?.click()}
-                className="px-2.5 py-1 text-xs font-semibold text-[#111214] bg-white border border-[#DFDDD4] hover:bg-[#F2F1EB] rounded-lg cursor-pointer"
+                className="px-2.5 py-1 text-xs font-semibold text-[#111214] dark:text-[#F1F5F9] bg-white dark:bg-[#131926] border border-[#DCE2EE] dark:border-[#2A3346] hover:bg-[#F2F1EB] dark:hover:bg-[#1E293B] rounded-lg cursor-pointer"
               >
                 {uploading === 'poster'
                   ? 'Envoi…'
@@ -1132,7 +1128,7 @@ export const SourcePanel: React.FC<SourcePanelProps> = ({
                   type="button"
                   aria-label="Retirer la miniature"
                   onClick={() => onChange({ ...source, videoPosterUrl: '' })}
-                  className="p-1 text-[#6E7078] hover:text-[#B91C1C] cursor-pointer"
+                  className="p-1 text-[#6E7078] dark:text-[#94A3B8] hover:text-[#B91C1C] cursor-pointer"
                 >
                   <X className="w-3.5 h-3.5" />
                 </button>
@@ -1141,7 +1137,7 @@ export const SourcePanel: React.FC<SourcePanelProps> = ({
           </div>
 
           {videoUrlWarning && (
-            <p role="alert" className="text-xs font-medium text-[#B91C1C]">
+            <p role="alert" className="text-xs font-medium text-[#B91C1C] dark:text-[#F87171]">
               {videoUrlWarning}
             </p>
           )}
@@ -1152,7 +1148,7 @@ export const SourcePanel: React.FC<SourcePanelProps> = ({
         <div
           role="alert"
           data-testid="source-validation-error"
-          className="mt-4 flex items-center gap-2 text-xs font-medium text-[#B91C1C] bg-[#FEF2F2] border border-[#FECACA] rounded-xl px-3.5 py-2.5"
+          className="mt-4 flex items-center gap-2 text-xs font-medium text-[#B91C1C] dark:text-[#FCA5A5] bg-[#FEF2F2] dark:bg-[#7F1D1D]/30 border border-[#FECACA] dark:border-[#991B1B] rounded-xl px-3.5 py-2.5"
         >
           <AlertCircle className="w-4 h-4 shrink-0" aria-hidden="true" />
           <span>{uploadError || validationError}</span>
@@ -1161,7 +1157,7 @@ export const SourcePanel: React.FC<SourcePanelProps> = ({
 
       {/* E2EE PRIVACY BAR + CONSERVATION SUMMARY */}
       {selectedIntent !== null && (
-        <div className="mt-4 rounded-xl border border-[#DCE6FF] bg-[#F5F8FF]/80 px-3.5 py-2.5 flex flex-wrap items-start justify-between gap-3">
+        <div className="mt-4 rounded-xl border border-[#DCE6FF] dark:border-[#243047] bg-[#F5F8FF]/80 dark:bg-[#0F172A] px-3.5 py-2.5 flex flex-wrap items-start justify-between gap-3">
           <label
             htmlFor="e2ee-toggle-checkbox"
             className="flex items-start gap-2.5 cursor-pointer min-w-0 flex-1"
@@ -1184,13 +1180,13 @@ export const SourcePanel: React.FC<SourcePanelProps> = ({
               className="mt-0.5 w-4 h-4 accent-[#2563EB] shrink-0 cursor-pointer"
             />
             <div className="min-w-0">
-              <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#111214]">
-                <Lock className="w-3.5 h-3.5 text-[#2563EB]" aria-hidden="true" />
-                <span>Chiffrement de bout en bout (AES-256-GCM)</span>
+              <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#111214] dark:text-[#F1F5F9]">
+                <Lock className="w-3.5 h-3.5 text-[#2563EB] dark:text-[#60A5FA]" aria-hidden="true" />
+                <span>Chiffrement de bout en bout</span>
               </span>
-              <p className="text-[11px] text-[#475569] leading-relaxed mt-0.5">
+              <p className="text-[11px] text-[#475569] dark:text-[#94A3B8] leading-relaxed mt-0.5">
                 {isE2eeActive
-                  ? 'Contenu chiffré sur votre appareil avant envoi · Conservation gratuite 7 jours. Attention : toute personne possédant le QR code ou le lien complet (#k=...) peut le déchiffrer tant qu’il est actif.'
+                  ? 'Contenu chiffré sur votre appareil avant envoi · Conservation gratuite 7 jours. Partagez uniquement votre QR code avec des personnes de confiance.'
                   : 'Mode standard non chiffré · Conservation gratuite 7 jours sur votre espace.'}
               </p>
             </div>
@@ -1200,10 +1196,10 @@ export const SourcePanel: React.FC<SourcePanelProps> = ({
 
       {/* MANDATORY CONFIDENTIAL GENERATE CTA */}
       {selectedIntent !== null && (
-        <div className="mt-5 pt-4 border-t border-[#F1EFE9] flex flex-wrap items-center justify-between gap-3">
-          <div className="text-xs text-[#5C5E66]">
+        <div className="mt-5 pt-4 border-t border-[#EFEFF5] dark:border-[#242C3D] flex flex-wrap items-center justify-between gap-3">
+          <div className="text-xs text-[#5C5E66] dark:text-[#94A3B8]">
             {isGenerated ? (
-              <span className="inline-flex items-center gap-1.5 font-medium text-[#15803D]">
+              <span className="inline-flex items-center gap-1.5 font-medium text-[#15803D] dark:text-[#34D399]">
                 <CheckCircle2 className="w-4 h-4 shrink-0" aria-hidden="true" />
                 <span>QR code généré dans l’aperçu.</span>
               </span>
@@ -1217,7 +1213,7 @@ export const SourcePanel: React.FC<SourcePanelProps> = ({
             data-testid="generate-qr-btn"
             onClick={onGenerate}
             disabled={uploading !== null || isGenerating}
-            className="inline-flex items-center justify-center gap-2 px-5 py-2.5 text-sm font-semibold text-white bg-gradient-to-r from-[#2563EB] to-[#4F46E5] hover:from-[#1D4ED8] hover:to-[#4338CA] shadow-[0_6px_18px_rgba(37,99,235,0.22)] hover:-translate-y-0.5 active:scale-[0.98] rounded-xl transition-all duration-200 whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-60 disabled:translate-y-0"
+            className="inline-flex items-center justify-center gap-2 px-5 py-2.5 text-sm font-semibold text-white bg-[#2563EB] hover:bg-[#1D4ED8] active:scale-[0.98] rounded-xl transition-all duration-150 whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-60"
           >
             <QrCode className="w-4 h-4" aria-hidden="true" />
             <span>

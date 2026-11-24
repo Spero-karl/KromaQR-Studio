@@ -281,8 +281,8 @@ test('buildShowcaseBackdrop adapts light and dark card themes and extractHostnam
   assert.equal(extractHostname('https://www.galerie-travers.fr/expo'), 'galerie-travers.fr');
 });
 
-test('source image never acts as center QR logo and new theme presets remain scannable', async () => {
-  const { THEME_PRESETS } = await import('../data/presets');
+test('source image never acts as center QR logo and all 20 redesigned presets + festive stickers remain scannable', async () => {
+  const { EMOJI_STICKER_CATALOG, THEME_PRESETS, UNIQUE_LOGOS } = await import('../data/presets');
 
   // Even if legacy data has useSourceImageAsLogo: true, hasActiveLogo remains false unless explicit center emblem is set
   assert.equal(
@@ -295,8 +295,15 @@ test('source image never acts as center QR logo and new theme presets remain sca
     false
   );
 
-  // Deleted presets must no longer exist
-  for (const removedId of ['bauhaus-1923', 'billet-collector', 'signal-pure', 'cuivre-patine']) {
+  // Deleted old presets must no longer exist
+  for (const removedId of [
+    'bauhaus-1923',
+    'billet-collector',
+    'signal-pure',
+    'cuivre-patine',
+    'monolithe-cobalt',
+    'or-brosse-24k',
+  ]) {
     assert.equal(
       THEME_PRESETS.some((t) => t.id === removedId),
       false,
@@ -304,21 +311,29 @@ test('source image never acts as center QR logo and new theme presets remain sca
     );
   }
 
-  // New requested presets must exist and have legible QR contrast
-  for (const requiredId of [
-    'glacial',
-    'frozen-cristal',
-    'noel-enchante',
-    'fluoluminescent',
-    'cool-breeze',
-    'verre-glassmorph',
-    'metal-titane',
-  ]) {
-    const preset = THEME_PRESETS.find((t) => t.id === requiredId);
-    assert.ok(preset, `Preset ${requiredId} should exist`);
-    const report = evaluateScannability({ ...DEFAULT_CONFIG, ...preset.patch }, baseSource);
-    assert.ok(report.contrastRatio >= 4.5, `${requiredId} contrast too low: ${report.contrastRatio}`);
+  // All 20 presets must have >= 4.5 WCAG contrast for both primary & secondary foregrounds
+  assert.equal(THEME_PRESETS.length, 20);
+  for (const preset of THEME_PRESETS) {
+    const cfg = { ...DEFAULT_CONFIG, ...preset.patch };
+    const report = evaluateScannability(cfg, baseSource);
+    assert.ok(
+      report.contrastRatio >= 4.5,
+      `${preset.id} primary contrast too low: ${report.contrastRatio}`
+    );
+    const secondaryRatio = contrastRatio(cfg.foregroundSecondaryColor, cfg.qrBackgroundColor);
+    assert.ok(
+      secondaryRatio >= 4.5,
+      `${preset.id} secondary contrast too low: ${secondaryRatio}`
+    );
   }
+
+  // Festive & all-purpose vector + emoji stickers exist
+  for (const logoId of ['christmas-tree', 'snowflake', 'gift-box', 'confetti', 'champagne', 'trophy']) {
+    assert.ok(UNIQUE_LOGOS.some((l) => l.id === logoId), `Missing vector sticker ${logoId}`);
+  }
+  assert.ok(EMOJI_STICKER_CATALOG.some((e) => e.category === 'noel' && e.emoji === '🎄'));
+  assert.ok(EMOJI_STICKER_CATALOG.some((e) => e.category === 'fete' && e.emoji === '🎉'));
+  assert.ok(EMOJI_STICKER_CATALOG.some((e) => e.category === 'universel' && e.emoji === '✨'));
 });
 
 

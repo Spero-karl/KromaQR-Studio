@@ -91,7 +91,7 @@ test('parseReceivedQrInput supports #sq= and ?sq= URL share wrappers and .sparkq
   }
 });
 
-test('parseReceivedQrInput supports plain URL/text/Wi-Fi QR payloads and rejects unsafe XSS schemes', () => {
+test('parseReceivedQrInput supports plain URL/Wi-Fi QR payloads, rejects arbitrary non-QR text, and blocks XSS schemes', () => {
   const urlParsed = parseReceivedQrInput('https://www.exemple.fr/menu');
   assert.equal(urlParsed.ok, true);
   if (urlParsed.ok) {
@@ -100,10 +100,34 @@ test('parseReceivedQrInput supports plain URL/text/Wi-Fi QR payloads and rejects
     assert.equal(urlParsed.item.config.laserEnabled, true);
   }
 
+  const wifiParsed = parseReceivedQrInput('WIFI:T:WPA;S:Studio_5G;P:pass123;;');
+  assert.equal(wifiParsed.ok, true);
+
+  // Arbitrary plain text pasted into import must be rejected strictly
+  const rejectedText = parseReceivedQrInput('bonjour invalide sans qr');
+  assert.equal(rejectedText.ok, false);
+
+  // Even plain arbitrary text decoded from an actual QR matrix image works when flagged fromDecodedImage
+  const fromImageText = parseReceivedQrInput('Mot de passe porte: 4291', {
+    fromDecodedImage: true,
+  });
+  assert.equal(fromImageText.ok, true);
+
   assert.equal(isUnsafePayloadString('javascript:alert(1)'), true);
   const blocked = parseReceivedQrInput('javascript:alert(1)');
   assert.equal(blocked.ok, false);
 
   const blockedHtml = parseReceivedQrInput('data:text/html,<script>alert(1)</script>');
   assert.equal(blockedHtml.ok, false);
+});
+
+test('extractSparkQrReaderEndpoint parses /m/:id and /d/:slug links with E2EE hash key', async () => {
+  const { extractSparkQrReaderEndpoint } = await import('./sharedQrPackage');
+  const media = extractSparkQrReaderEndpoint('https://kromaqr-studio.onrender.com/m/abc12345#k=secretKey');
+  assert.deepEqual(media, { kind: 'media', id: 'abc12345', keyFragment: 'secretKey' });
+
+  const dyn = extractSparkQrReaderEndpoint('https://kromaqr-studio.onrender.com/d/mon-lien');
+  assert.deepEqual(dyn, { kind: 'dynamic', id: 'mon-lien', keyFragment: null });
+
+  assert.equal(extractSparkQrReaderEndpoint('https://google.com/search?q=qr'), null);
 });

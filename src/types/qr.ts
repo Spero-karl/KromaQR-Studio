@@ -430,7 +430,7 @@ export interface QrThemePreset {
   id: string;
   name: string;
   tagline: string;
-  collection: 'studio' | 'prestige';
+  collection: 'studio' | 'premium' | 'master';
   swatches: [string, string, string];
   patch: Partial<QrConfig>;
 }

@@ -163,6 +163,7 @@ export const SparkMediaReader: React.FC<SparkMediaReaderProps> = ({
 
   const [decryptedAssets, setDecryptedAssets] = useState<Record<string, DecryptedAssetEntry>>({});
   const [decryptingMedia, setDecryptingMedia] = useState(false);
+  const [loadingProgress, setLoadingProgress] = useState(0);
   const [mediaDecryptError, setMediaDecryptError] = useState<string | null>(null);
 
   const enteredNativeFsRef = useRef(false);
@@ -274,31 +275,82 @@ export const SparkMediaReader: React.FC<SparkMediaReaderProps> = ({
       setDecryptedAssets({});
       setMediaDecryptError(null);
       setDecryptingMedia(false);
+      setLoadingProgress(100);
       return;
     }
 
     let cancelled = false;
     const createdBlobUrls: string[] = [];
     setDecryptingMedia(true);
+    setLoadingProgress(0);
     setMediaDecryptError(null);
 
     void (async () => {
       const nextMap: Record<string, DecryptedAssetEntry> = {};
+      const totalCandidates = candidates.length;
       try {
-        for (const item of candidates) {
+        for (let idx = 0; idx < totalCandidates; idx++) {
+          const item = candidates[idx];
           const res = await fetch(item.url);
           if (!res.ok) continue;
-          const arrayBuf = await res.arrayBuffer();
-          const bytes = new Uint8Array(arrayBuf);
+
+          const contentLengthHeader = res.headers.get('content-length');
+          const totalBytes = contentLengthHeader ? Number(contentLengthHeader) : 0;
+          let bytes: Uint8Array;
+
+          if (res.body && typeof res.body.getReader === 'function') {
+            const reader = res.body.getReader();
+            const chunks: Uint8Array[] = [];
+            let received = 0;
+            while (true) {
+              const { done, value } = await reader.read();
+              if (done) break;
+              if (value && value.byteLength > 0) {
+                chunks.push(value);
+                received += value.byteLength;
+                const dlFrac =
+                  totalBytes > 0
+                    ? Math.min(1, received / totalBytes)
+                    : Math.min(0.95, 1 - Math.exp(-received / (512 * 1024)));
+                const pct = Math.min(99, Math.round(((idx + dlFrac * 0.65) / totalCandidates) * 100));
+                if (!cancelled) setLoadingProgress((prev) => Math.max(prev, pct));
+              }
+            }
+            bytes = new Uint8Array(received);
+            let offset = 0;
+            for (const c of chunks) {
+              bytes.set(c, offset);
+              offset += c.byteLength;
+            }
+          } else {
+            const arrayBuf = await res.arrayBuffer();
+            bytes = new Uint8Array(arrayBuf);
+            if (!cancelled) {
+              setLoadingProgress((prev) =>
+                Math.max(prev, Math.round(((idx + 0.65) / totalCandidates) * 100))
+              );
+            }
+          }
+
           if (!isEncryptedSpk1Buffer(bytes)) {
+            if (!cancelled) {
+              setLoadingProgress(Math.round(((idx + 1) / totalCandidates) * 100));
+            }
             continue;
           }
           if (!resolvedE2eeKey) {
             throw new Error(
-              'Clé de déchiffrement manquante dans le lien (#...) pour lire ce contenu protégé.'
+              'Lien incomplet : la clé d’accès requise pour ouvrir ce contenu est absente.'
             );
           }
-          const plain = await decryptBufferChunked(bytes, resolvedE2eeKey);
+          const plain = await decryptBufferChunked(bytes, resolvedE2eeKey, (frac) => {
+            if (cancelled) return;
+            const pct = Math.min(
+              99,
+              Math.round(((idx + 0.65 + frac * 0.35) / totalCandidates) * 100)
+            );
+            setLoadingProgress((prev) => Math.max(prev, pct));
+          });
           const resolvedMime = item.mimeType || inferMimeFromMagicBytes(plain, item.type);
           const safeCopy = new Uint8Array(plain.byteLength);
           safeCopy.set(plain);
@@ -319,8 +371,12 @@ export const SparkMediaReader: React.FC<SparkMediaReaderProps> = ({
             mimeType: resolvedMime,
             textPreview,
           };
+          if (!cancelled) {
+            setLoadingProgress(Math.round(((idx + 1) / totalCandidates) * 100));
+          }
         }
         if (!cancelled) {
+          setLoadingProgress(100);
           setDecryptedAssets(nextMap);
           setImageLoadError(false);
         } else {
@@ -332,7 +388,7 @@ export const SparkMediaReader: React.FC<SparkMediaReaderProps> = ({
           setMediaDecryptError(
             err instanceof Error
               ? err.message
-              : 'Impossible de déchiffrer le contenu avec cette clé.'
+              : 'Impossible de charger ce contenu protégé avec ce lien.'
           );
         }
       } finally {
@@ -584,6 +640,14 @@ export const SparkMediaReader: React.FC<SparkMediaReaderProps> = ({
       ? 'max-w-4xl'
       : 'max-w-3xl';
 
+  const isGlassTheme =
+    config.frameStyle === 'glass' || config.frameStyle === 'smoked-glass';
+  const articleRadiusPx = Math.max(16, Math.min(28, config.cornerRadius || 20));
+  const articleAccentBorder =
+    config.borderWidth && config.borderWidth > 0 && config.borderColor
+      ? config.borderColor
+      : tokens.borderColor;
+
   return (
     <div
       data-testid="spark-media-reader"
@@ -591,8 +655,8 @@ export const SparkMediaReader: React.FC<SparkMediaReaderProps> = ({
       data-reader-category={category}
       className={
         standalone
-          ? 'min-h-[100dvh] w-full flex flex-col px-3 py-4 pb-safe pt-safe sm:px-6 sm:py-6 transition-colors duration-200'
-          : 'relative w-full transition-colors duration-200'
+          ? 'min-h-[100dvh] w-full flex flex-col px-3.5 py-5 pb-safe pt-safe sm:px-6 sm:py-8 transition-colors duration-200'
+          : 'relative w-full transition-colors duration-200 rounded-2xl'
       }
       style={{
         background: tokens.outerBackground,
@@ -602,17 +666,17 @@ export const SparkMediaReader: React.FC<SparkMediaReaderProps> = ({
       <div
         className={
           standalone
-            ? `${standaloneMaxWidth} w-full mx-auto sm:my-auto space-y-3`
-            : 'w-full p-2.5 sm:p-4 space-y-3'
+            ? `${standaloneMaxWidth} w-full mx-auto sm:my-auto space-y-3.5`
+            : 'w-full p-3 sm:p-5 space-y-3.5'
         }
       >
         {/* Top Brand + Theme Toggle Bar */}
         <header
           className="flex items-center justify-between gap-2 px-1"
         >
-          <div className="flex items-center gap-2 min-w-0">
+          <div className="flex items-center gap-2.5 min-w-0">
             <div
-              className="w-7 h-7 rounded-lg flex items-center justify-center border shrink-0"
+              className="w-8 h-8 rounded-xl flex items-center justify-center border shrink-0"
               style={{
                 backgroundColor: tokens.surfaceBackground,
                 borderColor: tokens.borderColor,
@@ -659,7 +723,9 @@ export const SparkMediaReader: React.FC<SparkMediaReaderProps> = ({
               </svg>
             </div>
             <div className="flex items-center gap-1.5 text-xs tracking-tight min-w-0">
-              <span className="font-display font-bold truncate">SparkQR</span>
+              <span className="font-display font-bold truncate" style={{ fontFamily: titleFontCss }}>
+                SparkQR
+              </span>
               {(isEncrypted || Boolean(resolvedE2eeKey)) && (
                 <>
                   <span aria-hidden="true" style={{ color: tokens.textMuted }}>
@@ -670,7 +736,7 @@ export const SparkMediaReader: React.FC<SparkMediaReaderProps> = ({
                     style={{ color: tokens.accentColor }}
                   >
                     <ShieldCheck className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
-                    <span>Chiffré</span>
+                    <span>Protégé</span>
                   </span>
                 </>
               )}
@@ -685,9 +751,9 @@ export const SparkMediaReader: React.FC<SparkMediaReaderProps> = ({
               aria-label={
                 colorMode === 'dark' ? 'Passer en mode clair' : 'Passer en mode sombre'
               }
-              className="inline-flex items-center gap-1.5 px-3 min-h-[38px] rounded-lg border text-xs font-semibold transition-colors whitespace-nowrap cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-3 min-h-[38px] rounded-xl border text-xs font-semibold transition-colors whitespace-nowrap cursor-pointer"
               style={{
-                backgroundColor: standalone ? tokens.surfaceBackground : tokens.surfaceElevated,
+                backgroundColor: tokens.surfaceBackground,
                 borderColor: tokens.borderColor,
                 color: tokens.textPrimary,
               }}
@@ -710,9 +776,9 @@ export const SparkMediaReader: React.FC<SparkMediaReaderProps> = ({
                 type="button"
                 onClick={onClose}
                 aria-label="Fermer le lecteur"
-                className="w-[38px] h-[38px] inline-flex items-center justify-center rounded-lg border transition-colors cursor-pointer"
+                className="w-[38px] h-[38px] inline-flex items-center justify-center rounded-xl border transition-colors cursor-pointer"
                 style={{
-                  backgroundColor: tokens.surfaceElevated,
+                  backgroundColor: tokens.surfaceBackground,
                   borderColor: tokens.borderColor,
                   color: tokens.textPrimary,
                 }}
@@ -723,21 +789,18 @@ export const SparkMediaReader: React.FC<SparkMediaReaderProps> = ({
           </div>
         </header>
 
-        {/* Unified Content Surface (Single Card — Zero Double Nesting) */}
+        {/* Unified Content Surface Inheriting QR Model Theme */}
         <article
-          className="rounded-2xl border shadow-[0_14px_44px_rgba(15,23,42,0.08)] p-3.5 sm:p-5 space-y-4 animate-spark-enter relative overflow-hidden"
+          className={`border shadow-[0_18px_50px_rgba(15,23,42,0.10)] p-4 sm:p-6 space-y-4 animate-spark-enter relative overflow-hidden ${
+            isGlassTheme ? 'backdrop-blur-md' : ''
+          }`}
           style={{
             backgroundColor: tokens.surfaceBackground,
-            borderColor: tokens.borderColor,
+            borderColor: articleAccentBorder,
+            borderRadius: `${articleRadiusPx}px`,
+            fontFamily: subtitleFontCss,
           }}
         >
-          <div
-            aria-hidden="true"
-            className="absolute inset-x-0 top-0 h-1"
-            style={{
-              background: `linear-gradient(90deg, ${tokens.accentColor}, ${tokens.accentColor}80)`,
-            }}
-          />
           {/* Editorial Heading & Optional Custom Subtitle */}
           {category === 'text-free' && !customTitle && !customDescription ? (
             <h1 id="target-preview-title" className="sr-only">
@@ -864,19 +927,45 @@ export const SparkMediaReader: React.FC<SparkMediaReaderProps> = ({
             <>
               {decryptingMedia && (
                 <div
-                  className="flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl border text-xs"
+                  data-testid="reader-loading-progress"
+                  className="rounded-xl border px-4 py-4 space-y-2.5"
                   style={{
                     borderColor: tokens.borderColor,
                     backgroundColor: tokens.surfaceElevated,
-                    color: tokens.textMuted,
                   }}
                 >
-                  <Loader2
-                    className="w-4 h-4 animate-spin shrink-0"
-                    style={{ color: tokens.accentColor }}
-                    aria-hidden="true"
-                  />
-                  <span>Déchiffrement en cours…</span>
+                  <div className="flex items-center justify-between gap-2 text-xs font-semibold">
+                    <div className="flex items-center gap-2">
+                      <Loader2
+                        className="w-4 h-4 animate-spin shrink-0"
+                        style={{ color: tokens.accentColor }}
+                        aria-hidden="true"
+                      />
+                      <span style={{ color: tokens.textPrimary }}>Chargement</span>
+                    </div>
+                    <span
+                      className="font-mono tabular-nums"
+                      style={{ color: tokens.accentColor }}
+                    >
+                      {loadingProgress}%
+                    </span>
+                  </div>
+                  <div
+                    role="progressbar"
+                    aria-valuenow={loadingProgress}
+                    aria-valuemin={0}
+                    aria-valuemax={100}
+                    className="w-full h-1.5 rounded-full overflow-hidden"
+                    style={{ backgroundColor: tokens.borderColor }}
+                  >
+                    <div
+                      className="h-full rounded-full transition-all duration-150"
+                      style={{
+                        width: `${Math.max(4, loadingProgress)}%`,
+                        backgroundColor: tokens.accentColor,
+                      }}
+                    />
+                  </div>
                 </div>
               )}
 
@@ -891,7 +980,7 @@ export const SparkMediaReader: React.FC<SparkMediaReaderProps> = ({
               )}
 
               {/* 1. IMAGE VIEWER */}
-              {showImageSection && currentImage && (
+              {showImageSection && currentImage && !(decryptingMedia && /\/api\/media\/[a-zA-Z0-9_-]+\/file/.test(currentImage.url)) && (
                 <section
                   aria-label="Visionneuse d’image"
                   data-testid="reader-image-section"
@@ -903,9 +992,9 @@ export const SparkMediaReader: React.FC<SparkMediaReaderProps> = ({
                     </p>
                   )}
 
-                  {/* Edge-clean visual viewport (preserves original proportions cleanly) */}
+                  {/* Edge-clean visual viewport (preserves original proportions with zero crop) */}
                   <div
-                    className="relative rounded-xl overflow-hidden border flex items-center justify-center"
+                    className="relative rounded-xl overflow-hidden border flex items-center justify-center p-2 sm:p-3"
                     style={{
                       backgroundColor: tokens.mediaStageBg,
                       borderColor: tokens.borderColor,
@@ -940,7 +1029,7 @@ export const SparkMediaReader: React.FC<SparkMediaReaderProps> = ({
                             transformOrigin: 'center center',
                             transition: 'transform 160ms ease',
                           }}
-                          className={`max-w-full max-h-[70dvh] w-auto h-auto object-contain select-none ${
+                          className={`max-w-full max-h-[68dvh] w-auto h-auto object-contain select-none rounded-lg ${
                             imageZoom === 1 ? 'cursor-zoom-in' : 'cursor-grab'
                           }`}
                         />
@@ -1081,7 +1170,8 @@ export const SparkMediaReader: React.FC<SparkMediaReaderProps> = ({
                             <img
                               src={img.url}
                               alt={`Image ${idx + 1}`}
-                              className="w-full h-full object-cover"
+                              className="w-full h-full object-contain"
+                              style={{ backgroundColor: tokens.mediaStageBg }}
                             />
                           </button>
                         );
@@ -1092,7 +1182,7 @@ export const SparkMediaReader: React.FC<SparkMediaReaderProps> = ({
               )}
 
               {/* 2. VIDEO PLAYER */}
-              {showVideoSection && currentVideo && (
+              {showVideoSection && currentVideo && !(decryptingMedia && /\/api\/media\/[a-zA-Z0-9_-]+\/file/.test(currentVideo.url)) && (
                 <section
                   aria-label="Lecteur vidéo"
                   data-testid="reader-video-section"
@@ -1135,7 +1225,7 @@ export const SparkMediaReader: React.FC<SparkMediaReaderProps> = ({
                                 <img
                                   src={vid.posterUrl}
                                   alt=""
-                                  className="w-full h-full object-cover"
+                                  className="w-full h-full object-contain"
                                 />
                               ) : (
                                 <Film className="w-4 h-4 text-white/70" aria-hidden="true" />

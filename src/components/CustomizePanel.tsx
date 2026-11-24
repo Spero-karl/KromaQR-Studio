@@ -30,7 +30,8 @@ import {
   FILTER_CATALOG,
   FONT_CATALOG,
   FRAME_CATALOG,
-  PRESTIGE_THEME_PRESETS,
+  MASTER_THEME_PRESETS,
+  PREMIUM_THEME_PRESETS,
   STUDIO_THEME_PRESETS,
   TEXTURE_CATALOG,
   THEME_PRESETS,
@@ -120,6 +121,21 @@ const CORNER_PLACEMENTS: Array<{ id: QrCornerPlacement; label: string }> = [
   { id: 'diagonal', label: 'Diagonale' },
   { id: 'bottom-right', label: 'Bas-droite' },
 ];
+
+type StickerFilterCategory = 'all' | 'noel' | 'fete' | 'universel';
+
+const STICKER_FILTER_TABS: Array<{ id: StickerFilterCategory; label: string }> = [
+  { id: 'all', label: 'Tout' },
+  { id: 'noel', label: 'Noël & Hiver' },
+  { id: 'fete', label: 'Fête' },
+  { id: 'universel', label: 'Universel' },
+];
+
+function mapLogoCategoryToFilter(category: string): Exclude<StickerFilterCategory, 'all'> {
+  if (category === 'Noël & Hiver') return 'noel';
+  if (category === 'Fête') return 'fete';
+  return 'universel';
+}
 
 function ModuleGlyph({ shape }: { shape: QrModuleShape }) {
   if (shape === 'capsule') {
@@ -304,7 +320,8 @@ export const CustomizePanel: React.FC<CustomizePanelProps> = ({
   const [centerStickerMode, setCenterStickerMode] = useState<'vector' | 'emoji'>(
     config.centerEmoji && !config.logoId && !config.customLogoDataUrl ? 'emoji' : 'vector'
   );
-  const [collectionTab, setCollectionTab] = useState<'all' | 'studio' | 'prestige'>('all');
+  const [stickerCategory, setStickerCategory] = useState<StickerFilterCategory>('all');
+  const [collectionTab, setCollectionTab] = useState<'all' | 'studio' | 'premium' | 'master'>('all');
   const [confirmResetOpen, setConfirmResetOpen] = useState(false);
   const [resetNotice, setResetNotice] = useState(false);
   const customLogoInputRef = useRef<HTMLInputElement>(null);
@@ -339,6 +356,14 @@ export const CustomizePanel: React.FC<CustomizePanelProps> = ({
     collectionTab === 'all'
       ? THEME_PRESETS
       : THEME_PRESETS.filter((t) => t.collection === collectionTab);
+  const filteredLogos =
+    stickerCategory === 'all'
+      ? UNIQUE_LOGOS
+      : UNIQUE_LOGOS.filter((l) => mapLogoCategoryToFilter(l.category) === stickerCategory);
+  const filteredEmojis =
+    stickerCategory === 'all'
+      ? EMOJI_STICKER_CATALOG
+      : EMOJI_STICKER_CATALOG.filter((e) => e.category === stickerCategory);
   const activeLayers =
     config.layers && config.layers.length > 0 ? config.layers : DEFAULT_LAYERS;
 
@@ -384,21 +409,17 @@ export const CustomizePanel: React.FC<CustomizePanelProps> = ({
     <section
       aria-labelledby="customize-heading"
       data-testid="customize-stacked-bars"
-      className="bg-white/95 border border-[#E2E6F0] rounded-2xl overflow-hidden shadow-[0_6px_24px_rgba(124,58,237,0.05)] transition-shadow duration-200 hover:shadow-[0_10px_28px_rgba(124,58,237,0.09)] relative"
+      className="bg-white dark:bg-[#131926] border border-[#E2E6F0] dark:border-[#242C3D] rounded-2xl overflow-hidden shadow-[0_2px_10px_rgba(15,23,42,0.03)] dark:shadow-none transition-colors relative"
     >
-      <div
-        aria-hidden="true"
-        className="h-1 w-full bg-gradient-to-r from-[#7C3AED] via-[#4F46E5] to-[#0EA5E9]"
-      />
       {/* Header + History Controls */}
-      <div className="px-5 sm:px-6 pt-5 pb-4 border-b border-[#EFEFF5] bg-gradient-to-r from-[#F9F6FF]/85 via-white to-[#F4F8FF]/70 flex flex-wrap items-center justify-between gap-3">
+      <div className="px-5 sm:px-6 pt-5 pb-4 border-b border-[#EFEFF5] dark:border-[#242C3D] bg-[#FAFBFE] dark:bg-[#161D2B] flex flex-wrap items-center justify-between gap-3">
         <div>
-          <span className="block text-[11px] font-semibold uppercase tracking-[0.14em] text-[#7C3AED]">
+          <span className="block text-[11px] font-semibold uppercase tracking-[0.14em] text-[#4F46E5] dark:text-[#818CF8]">
             Étape 2 · Design
           </span>
           <h2
             id="customize-heading"
-            className="font-display text-lg sm:text-xl font-bold tracking-tight text-[#111214] mt-0.5"
+            className="font-display text-lg sm:text-xl font-bold tracking-tight text-[#111214] dark:text-[#F1F5F9] mt-0.5"
           >
             Design du QR code
           </h2>
@@ -413,7 +434,7 @@ export const CustomizePanel: React.FC<CustomizePanelProps> = ({
               onClick={onUndo}
               title="Annuler la dernière modification (Ctrl+Z)"
               aria-label="Annuler"
-              className="inline-flex items-center gap-1.5 px-3 py-2 min-h-[38px] text-xs font-medium text-[#5C5E66] hover:text-[#111214] bg-white border border-[#E2E6F0] rounded-xl transition-colors whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-35 disabled:cursor-not-allowed"
+              className="inline-flex items-center gap-1.5 px-3 py-2 min-h-[38px] text-xs font-medium text-[#5C5E66] dark:text-[#94A3B8] hover:text-[#111214] dark:hover:text-[#F1F5F9] bg-white dark:bg-[#0F172A] border border-[#E2E6F0] dark:border-[#2A3347] rounded-xl transition-colors whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-35 disabled:cursor-not-allowed"
             >
               <Undo2 className="w-3.5 h-3.5" aria-hidden="true" />
               <span className="hidden sm:inline">Annuler</span>
@@ -427,7 +448,7 @@ export const CustomizePanel: React.FC<CustomizePanelProps> = ({
               onClick={onRedo}
               title="Rétablir la modification (Ctrl+Shift+Z)"
               aria-label="Rétablir"
-              className="inline-flex items-center gap-1.5 px-3 py-2 min-h-[38px] text-xs font-medium text-[#5C5E66] hover:text-[#111214] bg-white border border-[#E2E6F0] rounded-xl transition-colors whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-35 disabled:cursor-not-allowed"
+              className="inline-flex items-center gap-1.5 px-3 py-2 min-h-[38px] text-xs font-medium text-[#5C5E66] dark:text-[#94A3B8] hover:text-[#111214] dark:hover:text-[#F1F5F9] bg-white dark:bg-[#0F172A] border border-[#E2E6F0] dark:border-[#2A3347] rounded-xl transition-colors whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-35 disabled:cursor-not-allowed"
             >
               <Redo2 className="w-3.5 h-3.5" aria-hidden="true" />
               <span className="hidden sm:inline">Rétablir</span>
@@ -437,7 +458,7 @@ export const CustomizePanel: React.FC<CustomizePanelProps> = ({
             type="button"
             data-testid="reset-style-btn"
             onClick={() => setConfirmResetOpen((prev) => !prev)}
-            className="inline-flex items-center gap-1.5 px-3 py-2 min-h-[38px] text-xs font-semibold text-[#5C5E66] hover:text-[#111214] bg-white border border-[#E2E6F0] hover:border-[#CBD5E1] rounded-xl transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+            className="inline-flex items-center gap-1.5 px-3 py-2 min-h-[38px] text-xs font-semibold text-[#5C5E66] dark:text-[#94A3B8] hover:text-[#111214] dark:hover:text-[#F1F5F9] bg-white dark:bg-[#0F172A] border border-[#E2E6F0] dark:border-[#2A3347] hover:border-[#CBD5E1] dark:hover:border-[#475569] rounded-xl transition-colors whitespace-nowrap shrink-0 cursor-pointer"
           >
             <RotateCcw className="w-3.5 h-3.5" aria-hidden="true" />
             <span>Réinitialiser l&apos;éditeur</span>
@@ -448,9 +469,9 @@ export const CustomizePanel: React.FC<CustomizePanelProps> = ({
       {confirmResetOpen && (
         <div
           data-testid="reset-editor-confirm-bar"
-          className="px-5 sm:px-6 py-3 bg-[#FFFBEB] border-b border-[#FDE68A] flex flex-wrap items-center justify-between gap-2.5 text-xs"
+          className="px-5 sm:px-6 py-3 bg-[#FFFBEB] dark:bg-[#291F09] border-b border-[#FDE68A] dark:border-[#78350F] flex flex-wrap items-center justify-between gap-2.5 text-xs"
         >
-          <span className="font-medium text-[#78350F]">
+          <span className="font-medium text-[#78350F] dark:text-[#FDE68A]">
             Réinitialiser uniquement le style visuel (couleurs, formes, logo, texte décoratif) ? Votre contenu, vos fichiers et vos QR enregistrés seront conservés.
           </span>
           <div className="flex items-center gap-2 shrink-0">
@@ -458,7 +479,7 @@ export const CustomizePanel: React.FC<CustomizePanelProps> = ({
               type="button"
               data-testid="cancel-reset-editor-btn"
               onClick={() => setConfirmResetOpen(false)}
-              className="px-3 py-1.5 text-xs font-semibold text-[#5C5E66] bg-white border border-[#E2E6F0] hover:text-[#111214] rounded-lg cursor-pointer"
+              className="px-3 py-1.5 text-xs font-semibold text-[#5C5E66] dark:text-[#CBD5E1] bg-white dark:bg-[#131926] border border-[#E2E6F0] dark:border-[#2A3347] hover:text-[#111214] dark:hover:text-white rounded-lg cursor-pointer whitespace-nowrap shrink-0"
             >
               Annuler
             </button>
@@ -466,7 +487,7 @@ export const CustomizePanel: React.FC<CustomizePanelProps> = ({
               type="button"
               data-testid="confirm-reset-editor-btn"
               onClick={handleConfirmEditorReset}
-              className="px-3 py-1.5 text-xs font-semibold text-white bg-[#111214] hover:bg-[#27292E] rounded-lg cursor-pointer"
+              className="px-3 py-1.5 text-xs font-semibold text-white bg-[#111214] dark:bg-[#2563EB] hover:bg-[#27292E] dark:hover:bg-[#1D4ED8] rounded-lg cursor-pointer whitespace-nowrap shrink-0"
             >
               Confirmer la réinitialisation
             </button>
@@ -477,14 +498,14 @@ export const CustomizePanel: React.FC<CustomizePanelProps> = ({
       {resetNotice && !confirmResetOpen && (
         <div
           data-testid="reset-editor-notice"
-          className="px-5 sm:px-6 py-2 bg-[#F0FDF4] border-b border-[#BBF7D0] text-xs font-semibold text-[#15803D]"
+          className="px-5 sm:px-6 py-2 bg-[#F0FDF4] dark:bg-[#0B291A] border-b border-[#BBF7D0] dark:border-[#14532D] text-xs font-semibold text-[#15803D] dark:text-[#6EE7B7]"
         >
           Éditeur visuel réinitialisé. Votre contenu QR reste intact.
         </div>
       )}
 
       {/* 5 Clean Ordered Menus */}
-      <div className="px-4 sm:px-6 pt-2.5 bg-[#F8F7FC] border-b border-[#ECEAF4] flex items-center gap-1 overflow-x-auto no-scrollbar">
+      <div className="px-4 sm:px-6 pt-2 bg-[#F8F9FC] dark:bg-[#0F1522] border-b border-[#ECEAF4] dark:border-[#242C3D] flex items-center gap-1 overflow-x-auto no-scrollbar">
         {CATEGORY_TABS.map((tab) => {
           const Icon = tab.icon;
           const active = activeTab === tab.id;
@@ -496,12 +517,14 @@ export const CustomizePanel: React.FC<CustomizePanelProps> = ({
               onClick={() => setActiveTab(tab.id)}
               className={`inline-flex items-center gap-1.5 px-3.5 py-2.5 min-h-[44px] text-xs sm:text-sm font-semibold border-b-2 transition-all duration-150 whitespace-nowrap shrink-0 cursor-pointer ${
                 active
-                  ? 'border-[#7C3AED] text-[#111214]'
-                  : 'border-transparent text-[#6E7078] hover:text-[#111214]'
+                  ? 'border-[#2563EB] dark:border-[#60A5FA] text-[#111214] dark:text-[#F8FAFC]'
+                  : 'border-transparent text-[#6E7078] dark:text-[#94A3B8] hover:text-[#111214] dark:hover:text-[#F1F5F9]'
               }`}
             >
               <Icon
-                className={`w-3.5 h-3.5 ${active ? 'text-[#7C3AED]' : 'text-[#848791]'}`}
+                className={`w-3.5 h-3.5 ${
+                  active ? 'text-[#2563EB] dark:text-[#60A5FA]' : 'text-[#848791] dark:text-[#64748B]'
+                }`}
                 aria-hidden="true"
               />
               <span>{tab.label}</span>
@@ -516,12 +539,13 @@ export const CustomizePanel: React.FC<CustomizePanelProps> = ({
         {activeTab === 'models' && (
           <div className="space-y-5 animate-[fadeIn_160ms_ease-out]" data-testid="bar-themes">
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <div className="inline-flex flex-wrap p-1 bg-[#F2F0E9] rounded-xl gap-1">
+              <div className="inline-flex flex-wrap p-1 bg-[#F3F4F8] dark:bg-[#0F1522] border border-[#E6E8F0] dark:border-[#242C3D] rounded-xl gap-1">
                 {(
                   [
                     { id: 'all', label: `Toutes · ${THEME_PRESETS.length}` },
                     { id: 'studio', label: `Studio · ${STUDIO_THEME_PRESETS.length}` },
-                    { id: 'prestige', label: `Atelier Prestige · ${PRESTIGE_THEME_PRESETS.length}` },
+                    { id: 'premium', label: `Ultra Premium · ${PREMIUM_THEME_PRESETS.length}` },
+                    { id: 'master', label: `Master Collection · ${MASTER_THEME_PRESETS.length}` },
                   ] as const
                 ).map((tab) => (
                   <button
@@ -529,10 +553,10 @@ export const CustomizePanel: React.FC<CustomizePanelProps> = ({
                     type="button"
                     data-testid={`collection-tab-${tab.id}`}
                     onClick={() => setCollectionTab(tab.id)}
-                    className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all whitespace-nowrap shrink-0 cursor-pointer ${
+                    className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-all whitespace-nowrap shrink-0 cursor-pointer tabular-nums ${
                       collectionTab === tab.id
-                        ? 'bg-white text-[#111214] shadow-xs'
-                        : 'text-[#5C5E66] hover:text-[#111214]'
+                        ? 'bg-white dark:bg-[#1E293B] text-[#111214] dark:text-[#F8FAFC] shadow-xs'
+                        : 'text-[#5C5E66] dark:text-[#94A3B8] hover:text-[#111214] dark:hover:text-[#F1F5F9]'
                     }`}
                   >
                     {tab.label}
@@ -545,7 +569,8 @@ export const CustomizePanel: React.FC<CustomizePanelProps> = ({
               {visibleThemes.map((theme) => {
                 const isSelected = config.themeId === theme.id;
                 const [bgSwatch, fgSwatch, accentSwatch] = theme.swatches;
-                const isPrestige = theme.collection === 'prestige';
+                const isMaster = theme.collection === 'master';
+                const isPremium = theme.collection === 'premium';
                 return (
                   <button
                     key={theme.id}
@@ -566,15 +591,17 @@ export const CustomizePanel: React.FC<CustomizePanelProps> = ({
                     }
                     className={`flex items-center gap-3 p-3 rounded-xl border transition-all duration-150 hover:-translate-y-0.5 text-left cursor-pointer ${
                       isSelected
-                        ? 'border-[#2563EB] bg-[#F4F8FF] shadow-[0_4px_14px_rgba(37,99,235,0.1)]'
-                        : isPrestige
-                        ? 'border-[#DFD2AC] bg-[#FCFBF7] hover:border-[#C2A863] hover:bg-white'
-                        : 'border-[#E8E6DF] bg-[#FAF9F5] hover:border-[#CFCBC0] hover:bg-white'
+                        ? 'border-[#2563EB] dark:border-[#60A5FA] bg-[#F4F8FF] dark:bg-[#1E293B] shadow-[0_4px_14px_rgba(37,99,235,0.12)]'
+                        : isMaster
+                        ? 'border-[#D4AF37]/65 dark:border-[#D4AF37]/45 bg-[#FFFDF7] dark:bg-[#191610] hover:border-[#B45309] dark:hover:border-[#FBBF24]'
+                        : isPremium
+                        ? 'border-[#C7D2FE] dark:border-[#4338CA]/50 bg-[#FBFBFF] dark:bg-[#151A2C] hover:border-[#818CF8]'
+                        : 'border-[#E2E6F0] dark:border-[#242C3D] bg-[#FAFBFD] dark:bg-[#161D2B] hover:border-[#CBD5E1] dark:hover:border-[#3B4760]'
                     }`}
                   >
                     <div
                       aria-hidden="true"
-                      className="w-9 h-10 rounded-lg border border-black/10 shrink-0 p-1.5 grid grid-cols-2 gap-1"
+                      className="w-9 h-10 rounded-lg border border-black/15 dark:border-white/15 shrink-0 p-1.5 grid grid-cols-2 gap-1"
                       style={{ backgroundColor: bgSwatch }}
                     >
                       <span className="rounded-[2px]" style={{ backgroundColor: accentSwatch }} />
@@ -583,13 +610,20 @@ export const CustomizePanel: React.FC<CustomizePanelProps> = ({
                       <span className="rounded-[2px]" style={{ backgroundColor: accentSwatch }} />
                     </div>
                     <div className="min-w-0">
-                      <span className="inline-flex items-center gap-1 text-xs font-bold text-[#111214] truncate">
-                        <span>{theme.name}</span>
-                        {isPrestige && (
-                          <Sparkles className="w-3 h-3 text-[#B45309] shrink-0" aria-hidden="true" />
+                      <span className="inline-flex items-center gap-1 text-xs font-bold text-[#111214] dark:text-[#F1F5F9] truncate max-w-full">
+                        <span className="truncate">{theme.name}</span>
+                        {(isMaster || isPremium) && (
+                          <Sparkles
+                            className={`w-3 h-3 shrink-0 ${
+                              isMaster
+                                ? 'text-[#B45309] dark:text-[#FBBF24]'
+                                : 'text-[#4F46E5] dark:text-[#818CF8]'
+                            }`}
+                            aria-hidden="true"
+                          />
                         )}
                       </span>
-                      <span className="block text-[11px] text-[#6E7078] line-clamp-2 leading-snug mt-0.5">
+                      <span className="block text-[11px] text-[#6E7078] dark:text-[#94A3B8] line-clamp-2 leading-snug mt-0.5">
                         {theme.tagline}
                       </span>
                     </div>
@@ -598,8 +632,8 @@ export const CustomizePanel: React.FC<CustomizePanelProps> = ({
               })}
             </div>
 
-            <div className="pt-4 border-t border-[#F1EFE9] space-y-2.5">
-              <span className="block text-xs font-semibold text-[#111214]">
+            <div className="pt-4 border-t border-[#F1EFE9] dark:border-[#242C3D] space-y-2.5">
+              <span className="block text-xs font-semibold text-[#111214] dark:text-[#F1F5F9]">
                 Harmonies chromatiques rapides
               </span>
               <div className="flex flex-wrap items-center gap-2">
@@ -629,13 +663,13 @@ export const CustomizePanel: React.FC<CustomizePanelProps> = ({
                       }
                       className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-xl border text-xs font-semibold transition-all duration-150 whitespace-nowrap shrink-0 cursor-pointer ${
                         isSelected
-                          ? 'border-[#2563EB] bg-[#EFF6FF] text-[#2563EB]'
-                          : 'border-[#E6E4DC] bg-[#FAF9F5] text-[#2C2E33] hover:bg-white'
+                          ? 'border-[#2563EB] dark:border-[#60A5FA] bg-[#EFF6FF] dark:bg-[#1E293B] text-[#2563EB] dark:text-[#93C5FD]'
+                          : 'border-[#E2E6F0] dark:border-[#242C3D] bg-[#FAFBFD] dark:bg-[#161D2B] text-[#2C2E33] dark:text-[#CBD5E1] hover:bg-white dark:hover:bg-[#1B2435]'
                       }`}
                     >
                       <span
                         aria-hidden="true"
-                        className="w-3.5 h-3.5 rounded-full border border-black/15 shrink-0"
+                        className="w-3.5 h-3.5 rounded-full border border-black/15 dark:border-white/20 shrink-0"
                         style={{
                           background: `linear-gradient(135deg, ${pal.fg} 50%, ${pal.eye} 50%)`,
                         }}
@@ -652,7 +686,7 @@ export const CustomizePanel: React.FC<CustomizePanelProps> = ({
         {/* MENU 2 : COULEURS & FORMES (with 3 focused sub-menus) */}
         {activeTab === 'appearance' && (
           <div className="space-y-5 animate-[fadeIn_160ms_ease-out]" data-testid="bar-colors-filters">
-            <div className="inline-flex flex-wrap p-1 bg-[#F4F2EC] rounded-xl gap-1">
+            <div className="inline-flex flex-wrap p-1 bg-[#F3F4F8] dark:bg-[#0F1522] border border-[#E6E8F0] dark:border-[#242C3D] rounded-xl gap-1">
               {(
                 [
                   { id: 'colors', label: 'Couleurs' },
@@ -667,8 +701,8 @@ export const CustomizePanel: React.FC<CustomizePanelProps> = ({
                   onClick={() => setAppearanceSubMenu(sub.id)}
                   className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors whitespace-nowrap cursor-pointer ${
                     appearanceSubMenu === sub.id
-                      ? 'bg-white text-[#111214] shadow-2xs'
-                      : 'text-[#5C5E66] hover:text-[#111214]'
+                      ? 'bg-white dark:bg-[#1E293B] text-[#111214] dark:text-[#F8FAFC] shadow-2xs'
+                      : 'text-[#5C5E66] dark:text-[#94A3B8] hover:text-[#111214] dark:hover:text-[#F1F5F9]'
                   }`}
                 >
                   {sub.label}
@@ -679,10 +713,10 @@ export const CustomizePanel: React.FC<CustomizePanelProps> = ({
             {appearanceSubMenu === 'colors' && (
               <div className="space-y-4 animate-[fadeIn_140ms_ease-out]">
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <span className="text-xs font-semibold text-[#111214]">
+                  <span className="text-xs font-semibold text-[#111214] dark:text-[#F1F5F9]">
                     Type de coloration
                   </span>
-                  <div className="inline-flex p-0.5 bg-[#F4F2EC] rounded-lg gap-0.5">
+                  <div className="inline-flex p-0.5 bg-[#F3F4F8] dark:bg-[#0F1522] border border-[#E6E8F0] dark:border-[#242C3D] rounded-lg gap-0.5">
                     {(
                       [
                         { id: 'solid', label: 'Unie' },
@@ -696,8 +730,8 @@ export const CustomizePanel: React.FC<CustomizePanelProps> = ({
                         onClick={() => update({ gradientType: m.id, themeId: 'custom' })}
                         className={`px-3 py-1 text-xs font-semibold rounded-md transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
                           config.gradientType === m.id
-                            ? 'bg-white text-[#111214] shadow-2xs'
-                            : 'text-[#5C5E66] hover:text-[#111214]'
+                            ? 'bg-white dark:bg-[#1E293B] text-[#111214] dark:text-[#F8FAFC] shadow-2xs'
+                            : 'text-[#5C5E66] dark:text-[#94A3B8] hover:text-[#111214] dark:hover:text-[#F1F5F9]'
                         }`}
                       >
                         {m.label}
@@ -707,8 +741,8 @@ export const CustomizePanel: React.FC<CustomizePanelProps> = ({
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2">
-                  <label className="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-[#FAF9F5] border border-[#E6E4DC] cursor-pointer">
-                    <span className="text-xs font-medium text-[#3F4148]">Modules</span>
+                  <label className="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-[#FAFBFD] dark:bg-[#161D2B] border border-[#E2E6F0] dark:border-[#242C3D] cursor-pointer">
+                    <span className="text-xs font-medium text-[#3F4148] dark:text-[#CBD5E1]">Modules</span>
                     <input
                       id="fg-color-1"
                       type="color"
@@ -720,8 +754,8 @@ export const CustomizePanel: React.FC<CustomizePanelProps> = ({
                   </label>
 
                   {config.gradientType !== 'solid' && (
-                    <label className="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-[#FAF9F5] border border-[#E6E4DC] cursor-pointer">
-                      <span className="text-xs font-medium text-[#3F4148]">Dégradé</span>
+                    <label className="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-[#FAFBFD] dark:bg-[#161D2B] border border-[#E2E6F0] dark:border-[#242C3D] cursor-pointer">
+                      <span className="text-xs font-medium text-[#3F4148] dark:text-[#CBD5E1]">Dégradé</span>
                       <input
                         id="fg-color-2"
                         type="color"
@@ -735,8 +769,8 @@ export const CustomizePanel: React.FC<CustomizePanelProps> = ({
                     </label>
                   )}
 
-                  <label className="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-[#FAF9F5] border border-[#E6E4DC] cursor-pointer">
-                    <span className="text-xs font-medium text-[#3F4148]">Fond QR</span>
+                  <label className="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-[#FAFBFD] dark:bg-[#161D2B] border border-[#E2E6F0] dark:border-[#242C3D] cursor-pointer">
+                    <span className="text-xs font-medium text-[#3F4148] dark:text-[#CBD5E1]">Fond QR</span>
                     <input
                       id="qr-bg-color"
                       type="color"
@@ -747,8 +781,8 @@ export const CustomizePanel: React.FC<CustomizePanelProps> = ({
                     />
                   </label>
 
-                  <label className="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-[#FAF9F5] border border-[#E6E4DC] cursor-pointer">
-                    <span className="text-xs font-medium text-[#3F4148]">Carte</span>
+                  <label className="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-[#FAFBFD] dark:bg-[#161D2B] border border-[#E2E6F0] dark:border-[#242C3D] cursor-pointer">
+                    <span className="text-xs font-medium text-[#3F4148] dark:text-[#CBD5E1]">Carte</span>
                     <input
                       id="card-bg-color"
                       type="color"
@@ -759,7 +793,7 @@ export const CustomizePanel: React.FC<CustomizePanelProps> = ({
                     />
                   </label>
 
-                  <label className="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-[#FAF9F5] border border-[#E6E4DC] cursor-pointer">
+                  <label className="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-[#FAFBFD] dark:bg-[#161D2B] border border-[#E2E6F0] dark:border-[#242C3D] cursor-pointer">
                     <input
                       type="checkbox"
                       checked={config.useCustomEyeColor}
@@ -768,7 +802,7 @@ export const CustomizePanel: React.FC<CustomizePanelProps> = ({
                       }
                       className="w-3.5 h-3.5 rounded accent-[#2563EB]"
                     />
-                    <span className="text-xs font-medium text-[#3F4148]">Repères</span>
+                    <span className="text-xs font-medium text-[#3F4148] dark:text-[#CBD5E1]">Repères</span>
                     {config.useCustomEyeColor && (
                       <input
                         type="color"
@@ -786,7 +820,7 @@ export const CustomizePanel: React.FC<CustomizePanelProps> = ({
             {appearanceSubMenu === 'shapes' && (
               <div className="space-y-4 animate-[fadeIn_140ms_ease-out]" data-testid="bar-geometry">
                 <div className="space-y-2">
-                  <span className="block text-xs font-semibold text-[#111214]">
+                  <span className="block text-xs font-semibold text-[#111214] dark:text-[#F1F5F9]">
                     Forme des points (modules)
                   </span>
                   <div className="flex flex-wrap items-center gap-2">
@@ -799,8 +833,8 @@ export const CustomizePanel: React.FC<CustomizePanelProps> = ({
                           onClick={() => update({ moduleShape: item.id, themeId: 'custom' })}
                           className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
                             active
-                              ? 'border-[#2563EB] bg-[#EFF6FF] text-[#2563EB]'
-                              : 'border-[#E6E4DC] bg-[#FAF9F5] text-[#2C2E33] hover:bg-white'
+                              ? 'border-[#2563EB] dark:border-[#60A5FA] bg-[#EFF6FF] dark:bg-[#1E293B] text-[#2563EB] dark:text-[#93C5FD]'
+                              : 'border-[#E2E6F0] dark:border-[#242C3D] bg-[#FAFBFD] dark:bg-[#161D2B] text-[#2C2E33] dark:text-[#CBD5E1] hover:bg-white dark:hover:bg-[#1B2435]'
                           }`}
                         >
                           <ModuleGlyph shape={item.id} />
@@ -811,8 +845,8 @@ export const CustomizePanel: React.FC<CustomizePanelProps> = ({
                   </div>
                 </div>
 
-                <div className="pt-3 border-t border-[#F1EFE9] space-y-2">
-                  <span className="block text-xs font-semibold text-[#111214]">
+                <div className="pt-3 border-t border-[#F1EFE9] dark:border-[#242C3D] space-y-2">
+                  <span className="block text-xs font-semibold text-[#111214] dark:text-[#F1F5F9]">
                     Forme des 3 grands repères
                   </span>
                   <div className="flex flex-wrap items-center gap-2">
@@ -825,8 +859,8 @@ export const CustomizePanel: React.FC<CustomizePanelProps> = ({
                           onClick={() => update({ eyeShape: item.id, themeId: 'custom' })}
                           className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
                             active
-                              ? 'border-[#2563EB] bg-[#EFF6FF] text-[#2563EB]'
-                              : 'border-[#E6E4DC] bg-[#FAF9F5] text-[#2C2E33] hover:bg-white'
+                              ? 'border-[#2563EB] dark:border-[#60A5FA] bg-[#EFF6FF] dark:bg-[#1E293B] text-[#2563EB] dark:text-[#93C5FD]'
+                              : 'border-[#E2E6F0] dark:border-[#242C3D] bg-[#FAFBFD] dark:bg-[#161D2B] text-[#2C2E33] dark:text-[#CBD5E1] hover:bg-white dark:hover:bg-[#1B2435]'
                           }`}
                         >
                           <EyeGlyph shape={item.id} />
@@ -842,7 +876,7 @@ export const CustomizePanel: React.FC<CustomizePanelProps> = ({
             {appearanceSubMenu === 'frame' && (
               <div className="space-y-4 animate-[fadeIn_140ms_ease-out]">
                 <div className="space-y-2">
-                  <span className="block text-xs font-semibold text-[#111214]">
+                  <span className="block text-xs font-semibold text-[#111214] dark:text-[#F1F5F9]">
                     Cadre de présentation
                   </span>
                   <div className="flex flex-wrap items-center gap-2">
@@ -856,8 +890,8 @@ export const CustomizePanel: React.FC<CustomizePanelProps> = ({
                           onClick={() => update({ frameStyle: fr.id, themeId: 'custom' })}
                           className={`px-3 py-1.5 text-xs font-semibold rounded-xl border transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
                             active
-                              ? 'border-[#2563EB] bg-[#EFF6FF] text-[#2563EB]'
-                              : 'border-[#E6E4DC] bg-[#FAF9F5] text-[#3F4148] hover:bg-white'
+                              ? 'border-[#2563EB] dark:border-[#60A5FA] bg-[#EFF6FF] dark:bg-[#1E293B] text-[#2563EB] dark:text-[#93C5FD]'
+                              : 'border-[#E2E6F0] dark:border-[#242C3D] bg-[#FAFBFD] dark:bg-[#161D2B] text-[#3F4148] dark:text-[#CBD5E1] hover:bg-white dark:hover:bg-[#1B2435]'
                           }`}
                         >
                           {fr.label}
@@ -867,8 +901,8 @@ export const CustomizePanel: React.FC<CustomizePanelProps> = ({
                   </div>
                 </div>
 
-                <div className="pt-3 border-t border-[#F1EFE9] space-y-2.5">
-                  <span className="block text-xs font-semibold text-[#111214]">
+                <div className="pt-3 border-t border-[#F1EFE9] dark:border-[#242C3D] space-y-2.5">
+                  <span className="block text-xs font-semibold text-[#111214] dark:text-[#F1F5F9]">
                     Matière &amp; bordure
                   </span>
                   <div className="flex flex-wrap items-center gap-2">
@@ -883,8 +917,8 @@ export const CustomizePanel: React.FC<CustomizePanelProps> = ({
                           }
                           className={`px-3 py-1.5 text-xs font-medium rounded-xl border transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
                             active
-                              ? 'border-[#2563EB] bg-[#EFF6FF] text-[#2563EB]'
-                              : 'border-[#E6E4DC] bg-[#FAF9F5] text-[#3F4148] hover:bg-white'
+                              ? 'border-[#2563EB] dark:border-[#60A5FA] bg-[#EFF6FF] dark:bg-[#1E293B] text-[#2563EB] dark:text-[#93C5FD]'
+                              : 'border-[#E2E6F0] dark:border-[#242C3D] bg-[#FAFBFD] dark:bg-[#161D2B] text-[#3F4148] dark:text-[#CBD5E1] hover:bg-white dark:hover:bg-[#1B2435]'
                           }`}
                         >
                           {tex.label}
@@ -892,7 +926,7 @@ export const CustomizePanel: React.FC<CustomizePanelProps> = ({
                       );
                     })}
 
-                    <label className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-[#E6E4DC] bg-[#FAF9F5] cursor-pointer">
+                    <label className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-[#E2E6F0] dark:border-[#242C3D] bg-[#FAFBFD] dark:bg-[#161D2B] cursor-pointer">
                       <input
                         type="checkbox"
                         checked={Boolean(config.metallicSheen)}
@@ -901,11 +935,11 @@ export const CustomizePanel: React.FC<CustomizePanelProps> = ({
                         }
                         className="w-3.5 h-3.5 accent-[#2563EB]"
                       />
-                      <span className="text-xs font-medium text-[#3F4148]">Reflet métal</span>
+                      <span className="text-xs font-medium text-[#3F4148] dark:text-[#CBD5E1]">Reflet métal</span>
                     </label>
 
-                    <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl border border-[#E6E4DC] bg-[#FAF9F5]">
-                      <label htmlFor="card-border-width" className="text-xs font-medium text-[#4B4D54]">
+                    <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl border border-[#E2E6F0] dark:border-[#242C3D] bg-[#FAFBFD] dark:bg-[#161D2B]">
+                      <label htmlFor="card-border-width" className="text-xs font-medium text-[#4B4D54] dark:text-[#CBD5E1]">
                         Bordure
                       </label>
                       <input
@@ -918,7 +952,7 @@ export const CustomizePanel: React.FC<CustomizePanelProps> = ({
                         onChange={(e) => update({ borderWidth: Number(e.target.value) })}
                         className="w-16"
                       />
-                      <span className="text-xs font-mono text-[#5C5E66] tabular-nums">
+                      <span className="text-xs font-mono text-[#5C5E66] dark:text-[#94A3B8] tabular-nums">
                         {config.borderWidth ?? 0}px
                       </span>
                       <input
@@ -938,7 +972,7 @@ export const CustomizePanel: React.FC<CustomizePanelProps> = ({
                   <div className="flex items-center gap-3">
                     <label
                       htmlFor="edition-label-input"
-                      className="text-xs font-medium text-[#5C5E66] shrink-0"
+                      className="text-xs font-medium text-[#5C5E66] dark:text-[#94A3B8] shrink-0"
                     >
                       Gravure prestige
                     </label>
@@ -949,13 +983,13 @@ export const CustomizePanel: React.FC<CustomizePanelProps> = ({
                       value={config.editionLabel || ''}
                       onChange={(e) => update({ editionLabel: e.target.value })}
                       placeholder="ÉDITION LIMITÉE · N° 01"
-                      className="flex-1 max-w-xs px-3 py-1.5 text-xs bg-[#FAF9F5] border border-[#DFDDD4] rounded-xl"
+                      className="flex-1 max-w-xs px-3 py-1.5 text-xs bg-[#FAFBFD] dark:bg-[#0F172A] border border-[#DCE2EE] dark:border-[#2A3347] text-[#111214] dark:text-[#F1F5F9] rounded-xl"
                     />
                   </div>
                 )}
 
-                <div className="pt-3 border-t border-[#F1EFE9] space-y-2">
-                  <span className="block text-xs font-semibold text-[#111214]">
+                <div className="pt-3 border-t border-[#F1EFE9] dark:border-[#242C3D] space-y-2">
+                  <span className="block text-xs font-semibold text-[#111214] dark:text-[#F1F5F9]">
                     Filtre artistique
                   </span>
                   <div className="flex flex-wrap items-center gap-2">
@@ -968,8 +1002,8 @@ export const CustomizePanel: React.FC<CustomizePanelProps> = ({
                           onClick={() => update({ filter: flt.id, themeId: 'custom' })}
                           className={`px-3 py-1.5 text-xs font-medium rounded-xl border transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
                             active
-                              ? 'border-[#2563EB] bg-[#EFF6FF] text-[#2563EB]'
-                              : 'border-[#E6E4DC] bg-[#FAF9F5] text-[#3F4148] hover:bg-white'
+                              ? 'border-[#2563EB] dark:border-[#60A5FA] bg-[#EFF6FF] dark:bg-[#1E293B] text-[#2563EB] dark:text-[#93C5FD]'
+                              : 'border-[#E2E6F0] dark:border-[#242C3D] bg-[#FAFBFD] dark:bg-[#161D2B] text-[#3F4148] dark:text-[#CBD5E1] hover:bg-white dark:hover:bg-[#1B2435]'
                           }`}
                         >
                           {flt.label}
@@ -986,15 +1020,15 @@ export const CustomizePanel: React.FC<CustomizePanelProps> = ({
         {/* MENU 3 : TYPOGRAPHIE (2 clean sub-menus) */}
         {activeTab === 'typography' && (
           <div className="space-y-5 animate-[fadeIn_160ms_ease-out]" data-testid="bar-typography">
-            <div className="inline-flex flex-wrap p-1 bg-[#F4F2EC] rounded-xl gap-1">
+            <div className="inline-flex flex-wrap p-1 bg-[#F3F4F8] dark:bg-[#0F1522] border border-[#E6E8F0] dark:border-[#242C3D] rounded-xl gap-1">
               <button
                 type="button"
                 data-testid="typo-sub-message"
                 onClick={() => setTypographySubMenu('message')}
                 className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors whitespace-nowrap cursor-pointer ${
                   typographySubMenu === 'message'
-                    ? 'bg-white text-[#111214] shadow-2xs'
-                    : 'text-[#5C5E66] hover:text-[#111214]'
+                    ? 'bg-white dark:bg-[#1E293B] text-[#111214] dark:text-[#F8FAFC] shadow-2xs'
+                    : 'text-[#5C5E66] dark:text-[#94A3B8] hover:text-[#111214] dark:hover:text-[#F1F5F9]'
                 }`}
               >
                 Message après scan
@@ -1005,8 +1039,8 @@ export const CustomizePanel: React.FC<CustomizePanelProps> = ({
                 onClick={() => setTypographySubMenu('card')}
                 className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors whitespace-nowrap cursor-pointer ${
                   typographySubMenu === 'card'
-                    ? 'bg-white text-[#111214] shadow-2xs'
-                    : 'text-[#5C5E66] hover:text-[#111214]'
+                    ? 'bg-white dark:bg-[#1E293B] text-[#111214] dark:text-[#F8FAFC] shadow-2xs'
+                    : 'text-[#5C5E66] dark:text-[#94A3B8] hover:text-[#111214] dark:hover:text-[#F1F5F9]'
                 }`}
               >
                 Titre de la carte QR
@@ -1016,10 +1050,10 @@ export const CustomizePanel: React.FC<CustomizePanelProps> = ({
             {typographySubMenu === 'message' ? (
               <div className="space-y-4 animate-[fadeIn_140ms_ease-out]">
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <span className="text-xs text-[#6E7078]">
+                  <span className="text-xs text-[#6E7078] dark:text-[#94A3B8]">
                     Police, taille, graisse, couleur et alignement affichés à l’identique après scan.
                   </span>
-                  <span className="text-xs font-semibold text-[#2563EB]">
+                  <span className="text-xs font-semibold text-[#2563EB] dark:text-[#60A5FA]">
                     {FONT_CATALOG[resolvedMsgStyle.fontId]?.label} · {FONT_CATALOG[resolvedMsgStyle.fontId]?.styleTag}
                   </span>
                 </div>
@@ -1043,20 +1077,20 @@ export const CustomizePanel: React.FC<CustomizePanelProps> = ({
                         }
                         className={`flex flex-col items-center justify-center px-3.5 py-2.5 rounded-xl border transition-colors shrink-0 min-w-[100px] cursor-pointer ${
                           active
-                            ? 'border-[#2563EB] bg-[#F4F8FF]'
-                            : 'border-[#E6E4DC] bg-[#FAF9F5] hover:bg-white'
+                            ? 'border-[#2563EB] dark:border-[#60A5FA] bg-[#F4F8FF] dark:bg-[#1E293B]'
+                            : 'border-[#E2E6F0] dark:border-[#242C3D] bg-[#FAFBFD] dark:bg-[#161D2B] hover:bg-white dark:hover:bg-[#1B2435]'
                         }`}
                       >
                         <span
-                          className="text-xl leading-tight text-[#111214] whitespace-nowrap"
+                          className="text-xl leading-tight text-[#111214] dark:text-[#F1F5F9] whitespace-nowrap"
                           style={{ fontFamily: f.cssFamily }}
                         >
                           Aa Bb
                         </span>
-                        <span className="text-[11px] font-semibold text-[#2C2E33] whitespace-nowrap mt-1">
+                        <span className="text-[11px] font-semibold text-[#2C2E33] dark:text-[#CBD5E1] whitespace-nowrap mt-1">
                           {f.label}
                         </span>
-                        <span className="text-[10px] text-[#6E7078] whitespace-nowrap">
+                        <span className="text-[10px] text-[#6E7078] dark:text-[#94A3B8] whitespace-nowrap">
                           {f.styleTag}
                         </span>
                       </button>
@@ -1066,7 +1100,7 @@ export const CustomizePanel: React.FC<CustomizePanelProps> = ({
 
                 {/* Message Formatting Controls */}
                 <div className="flex flex-wrap items-center gap-2">
-                  <div className="inline-flex p-0.5 bg-[#F4F2EC] rounded-xl gap-0.5">
+                  <div className="inline-flex p-0.5 bg-[#F3F4F8] dark:bg-[#0F1522] border border-[#E6E8F0] dark:border-[#242C3D] rounded-xl gap-0.5">
                     {(
                       [
                         { id: 'left', icon: AlignLeft, label: 'Aligner à gauche' },
@@ -1088,8 +1122,8 @@ export const CustomizePanel: React.FC<CustomizePanelProps> = ({
                           onClick={() => update({ messageAlign: al.id, textAlign: al.id })}
                           className={`p-2 rounded-lg transition-colors cursor-pointer ${
                             resolvedMsgStyle.textAlign === al.id
-                              ? 'bg-white text-[#111214] shadow-2xs'
-                              : 'text-[#5C5E66] hover:text-[#111214]'
+                              ? 'bg-white dark:bg-[#1E293B] text-[#111214] dark:text-[#F8FAFC] shadow-2xs'
+                              : 'text-[#5C5E66] dark:text-[#94A3B8] hover:text-[#111214] dark:hover:text-[#F1F5F9]'
                           }`}
                         >
                           <Icon className="w-3.5 h-3.5" aria-hidden="true" />
@@ -1098,7 +1132,7 @@ export const CustomizePanel: React.FC<CustomizePanelProps> = ({
                     })}
                   </div>
 
-                  <div className="inline-flex p-0.5 bg-[#F4F2EC] rounded-xl gap-0.5">
+                  <div className="inline-flex p-0.5 bg-[#F3F4F8] dark:bg-[#0F1522] border border-[#E6E8F0] dark:border-[#242C3D] rounded-xl gap-0.5">
                     {([
                       { w: 400, label: 'Normale' },
                       { w: 500, label: 'Moyenne' },
@@ -1113,8 +1147,8 @@ export const CustomizePanel: React.FC<CustomizePanelProps> = ({
                         onClick={() => update({ messageWeight: w, titleWeight: w })}
                         className={`px-2.5 py-1.5 text-xs rounded-lg transition-colors cursor-pointer ${
                           resolvedMsgStyle.fontWeight === w
-                            ? 'bg-white text-[#111214] shadow-2xs font-bold'
-                            : 'text-[#5C5E66] hover:text-[#111214] font-medium'
+                            ? 'bg-white dark:bg-[#1E293B] text-[#111214] dark:text-[#F8FAFC] shadow-2xs font-bold'
+                            : 'text-[#5C5E66] dark:text-[#94A3B8] hover:text-[#111214] dark:hover:text-[#F1F5F9] font-medium'
                         }`}
                       >
                         {label}
@@ -1133,8 +1167,8 @@ export const CustomizePanel: React.FC<CustomizePanelProps> = ({
                     }}
                     className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-xl border transition-colors cursor-pointer ${
                       resolvedMsgStyle.fontStyle === 'italic'
-                        ? 'border-[#2563EB] bg-[#EFF6FF] text-[#2563EB]'
-                        : 'border-[#E6E4DC] bg-[#FAF9F5] text-[#4B4D54]'
+                        ? 'border-[#2563EB] dark:border-[#60A5FA] bg-[#EFF6FF] dark:bg-[#1E293B] text-[#2563EB] dark:text-[#93C5FD]'
+                        : 'border-[#E2E6F0] dark:border-[#242C3D] bg-[#FAFBFD] dark:bg-[#161D2B] text-[#4B4D54] dark:text-[#CBD5E1]'
                     }`}
                   >
                     <Italic className="w-3.5 h-3.5" aria-hidden="true" />
@@ -1154,16 +1188,16 @@ export const CustomizePanel: React.FC<CustomizePanelProps> = ({
                     }
                     className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-xl border transition-colors cursor-pointer ${
                       resolvedMsgStyle.textDecoration === 'underline'
-                        ? 'border-[#2563EB] bg-[#EFF6FF] text-[#2563EB]'
-                        : 'border-[#E6E4DC] bg-[#FAF9F5] text-[#4B4D54]'
+                        ? 'border-[#2563EB] dark:border-[#60A5FA] bg-[#EFF6FF] dark:bg-[#1E293B] text-[#2563EB] dark:text-[#93C5FD]'
+                        : 'border-[#E2E6F0] dark:border-[#242C3D] bg-[#FAFBFD] dark:bg-[#161D2B] text-[#4B4D54] dark:text-[#CBD5E1]'
                     }`}
                   >
                     <Underline className="w-3.5 h-3.5" aria-hidden="true" />
                     <span>Souligné</span>
                   </button>
 
-                  <label className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl border border-[#E6E4DC] bg-[#FAF9F5] cursor-pointer">
-                    <span className="text-xs font-medium text-[#4B4D54]">Couleur texte</span>
+                  <label className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl border border-[#E2E6F0] dark:border-[#242C3D] bg-[#FAFBFD] dark:bg-[#161D2B] cursor-pointer">
+                    <span className="text-xs font-medium text-[#4B4D54] dark:text-[#CBD5E1]">Couleur texte</span>
                     <input
                       id="message-text-color"
                       data-testid="msg-color-input"
@@ -1178,7 +1212,7 @@ export const CustomizePanel: React.FC<CustomizePanelProps> = ({
                     <button
                       type="button"
                       onClick={() => update({ messageColor: '' })}
-                      className="text-xs font-medium text-[#6E7078] hover:text-[#111214] cursor-pointer"
+                      className="text-xs font-medium text-[#6E7078] dark:text-[#94A3B8] hover:text-[#111214] dark:hover:text-white cursor-pointer"
                     >
                       Auto
                     </button>
@@ -1189,10 +1223,10 @@ export const CustomizePanel: React.FC<CustomizePanelProps> = ({
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
                   <div>
                     <div className="flex items-center justify-between mb-1.5">
-                      <label htmlFor="message-size-range" className="text-xs font-medium text-[#4B4D54]">
+                      <label htmlFor="message-size-range" className="text-xs font-medium text-[#4B4D54] dark:text-[#CBD5E1]">
                         Taille du texte
                       </label>
-                      <span className="text-xs font-mono text-[#111214] font-semibold tabular-nums">
+                      <span className="text-xs font-mono text-[#111214] dark:text-[#F1F5F9] font-semibold tabular-nums">
                         {resolvedMsgStyle.fontSizePx}px
                       </span>
                     </div>
@@ -1210,10 +1244,10 @@ export const CustomizePanel: React.FC<CustomizePanelProps> = ({
 
                   <div>
                     <div className="flex items-center justify-between mb-1.5">
-                      <label htmlFor="message-spacing-range" className="text-xs font-medium text-[#4B4D54]">
+                      <label htmlFor="message-spacing-range" className="text-xs font-medium text-[#4B4D54] dark:text-[#CBD5E1]">
                         Espacement des lettres
                       </label>
-                      <span className="text-xs font-mono text-[#111214] font-semibold tabular-nums">
+                      <span className="text-xs font-mono text-[#111214] dark:text-[#F1F5F9] font-semibold tabular-nums">
                         {resolvedMsgStyle.letterSpacing}
                       </span>
                     </div>
@@ -1234,7 +1268,7 @@ export const CustomizePanel: React.FC<CustomizePanelProps> = ({
             ) : (
               <div className="space-y-4 animate-[fadeIn_140ms_ease-out]">
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <span className="text-xs text-[#6E7078]">
+                  <span className="text-xs text-[#6E7078] dark:text-[#94A3B8]">
                     Titre affiché sur la carte et lors du scan · Légende affichée autour du QR code.
                   </span>
                   <div className="flex items-center gap-2">
@@ -1245,14 +1279,14 @@ export const CustomizePanel: React.FC<CustomizePanelProps> = ({
                       onClick={() => update({ titleUppercase: !config.titleUppercase })}
                       className={`px-2.5 py-1 text-xs font-semibold rounded-lg border transition-colors cursor-pointer ${
                         config.titleUppercase
-                          ? 'border-[#2563EB] bg-[#EFF6FF] text-[#2563EB]'
-                          : 'border-[#E6E4DC] bg-[#FAF9F5] text-[#4B4D54]'
+                          ? 'border-[#2563EB] dark:border-[#60A5FA] bg-[#EFF6FF] dark:bg-[#1E293B] text-[#2563EB] dark:text-[#93C5FD]'
+                          : 'border-[#E2E6F0] dark:border-[#242C3D] bg-[#FAFBFD] dark:bg-[#161D2B] text-[#4B4D54] dark:text-[#CBD5E1]'
                       }`}
                     >
                       AA
                     </button>
-                    <label className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-[#E6E4DC] bg-[#FAF9F5] cursor-pointer">
-                      <span className="text-xs font-medium text-[#4B4D54]">Encre carte</span>
+                    <label className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-[#E2E6F0] dark:border-[#242C3D] bg-[#FAFBFD] dark:bg-[#161D2B] cursor-pointer">
+                      <span className="text-xs font-medium text-[#4B4D54] dark:text-[#CBD5E1]">Encre carte</span>
                       <input
                         id="card-text-color"
                         type="color"
@@ -1266,10 +1300,10 @@ export const CustomizePanel: React.FC<CustomizePanelProps> = ({
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div className="flex items-center gap-2 bg-[#FAF9F5] border border-[#DFDDD4] rounded-xl px-3.5 py-2">
+                  <div className="flex items-center gap-2 bg-[#FAFBFD] dark:bg-[#0F172A] border border-[#DCE2EE] dark:border-[#2A3347] rounded-xl px-3.5 py-2">
                     <label
                       htmlFor="frame-title"
-                      className="text-xs font-medium text-[#6E7078] whitespace-nowrap shrink-0"
+                      className="text-xs font-medium text-[#6E7078] dark:text-[#94A3B8] whitespace-nowrap shrink-0"
                     >
                       Titre
                     </label>
@@ -1280,14 +1314,14 @@ export const CustomizePanel: React.FC<CustomizePanelProps> = ({
                       value={config.titleText}
                       onChange={(e) => update({ titleText: e.target.value })}
                       placeholder="Mon Code QR"
-                      className="w-full text-xs bg-transparent text-[#111214] focus:outline-none"
+                      className="w-full text-xs bg-transparent text-[#111214] dark:text-[#F1F5F9] focus:outline-none"
                     />
                   </div>
 
-                  <div className="flex items-center gap-2 bg-[#FAF9F5] border border-[#DFDDD4] rounded-xl px-3.5 py-2">
+                  <div className="flex items-center gap-2 bg-[#FAFBFD] dark:bg-[#0F172A] border border-[#DCE2EE] dark:border-[#2A3347] rounded-xl px-3.5 py-2">
                     <label
                       htmlFor="frame-subtitle"
-                      className="text-xs font-medium text-[#6E7078] whitespace-nowrap shrink-0"
+                      className="text-xs font-medium text-[#6E7078] dark:text-[#94A3B8] whitespace-nowrap shrink-0"
                     >
                       Légende
                     </label>
@@ -1298,7 +1332,7 @@ export const CustomizePanel: React.FC<CustomizePanelProps> = ({
                       value={config.subtitleText}
                       onChange={(e) => update({ subtitleText: e.target.value })}
                       placeholder="Scannez pour découvrir"
-                      className="w-full text-xs bg-transparent text-[#111214] focus:outline-none"
+                      className="w-full text-xs bg-transparent text-[#111214] dark:text-[#F1F5F9] focus:outline-none"
                     />
                   </div>
                 </div>
@@ -1307,7 +1341,7 @@ export const CustomizePanel: React.FC<CustomizePanelProps> = ({
                   <div>
                     <label
                       htmlFor="subtitle-font-select"
-                      className="block text-xs font-medium text-[#4B4D54] mb-1.5"
+                      className="block text-xs font-medium text-[#4B4D54] dark:text-[#CBD5E1] mb-1.5"
                     >
                       Police légende
                     </label>
@@ -1315,7 +1349,7 @@ export const CustomizePanel: React.FC<CustomizePanelProps> = ({
                       id="subtitle-font-select"
                       value={config.subtitleFontId}
                       onChange={(e) => update({ subtitleFontId: e.target.value as QrFontId })}
-                      className="w-full px-3 py-2 text-xs bg-[#FAF9F5] border border-[#DFDDD4] rounded-xl"
+                      className="w-full px-3 py-2 text-xs bg-[#FAFBFD] dark:bg-[#0F172A] border border-[#DCE2EE] dark:border-[#2A3347] text-[#111214] dark:text-[#F1F5F9] rounded-xl"
                     >
                       {fontKeys.map((k) => (
                         <option key={k} value={k}>
@@ -1327,10 +1361,10 @@ export const CustomizePanel: React.FC<CustomizePanelProps> = ({
 
                   <div>
                     <div className="flex items-center justify-between mb-1.5">
-                      <label htmlFor="title-size-range" className="text-xs font-medium text-[#4B4D54]">
+                      <label htmlFor="title-size-range" className="text-xs font-medium text-[#4B4D54] dark:text-[#CBD5E1]">
                         Taille titre
                       </label>
-                      <span className="text-xs font-mono text-[#5C5E66] tabular-nums">
+                      <span className="text-xs font-mono text-[#5C5E66] dark:text-[#94A3B8] tabular-nums">
                         {config.titleSize}px
                       </span>
                     </div>
@@ -1347,10 +1381,10 @@ export const CustomizePanel: React.FC<CustomizePanelProps> = ({
 
                   <div>
                     <div className="flex items-center justify-between mb-1.5">
-                      <label htmlFor="subtitle-size-range" className="text-xs font-medium text-[#4B4D54]">
+                      <label htmlFor="subtitle-size-range" className="text-xs font-medium text-[#4B4D54] dark:text-[#CBD5E1]">
                         Taille légende
                       </label>
-                      <span className="text-xs font-mono text-[#5C5E66] tabular-nums">
+                      <span className="text-xs font-mono text-[#5C5E66] dark:text-[#94A3B8] tabular-nums">
                         {config.subtitleSize}px
                       </span>
                     </div>
@@ -1373,44 +1407,64 @@ export const CustomizePanel: React.FC<CustomizePanelProps> = ({
         {/* MENU 4 : LOGO & COINS (2 clean sub-menus) */}
         {activeTab === 'elements' && (
           <div className="space-y-5 animate-[fadeIn_160ms_ease-out]" data-testid="bar-stickers">
-            <div className="inline-flex flex-wrap p-1 bg-[#F4F2EC] rounded-xl gap-1">
-              <button
-                type="button"
-                data-testid="elements-sub-center"
-                onClick={() => setElementsSubMenu('center')}
-                className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors whitespace-nowrap cursor-pointer ${
-                  elementsSubMenu === 'center'
-                    ? 'bg-white text-[#111214] shadow-2xs'
-                    : 'text-[#5C5E66] hover:text-[#111214]'
-                }`}
-              >
-                Emblème central
-              </button>
-              <button
-                type="button"
-                data-testid="elements-sub-corners"
-                onClick={() => setElementsSubMenu('corners')}
-                className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors whitespace-nowrap cursor-pointer ${
-                  elementsSubMenu === 'corners'
-                    ? 'bg-white text-[#111214] shadow-2xs'
-                    : 'text-[#5C5E66] hover:text-[#111214]'
-                }`}
-              >
-                Stickers de coin
-              </button>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="inline-flex flex-wrap p-1 bg-[#F3F4F8] dark:bg-[#0F1522] border border-[#E6E8F0] dark:border-[#242C3D] rounded-xl gap-1">
+                <button
+                  type="button"
+                  data-testid="elements-sub-center"
+                  onClick={() => setElementsSubMenu('center')}
+                  className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors whitespace-nowrap cursor-pointer ${
+                    elementsSubMenu === 'center'
+                      ? 'bg-white dark:bg-[#1E293B] text-[#111214] dark:text-[#F8FAFC] shadow-2xs'
+                      : 'text-[#5C5E66] dark:text-[#94A3B8] hover:text-[#111214] dark:hover:text-[#F1F5F9]'
+                  }`}
+                >
+                  Emblème central
+                </button>
+                <button
+                  type="button"
+                  data-testid="elements-sub-corners"
+                  onClick={() => setElementsSubMenu('corners')}
+                  className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors whitespace-nowrap cursor-pointer ${
+                    elementsSubMenu === 'corners'
+                      ? 'bg-white dark:bg-[#1E293B] text-[#111214] dark:text-[#F8FAFC] shadow-2xs'
+                      : 'text-[#5C5E66] dark:text-[#94A3B8] hover:text-[#111214] dark:hover:text-[#F1F5F9]'
+                  }`}
+                >
+                  Stickers de coin
+                </button>
+              </div>
+
+              <div className="inline-flex flex-wrap p-1 bg-[#F3F4F8] dark:bg-[#0F1522] border border-[#E6E8F0] dark:border-[#242C3D] rounded-xl gap-1">
+                {STICKER_FILTER_TABS.map((cat) => (
+                  <button
+                    key={cat.id}
+                    type="button"
+                    data-testid={`sticker-cat-${cat.id}`}
+                    onClick={() => setStickerCategory(cat.id)}
+                    className={`px-2.5 py-1 text-[11px] font-semibold rounded-lg transition-colors whitespace-nowrap cursor-pointer ${
+                      stickerCategory === cat.id
+                        ? 'bg-white dark:bg-[#1E293B] text-[#111214] dark:text-[#F8FAFC] shadow-2xs'
+                        : 'text-[#5C5E66] dark:text-[#94A3B8] hover:text-[#111214] dark:hover:text-[#F1F5F9]'
+                    }`}
+                  >
+                    {cat.label}
+                  </button>
+                ))}
+              </div>
             </div>
 
             {elementsSubMenu === 'center' ? (
               <div className="space-y-4 animate-[fadeIn_140ms_ease-out]">
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div className="inline-flex p-0.5 bg-[#F4F2EC] rounded-lg gap-0.5">
+                  <div className="inline-flex p-0.5 bg-[#F3F4F8] dark:bg-[#0F1522] border border-[#E6E8F0] dark:border-[#242C3D] rounded-lg gap-0.5">
                     <button
                       type="button"
                       onClick={() => setCenterStickerMode('vector')}
                       className={`px-2.5 py-1 text-xs font-semibold rounded-md transition-colors cursor-pointer ${
                         centerStickerMode === 'vector'
-                          ? 'bg-white text-[#111214] shadow-2xs'
-                          : 'text-[#5C5E66] hover:text-[#111214]'
+                          ? 'bg-white dark:bg-[#1E293B] text-[#111214] dark:text-[#F8FAFC] shadow-2xs'
+                          : 'text-[#5C5E66] dark:text-[#94A3B8] hover:text-[#111214] dark:hover:text-[#F1F5F9]'
                       }`}
                     >
                       Vectoriels
@@ -1420,8 +1474,8 @@ export const CustomizePanel: React.FC<CustomizePanelProps> = ({
                       onClick={() => setCenterStickerMode('emoji')}
                       className={`px-2.5 py-1 text-xs font-semibold rounded-md transition-colors cursor-pointer ${
                         centerStickerMode === 'emoji'
-                          ? 'bg-white text-[#111214] shadow-2xs'
-                          : 'text-[#5C5E66] hover:text-[#111214]'
+                          ? 'bg-white dark:bg-[#1E293B] text-[#111214] dark:text-[#F8FAFC] shadow-2xs'
+                          : 'text-[#5C5E66] dark:text-[#94A3B8] hover:text-[#111214] dark:hover:text-[#F1F5F9]'
                       }`}
                     >
                       Emoji
@@ -1443,7 +1497,7 @@ export const CustomizePanel: React.FC<CustomizePanelProps> = ({
                     <button
                       type="button"
                       onClick={() => customLogoInputRef.current?.click()}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-[#111214] bg-[#F4F2EC] hover:bg-[#EAE7DF] rounded-xl transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-[#111214] dark:text-[#F1F5F9] bg-[#F3F4F8] dark:bg-[#161D2B] border border-[#E2E6F0] dark:border-[#242C3D] hover:bg-[#EAECEF] dark:hover:bg-[#1E293B] rounded-xl transition-colors whitespace-nowrap shrink-0 cursor-pointer"
                     >
                       <Upload className="w-3.5 h-3.5" aria-hidden="true" />
                       <span>Importer logo</span>
@@ -1454,7 +1508,7 @@ export const CustomizePanel: React.FC<CustomizePanelProps> = ({
                         onClick={() =>
                           update({ logoId: null, customLogoDataUrl: null, centerEmoji: null })
                         }
-                        className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-[#B91C1C] bg-[#FEF2F2] hover:bg-[#FEE2E2] rounded-xl transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+                        className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-[#B91C1C] dark:text-[#FCA5A5] bg-[#FEF2F2] dark:bg-[#2A1215] hover:bg-[#FEE2E2] dark:hover:bg-[#3B171B] rounded-xl transition-colors whitespace-nowrap shrink-0 cursor-pointer"
                       >
                         <Ban className="w-3.5 h-3.5" aria-hidden="true" />
                         <span>Aucun</span>
@@ -1465,7 +1519,7 @@ export const CustomizePanel: React.FC<CustomizePanelProps> = ({
 
                 {centerStickerMode === 'vector' ? (
                   <div className="flex items-center gap-2 overflow-x-auto pb-1">
-                    {UNIQUE_LOGOS.map((logo) => {
+                    {filteredLogos.map((logo) => {
                       const active = !config.customLogoDataUrl && config.logoId === logo.id;
                       return (
                         <button
@@ -1480,8 +1534,8 @@ export const CustomizePanel: React.FC<CustomizePanelProps> = ({
                           }
                           className={`flex flex-col items-center gap-1 px-3 py-2 rounded-xl border transition-colors shrink-0 min-w-[74px] cursor-pointer ${
                             active
-                              ? 'border-[#2563EB] bg-[#EFF6FF]'
-                              : 'border-[#E6E4DC] bg-[#FAF9F5] hover:bg-white'
+                              ? 'border-[#2563EB] dark:border-[#60A5FA] bg-[#EFF6FF] dark:bg-[#1E293B] text-[#2563EB] dark:text-[#93C5FD]'
+                              : 'border-[#E2E6F0] dark:border-[#242C3D] bg-[#FAFBFD] dark:bg-[#161D2B] text-[#111214] dark:text-[#E2E8F0] hover:bg-white dark:hover:bg-[#1B2435]'
                           }`}
                         >
                           <svg viewBox={logo.viewBox} className="w-5 h-5" aria-hidden="true">
@@ -1491,8 +1545,8 @@ export const CustomizePanel: React.FC<CustomizePanelProps> = ({
                                 cx={c.cx}
                                 cy={c.cy}
                                 r={c.r}
-                                fill={c.fill ? (active ? '#2563EB' : '#111214') : 'none'}
-                                stroke={c.stroke ? (active ? '#2563EB' : '#111214') : 'none'}
+                                fill={c.fill ? 'currentColor' : 'none'}
+                                stroke={c.stroke ? 'currentColor' : 'none'}
                                 strokeWidth={c.strokeWidth || 0}
                               />
                             ))}
@@ -1500,8 +1554,8 @@ export const CustomizePanel: React.FC<CustomizePanelProps> = ({
                               <path
                                 key={idx}
                                 d={p.d}
-                                fill={p.fill ? (active ? '#2563EB' : '#111214') : 'none'}
-                                stroke={p.stroke ? (active ? '#2563EB' : '#111214') : 'none'}
+                                fill={p.fill ? 'currentColor' : 'none'}
+                                stroke={p.stroke ? 'currentColor' : 'none'}
                                 strokeWidth={p.strokeWidth || 0}
                                 strokeLinecap="round"
                                 strokeLinejoin="round"
@@ -1513,14 +1567,14 @@ export const CustomizePanel: React.FC<CustomizePanelProps> = ({
                                 y="24"
                                 dy="0.35em"
                                 textAnchor="middle"
-                                fill={active ? '#2563EB' : '#111214'}
+                                fill="currentColor"
                                 style={{ fontSize: '14px', fontWeight: 700 }}
                               >
                                 {(config.monogramText || 'SQ').slice(0, 3).toUpperCase()}
                               </text>
                             )}
                           </svg>
-                          <span className="text-[11px] font-medium text-[#2C2E33] whitespace-nowrap">
+                          <span className="text-[11px] font-medium text-[#2C2E33] dark:text-[#CBD5E1] whitespace-nowrap">
                             {logo.name}
                           </span>
                         </button>
@@ -1529,7 +1583,7 @@ export const CustomizePanel: React.FC<CustomizePanelProps> = ({
                   </div>
                 ) : (
                   <div className="flex flex-wrap items-center gap-2">
-                    {EMOJI_STICKER_CATALOG.map((item) => {
+                    {filteredEmojis.map((item) => {
                       const active =
                         !config.customLogoDataUrl &&
                         !config.logoId &&
@@ -1548,14 +1602,14 @@ export const CustomizePanel: React.FC<CustomizePanelProps> = ({
                           }
                           className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border transition-colors cursor-pointer ${
                             active
-                              ? 'border-[#2563EB] bg-[#EFF6FF]'
-                              : 'border-[#E6E4DC] bg-[#FAF9F5] hover:bg-white'
+                              ? 'border-[#2563EB] dark:border-[#60A5FA] bg-[#EFF6FF] dark:bg-[#1E293B]'
+                              : 'border-[#E2E6F0] dark:border-[#242C3D] bg-[#FAFBFD] dark:bg-[#161D2B] hover:bg-white dark:hover:bg-[#1B2435]'
                           }`}
                         >
                           <span className="text-base leading-none" aria-hidden="true">
                             {item.emoji}
                           </span>
-                          <span className="text-xs font-medium text-[#4B4D54]">
+                          <span className="text-xs font-medium text-[#4B4D54] dark:text-[#CBD5E1]">
                             {item.label}
                           </span>
                         </button>
@@ -1576,7 +1630,7 @@ export const CustomizePanel: React.FC<CustomizePanelProps> = ({
                         });
                       }}
                       placeholder="Libre…"
-                      className="w-18 px-2.5 py-1.5 text-center text-xs bg-[#FAF9F5] border border-[#DFDDD4] rounded-xl"
+                      className="w-18 px-2.5 py-1.5 text-center text-xs bg-[#FAFBFD] dark:bg-[#0F172A] border border-[#DCE2EE] dark:border-[#2A3347] text-[#111214] dark:text-[#F1F5F9] rounded-xl"
                     />
                   </div>
                 )}
@@ -1585,7 +1639,7 @@ export const CustomizePanel: React.FC<CustomizePanelProps> = ({
                   config.logoId === 'monogram' &&
                   !config.customLogoDataUrl && (
                     <div className="flex items-center gap-2.5">
-                      <label htmlFor="monogram-input" className="text-xs font-medium text-[#3F4148]">
+                      <label htmlFor="monogram-input" className="text-xs font-medium text-[#3F4148] dark:text-[#CBD5E1]">
                         Initiales :
                       </label>
                       <input
@@ -1595,7 +1649,7 @@ export const CustomizePanel: React.FC<CustomizePanelProps> = ({
                         value={config.monogramText}
                         onChange={(e) => update({ monogramText: e.target.value })}
                         placeholder="SQ"
-                        className="w-20 px-2.5 py-1 text-xs font-bold uppercase bg-[#FAF9F5] border border-[#DFDDD4] rounded-lg"
+                        className="w-20 px-2.5 py-1 text-xs font-bold uppercase bg-[#FAFBFD] dark:bg-[#0F172A] border border-[#DCE2EE] dark:border-[#2A3347] text-[#111214] dark:text-[#F1F5F9] rounded-lg"
                       />
                     </div>
                   )}
@@ -1609,8 +1663,8 @@ export const CustomizePanel: React.FC<CustomizePanelProps> = ({
                         onClick={() => update({ logoKnockout: k.id })}
                         className={`px-2.5 py-1.5 text-xs font-semibold rounded-lg border transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
                           config.logoKnockout === k.id
-                            ? 'border-[#2563EB] bg-[#EFF6FF] text-[#2563EB]'
-                            : 'border-[#E6E4DC] bg-[#FAF9F5] text-[#4B4D54]'
+                            ? 'border-[#2563EB] dark:border-[#60A5FA] bg-[#EFF6FF] dark:bg-[#1E293B] text-[#2563EB] dark:text-[#93C5FD]'
+                            : 'border-[#E2E6F0] dark:border-[#242C3D] bg-[#FAFBFD] dark:bg-[#161D2B] text-[#4B4D54] dark:text-[#CBD5E1]'
                         }`}
                       >
                         {k.label}
@@ -1619,7 +1673,7 @@ export const CustomizePanel: React.FC<CustomizePanelProps> = ({
                   </div>
 
                   <div className="flex items-center gap-2 flex-1 min-w-[150px] max-w-[240px]">
-                    <label htmlFor="logo-size-range" className="text-xs font-medium text-[#4B4D54] whitespace-nowrap">
+                    <label htmlFor="logo-size-range" className="text-xs font-medium text-[#4B4D54] dark:text-[#CBD5E1] whitespace-nowrap">
                       Taille
                     </label>
                     <input
@@ -1631,14 +1685,14 @@ export const CustomizePanel: React.FC<CustomizePanelProps> = ({
                       onChange={(e) => update({ logoSize: Number(e.target.value) / 100 })}
                       className="flex-1"
                     />
-                    <span className="text-xs font-mono text-[#5C5E66] tabular-nums">
+                    <span className="text-xs font-mono text-[#5C5E66] dark:text-[#94A3B8] tabular-nums">
                       {Math.round(config.logoSize * 100)}%
                     </span>
                   </div>
 
                   {!config.customLogoDataUrl && !config.centerEmoji && (
                     <label className="inline-flex items-center gap-2 cursor-pointer shrink-0">
-                      <span className="text-xs font-medium text-[#5C5E66]">Couleur</span>
+                      <span className="text-xs font-medium text-[#5C5E66] dark:text-[#94A3B8]">Couleur</span>
                       <input
                         id="logo-color-picker"
                         type="color"
@@ -1664,8 +1718,8 @@ export const CustomizePanel: React.FC<CustomizePanelProps> = ({
                           onClick={() => update({ cornerStickerPlacement: p.id })}
                           className={`px-2.5 py-1 text-xs font-semibold rounded-lg border transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
                             active
-                              ? 'border-[#2563EB] bg-[#EFF6FF] text-[#2563EB]'
-                              : 'border-[#E6E4DC] bg-[#FAF9F5] text-[#4B4D54] hover:bg-white'
+                              ? 'border-[#2563EB] dark:border-[#60A5FA] bg-[#EFF6FF] dark:bg-[#1E293B] text-[#2563EB] dark:text-[#93C5FD]'
+                              : 'border-[#E2E6F0] dark:border-[#242C3D] bg-[#FAFBFD] dark:bg-[#161D2B] text-[#4B4D54] dark:text-[#CBD5E1] hover:bg-white dark:hover:bg-[#1B2435]'
                           }`}
                         >
                           {p.label}
@@ -1675,7 +1729,7 @@ export const CustomizePanel: React.FC<CustomizePanelProps> = ({
                   </div>
 
                   {config.cornerStickerPlacement !== 'none' && (
-                    <div className="inline-flex p-0.5 bg-[#F4F2EC] rounded-lg gap-0.5">
+                    <div className="inline-flex p-0.5 bg-[#F3F4F8] dark:bg-[#0F1522] border border-[#E6E8F0] dark:border-[#242C3D] rounded-lg gap-0.5">
                       {(
                         [
                           { id: 'vector', label: 'Vectoriels' },
@@ -1688,8 +1742,8 @@ export const CustomizePanel: React.FC<CustomizePanelProps> = ({
                           onClick={() => update({ cornerStickerKind: kind.id })}
                           className={`px-2.5 py-0.5 text-xs font-semibold rounded-md transition-colors cursor-pointer ${
                             config.cornerStickerKind === kind.id
-                              ? 'bg-white text-[#111214] shadow-2xs'
-                              : 'text-[#5C5E66] hover:text-[#111214]'
+                              ? 'bg-white dark:bg-[#1E293B] text-[#111214] dark:text-[#F8FAFC] shadow-2xs'
+                              : 'text-[#5C5E66] dark:text-[#94A3B8] hover:text-[#111214] dark:hover:text-[#F1F5F9]'
                           }`}
                         >
                           {kind.label}
@@ -1700,14 +1754,14 @@ export const CustomizePanel: React.FC<CustomizePanelProps> = ({
                 </div>
 
                 {config.cornerStickerPlacement === 'none' ? (
-                  <p className="text-xs text-[#6E7078] bg-[#FAF9F5] border border-dashed border-[#DFDDD4] rounded-xl px-4 py-3">
+                  <p className="text-xs text-[#6E7078] dark:text-[#94A3B8] bg-[#FAFBFD] dark:bg-[#161D2B] border border-dashed border-[#DCE2EE] dark:border-[#2A3347] rounded-xl px-4 py-3">
                     Choisissez un placement ci-dessus (4 coins, Haut, Bas…) pour ajouter des ornements autour de votre QR code.
                   </p>
                 ) : (
                   <div className="flex flex-wrap items-center gap-2">
                     {config.cornerStickerKind === 'emoji' ? (
                       <>
-                        {EMOJI_STICKER_CATALOG.map((item) => {
+                        {filteredEmojis.map((item) => {
                           const active = config.cornerStickerEmoji === item.emoji;
                           return (
                             <button
@@ -1717,8 +1771,8 @@ export const CustomizePanel: React.FC<CustomizePanelProps> = ({
                               onClick={() => update({ cornerStickerEmoji: item.emoji })}
                               className={`p-1.5 rounded-lg border transition-colors cursor-pointer ${
                                 active
-                                  ? 'border-[#2563EB] bg-[#EFF6FF]'
-                                  : 'border-[#E6E4DC] bg-[#FAF9F5] hover:bg-white'
+                                  ? 'border-[#2563EB] dark:border-[#60A5FA] bg-[#EFF6FF] dark:bg-[#1E293B]'
+                                  : 'border-[#E2E6F0] dark:border-[#242C3D] bg-[#FAFBFD] dark:bg-[#161D2B] hover:bg-white dark:hover:bg-[#1B2435]'
                               }`}
                             >
                               <span className="text-base leading-none" aria-hidden="true">
@@ -1735,12 +1789,12 @@ export const CustomizePanel: React.FC<CustomizePanelProps> = ({
                           value={config.cornerStickerEmoji}
                           onChange={(e) => update({ cornerStickerEmoji: e.target.value })}
                           placeholder="✨"
-                          className="w-12 px-1.5 py-1 text-center text-sm bg-[#FAF9F5] border border-[#DFDDD4] rounded-lg"
+                          className="w-12 px-1.5 py-1 text-center text-sm bg-[#FAFBFD] dark:bg-[#0F172A] border border-[#DCE2EE] dark:border-[#2A3347] text-[#111214] dark:text-[#F1F5F9] rounded-lg"
                         />
                       </>
                     ) : (
                       <>
-                        {UNIQUE_LOGOS.map((logo) => {
+                        {filteredLogos.map((logo) => {
                           const active = config.cornerStickerVectorId === logo.id;
                           return (
                             <button
@@ -1750,8 +1804,8 @@ export const CustomizePanel: React.FC<CustomizePanelProps> = ({
                               onClick={() => update({ cornerStickerVectorId: logo.id })}
                               className={`p-1.5 rounded-lg border transition-colors cursor-pointer ${
                                 active
-                                  ? 'border-[#2563EB] bg-[#EFF6FF]'
-                                  : 'border-[#E6E4DC] bg-[#FAF9F5] hover:bg-white'
+                                  ? 'border-[#2563EB] dark:border-[#60A5FA] bg-[#EFF6FF] dark:bg-[#1E293B] text-[#2563EB] dark:text-[#93C5FD]'
+                                  : 'border-[#E2E6F0] dark:border-[#242C3D] bg-[#FAFBFD] dark:bg-[#161D2B] text-[#111214] dark:text-[#E2E8F0] hover:bg-white dark:hover:bg-[#1B2435]'
                               }`}
                             >
                               <svg viewBox={logo.viewBox} className="w-4 h-4" aria-hidden="true">
@@ -1761,8 +1815,8 @@ export const CustomizePanel: React.FC<CustomizePanelProps> = ({
                                     cx={c.cx}
                                     cy={c.cy}
                                     r={c.r}
-                                    fill={c.fill ? (active ? '#2563EB' : '#111214') : 'none'}
-                                    stroke={c.stroke ? (active ? '#2563EB' : '#111214') : 'none'}
+                                    fill={c.fill ? 'currentColor' : 'none'}
+                                    stroke={c.stroke ? 'currentColor' : 'none'}
                                     strokeWidth={c.strokeWidth || 0}
                                   />
                                 ))}
@@ -1770,8 +1824,8 @@ export const CustomizePanel: React.FC<CustomizePanelProps> = ({
                                   <path
                                     key={idx}
                                     d={p.d}
-                                    fill={p.fill ? (active ? '#2563EB' : '#111214') : 'none'}
-                                    stroke={p.stroke ? (active ? '#2563EB' : '#111214') : 'none'}
+                                    fill={p.fill ? 'currentColor' : 'none'}
+                                    stroke={p.stroke ? 'currentColor' : 'none'}
                                     strokeWidth={p.strokeWidth || 0}
                                     strokeLinecap="round"
                                     strokeLinejoin="round"
@@ -1793,7 +1847,7 @@ export const CustomizePanel: React.FC<CustomizePanelProps> = ({
                     )}
 
                     <div className="flex items-center gap-2 ml-auto min-w-[140px]">
-                      <label htmlFor="corner-sticker-scale" className="text-xs font-medium text-[#4B4D54] whitespace-nowrap">
+                      <label htmlFor="corner-sticker-scale" className="text-xs font-medium text-[#4B4D54] dark:text-[#CBD5E1] whitespace-nowrap">
                         Échelle
                       </label>
                       <input
@@ -1807,7 +1861,7 @@ export const CustomizePanel: React.FC<CustomizePanelProps> = ({
                         }
                         className="flex-1"
                       />
-                      <span className="text-xs font-mono text-[#5C5E66] tabular-nums">
+                      <span className="text-xs font-mono text-[#5C5E66] dark:text-[#94A3B8] tabular-nums">
                         {Math.round((config.cornerStickerScale || 1) * 100)}%
                       </span>
                     </div>
@@ -1823,16 +1877,16 @@ export const CustomizePanel: React.FC<CustomizePanelProps> = ({
           <div className="space-y-6 animate-[fadeIn_160ms_ease-out]" data-testid="bar-finishing">
             {/* Format & Scannability */}
             <div className="space-y-3">
-              <span className="block text-xs font-semibold text-[#111214]">
+              <span className="block text-xs font-semibold text-[#111214] dark:text-[#F1F5F9]">
                 Format &amp; tolérance de lecture
               </span>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 items-center">
                 <div>
                   <div className="flex items-center justify-between mb-1.5">
-                    <label htmlFor="card-radius" className="text-xs font-medium text-[#4B4D54]">
+                    <label htmlFor="card-radius" className="text-xs font-medium text-[#4B4D54] dark:text-[#CBD5E1]">
                       Arrondi de carte
                     </label>
-                    <span className="text-xs font-mono text-[#5C5E66] tabular-nums">
+                    <span className="text-xs font-mono text-[#5C5E66] dark:text-[#94A3B8] tabular-nums">
                       {config.cornerRadius}px
                     </span>
                   </div>
@@ -1849,10 +1903,10 @@ export const CustomizePanel: React.FC<CustomizePanelProps> = ({
 
                 <div>
                   <div className="flex items-center justify-between mb-1.5">
-                    <label htmlFor="qr-margin" className="text-xs font-medium text-[#4B4D54]">
+                    <label htmlFor="qr-margin" className="text-xs font-medium text-[#4B4D54] dark:text-[#CBD5E1]">
                       Marge QR
                     </label>
-                    <span className="text-xs font-mono text-[#5C5E66] tabular-nums">
+                    <span className="text-xs font-mono text-[#5C5E66] dark:text-[#94A3B8] tabular-nums">
                       {config.margin}
                     </span>
                   </div>
@@ -1869,7 +1923,7 @@ export const CustomizePanel: React.FC<CustomizePanelProps> = ({
                 </div>
 
                 <div>
-                  <label htmlFor="qr-ec" className="block text-xs font-medium text-[#4B4D54] mb-1.5">
+                  <label htmlFor="qr-ec" className="block text-xs font-medium text-[#4B4D54] dark:text-[#CBD5E1] mb-1.5">
                     Correction d’erreur
                   </label>
                   <select
@@ -1878,7 +1932,7 @@ export const CustomizePanel: React.FC<CustomizePanelProps> = ({
                     onChange={(e) =>
                       update({ errorCorrection: e.target.value as QrErrorCorrection })
                     }
-                    className="w-full px-3 py-2 text-xs bg-[#FAF9F5] border border-[#DFDDD4] rounded-xl"
+                    className="w-full px-3 py-2 text-xs bg-[#FAFBFD] dark:bg-[#0F172A] border border-[#DCE2EE] dark:border-[#2A3347] text-[#111214] dark:text-[#F1F5F9] rounded-xl"
                   >
                     <option value="L">L — 7 % (Compact)</option>
                     <option value="M">M — 15 % (Standard)</option>
@@ -1888,12 +1942,12 @@ export const CustomizePanel: React.FC<CustomizePanelProps> = ({
                 </div>
               </div>
 
-              <label className="mt-3 flex items-center justify-between gap-3 p-3 rounded-xl bg-[#FAF9F5] border border-[#E6E4DC] cursor-pointer">
+              <label className="mt-3 flex items-center justify-between gap-3 p-3 rounded-xl bg-[#FAFBFD] dark:bg-[#161D2B] border border-[#E2E6F0] dark:border-[#242C3D] cursor-pointer">
                 <div className="min-w-0">
-                  <span className="block text-xs font-semibold text-[#111214]">
+                  <span className="block text-xs font-semibold text-[#111214] dark:text-[#F1F5F9]">
                     Faisceau laser lumineux (aperçu &amp; partage)
                   </span>
-                  <span className="block text-[11px] text-[#6E7078]">
+                  <span className="block text-[11px] text-[#6E7078] dark:text-[#94A3B8]">
                     Anime un balayage lumineux sur l’aperçu et lors de l’ouverture dans « Mes QR ».
                   </span>
                 </div>
@@ -1908,9 +1962,9 @@ export const CustomizePanel: React.FC<CustomizePanelProps> = ({
             </div>
 
             {/* Fine Positioning */}
-            <div className="pt-4 border-t border-[#F1EFE9] space-y-3" data-testid="bar-advanced-editor">
+            <div className="pt-4 border-t border-[#F1EFE9] dark:border-[#242C3D] space-y-3" data-testid="bar-advanced-editor">
               <div className="flex items-center justify-between gap-2">
-                <span className="text-xs font-semibold text-[#111214]">
+                <span className="text-xs font-semibold text-[#111214] dark:text-[#F1F5F9]">
                   Positionnement fin
                 </span>
                 <button
@@ -1925,7 +1979,7 @@ export const CustomizePanel: React.FC<CustomizePanelProps> = ({
                       cornerStickerRotation: 0,
                     })
                   }
-                  className="text-xs font-semibold text-[#2563EB] hover:underline cursor-pointer"
+                  className="text-xs font-semibold text-[#2563EB] dark:text-[#60A5FA] hover:underline cursor-pointer"
                 >
                   Recentrer
                 </button>
@@ -1933,7 +1987,7 @@ export const CustomizePanel: React.FC<CustomizePanelProps> = ({
 
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                 <div className="flex items-center gap-2">
-                  <label htmlFor="logo-offset-x" className="text-xs text-[#4B4D54] w-20 shrink-0">
+                  <label htmlFor="logo-offset-x" className="text-xs text-[#4B4D54] dark:text-[#CBD5E1] w-20 shrink-0">
                     Logo X
                   </label>
                   <input
@@ -1945,13 +1999,13 @@ export const CustomizePanel: React.FC<CustomizePanelProps> = ({
                     onChange={(e) => update({ logoOffsetX: Number(e.target.value) })}
                     className="flex-1"
                   />
-                  <span className="text-xs font-mono text-[#5C5E66] tabular-nums w-9 text-right">
+                  <span className="text-xs font-mono text-[#5C5E66] dark:text-[#94A3B8] tabular-nums w-9 text-right">
                     {config.logoOffsetX ?? 0}px
                   </span>
                 </div>
 
                 <div className="flex items-center gap-2">
-                  <label htmlFor="logo-offset-y" className="text-xs text-[#4B4D54] w-20 shrink-0">
+                  <label htmlFor="logo-offset-y" className="text-xs text-[#4B4D54] dark:text-[#CBD5E1] w-20 shrink-0">
                     Logo Y
                   </label>
                   <input
@@ -1963,13 +2017,13 @@ export const CustomizePanel: React.FC<CustomizePanelProps> = ({
                     onChange={(e) => update({ logoOffsetY: Number(e.target.value) })}
                     className="flex-1"
                   />
-                  <span className="text-xs font-mono text-[#5C5E66] tabular-nums w-9 text-right">
+                  <span className="text-xs font-mono text-[#5C5E66] dark:text-[#94A3B8] tabular-nums w-9 text-right">
                     {config.logoOffsetY ?? 0}px
                   </span>
                 </div>
 
                 <div className="flex items-center gap-2">
-                  <label htmlFor="logo-rotation" className="text-xs text-[#4B4D54] w-20 shrink-0">
+                  <label htmlFor="logo-rotation" className="text-xs text-[#4B4D54] dark:text-[#CBD5E1] w-20 shrink-0">
                     Rotation
                   </label>
                   <input
@@ -1981,13 +2035,13 @@ export const CustomizePanel: React.FC<CustomizePanelProps> = ({
                     onChange={(e) => update({ logoRotation: Number(e.target.value) })}
                     className="flex-1"
                   />
-                  <span className="text-xs font-mono text-[#5C5E66] tabular-nums w-9 text-right">
+                  <span className="text-xs font-mono text-[#5C5E66] dark:text-[#94A3B8] tabular-nums w-9 text-right">
                     {config.logoRotation ?? 0}°
                   </span>
                 </div>
 
                 <div className="flex items-center gap-2">
-                  <label htmlFor="title-offset-y" className="text-xs text-[#4B4D54] w-20 shrink-0">
+                  <label htmlFor="title-offset-y" className="text-xs text-[#4B4D54] dark:text-[#CBD5E1] w-20 shrink-0">
                     Titre Y
                   </label>
                   <input
@@ -1999,13 +2053,13 @@ export const CustomizePanel: React.FC<CustomizePanelProps> = ({
                     onChange={(e) => update({ titleOffsetY: Number(e.target.value) })}
                     className="flex-1"
                   />
-                  <span className="text-xs font-mono text-[#5C5E66] tabular-nums w-9 text-right">
+                  <span className="text-xs font-mono text-[#5C5E66] dark:text-[#94A3B8] tabular-nums w-9 text-right">
                     {config.titleOffsetY ?? 0}px
                   </span>
                 </div>
 
                 <div className="flex items-center gap-2">
-                  <label htmlFor="corner-offset" className="text-xs text-[#4B4D54] w-20 shrink-0">
+                  <label htmlFor="corner-offset" className="text-xs text-[#4B4D54] dark:text-[#CBD5E1] w-20 shrink-0">
                     Coins X/Y
                   </label>
                   <input
@@ -2017,13 +2071,13 @@ export const CustomizePanel: React.FC<CustomizePanelProps> = ({
                     onChange={(e) => update({ cornerStickerOffset: Number(e.target.value) })}
                     className="flex-1"
                   />
-                  <span className="text-xs font-mono text-[#5C5E66] tabular-nums w-9 text-right">
+                  <span className="text-xs font-mono text-[#5C5E66] dark:text-[#94A3B8] tabular-nums w-9 text-right">
                     {config.cornerStickerOffset ?? 0}px
                   </span>
                 </div>
 
                 <div className="flex items-center gap-2">
-                  <label htmlFor="corner-rotation" className="text-xs text-[#4B4D54] w-20 shrink-0">
+                  <label htmlFor="corner-rotation" className="text-xs text-[#4B4D54] dark:text-[#CBD5E1] w-20 shrink-0">
                     Rot. coins
                   </label>
                   <input
@@ -2035,7 +2089,7 @@ export const CustomizePanel: React.FC<CustomizePanelProps> = ({
                     onChange={(e) => update({ cornerStickerRotation: Number(e.target.value) })}
                     className="flex-1"
                   />
-                  <span className="text-xs font-mono text-[#5C5E66] tabular-nums w-9 text-right">
+                  <span className="text-xs font-mono text-[#5C5E66] dark:text-[#94A3B8] tabular-nums w-9 text-right">
                     {config.cornerStickerRotation ?? 0}°
                   </span>
                 </div>
@@ -2043,16 +2097,16 @@ export const CustomizePanel: React.FC<CustomizePanelProps> = ({
             </div>
 
             {/* Extra Text Overlays */}
-            <div className="pt-4 border-t border-[#F1EFE9] space-y-2.5">
+            <div className="pt-4 border-t border-[#F1EFE9] dark:border-[#242C3D] space-y-2.5">
               <div className="flex items-center justify-between gap-2">
-                <span className="text-xs font-semibold text-[#111214]">
+                <span className="text-xs font-semibold text-[#111214] dark:text-[#F1F5F9]">
                   Textes superposés ({(config.extraTexts || []).length})
                 </span>
                 <button
                   type="button"
                   data-testid="add-extra-text-btn"
                   onClick={handleAddExtraText}
-                  className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-[#2563EB] bg-[#EFF6FF] hover:bg-[#DBEAFE] rounded-lg cursor-pointer"
+                  className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-[#2563EB] dark:text-[#93C5FD] bg-[#EFF6FF] dark:bg-[#1E293B] hover:bg-[#DBEAFE] dark:hover:bg-[#283548] rounded-lg cursor-pointer"
                 >
                   <Plus className="w-3.5 h-3.5" aria-hidden="true" />
                   <span>Ajouter</span>
@@ -2062,7 +2116,7 @@ export const CustomizePanel: React.FC<CustomizePanelProps> = ({
               {(config.extraTexts || []).map((overlay) => (
                 <div
                   key={overlay.id}
-                  className="p-3 rounded-xl bg-[#FAF9F5] border border-[#E6E4DC] space-y-2"
+                  className="p-3 rounded-xl bg-[#FAFBFD] dark:bg-[#161D2B] border border-[#E2E6F0] dark:border-[#242C3D] space-y-2"
                 >
                   <div className="flex flex-wrap items-center gap-2">
                     <input
@@ -2072,7 +2126,7 @@ export const CustomizePanel: React.FC<CustomizePanelProps> = ({
                       onChange={(e) =>
                         handleUpdateExtraText(overlay.id, { text: e.target.value })
                       }
-                      className="flex-1 min-w-[140px] px-2.5 py-1 text-xs bg-white border border-[#DFDDD4] rounded-lg"
+                      className="flex-1 min-w-[140px] px-2.5 py-1 text-xs bg-white dark:bg-[#0F172A] border border-[#DCE2EE] dark:border-[#2A3347] text-[#111214] dark:text-[#F1F5F9] rounded-lg"
                     />
                     <select
                       value={overlay.fontId}
@@ -2081,7 +2135,7 @@ export const CustomizePanel: React.FC<CustomizePanelProps> = ({
                           fontId: e.target.value as QrFontId,
                         })
                       }
-                      className="px-2 py-1 text-xs bg-white border border-[#DFDDD4] rounded-lg"
+                      className="px-2 py-1 text-xs bg-white dark:bg-[#0F172A] border border-[#DCE2EE] dark:border-[#2A3347] text-[#111214] dark:text-[#F1F5F9] rounded-lg"
                     >
                       {fontKeys.map((k) => (
                         <option key={k} value={k}>
@@ -2102,13 +2156,13 @@ export const CustomizePanel: React.FC<CustomizePanelProps> = ({
                       type="button"
                       aria-label="Supprimer ce texte libre"
                       onClick={() => handleRemoveExtraText(overlay.id)}
-                      className="p-1 text-[#6E7078] hover:text-[#B91C1C] cursor-pointer"
+                      className="p-1 text-[#6E7078] dark:text-[#94A3B8] hover:text-[#B91C1C] dark:hover:text-[#F87171] cursor-pointer"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>
                   </div>
 
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px] text-[#5C5E66]">
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px] text-[#5C5E66] dark:text-[#94A3B8]">
                     <label className="flex items-center gap-1.5">
                       <span>X</span>
                       <input
@@ -2175,9 +2229,9 @@ export const CustomizePanel: React.FC<CustomizePanelProps> = ({
             </div>
 
             {/* Layers Control */}
-            <div className="pt-4 border-t border-[#F1EFE9] space-y-2">
-              <div className="flex items-center gap-1.5 text-xs font-semibold text-[#111214]">
-                <Layers className="w-3.5 h-3.5 text-[#2563EB]" aria-hidden="true" />
+            <div className="pt-4 border-t border-[#F1EFE9] dark:border-[#242C3D] space-y-2">
+              <div className="flex items-center gap-1.5 text-xs font-semibold text-[#111214] dark:text-[#F1F5F9]">
+                <Layers className="w-3.5 h-3.5 text-[#2563EB] dark:text-[#60A5FA]" aria-hidden="true" />
                 <span>Calques</span>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
@@ -2187,8 +2241,8 @@ export const CustomizePanel: React.FC<CustomizePanelProps> = ({
                     data-testid={`layer-row-${layer.id}`}
                     className={`flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-xl border ${
                       layer.visible
-                        ? 'bg-[#FAF9F5] border-[#E6E4DC]'
-                        : 'bg-[#F3F2EE] border-[#E6E4DC] opacity-60'
+                        ? 'bg-[#FAFBFD] dark:bg-[#161D2B] border-[#E2E6F0] dark:border-[#242C3D]'
+                        : 'bg-[#F3F4F8] dark:bg-[#0F1522] border-[#E2E6F0] dark:border-[#242C3D] opacity-60'
                     }`}
                   >
                     <button
@@ -2199,12 +2253,12 @@ export const CustomizePanel: React.FC<CustomizePanelProps> = ({
                           ? `Masquer le calque ${layer.label}`
                           : `Afficher le calque ${layer.label}`
                       }
-                      className="inline-flex items-center gap-1.5 text-xs font-medium text-[#111214] min-w-0 cursor-pointer"
+                      className="inline-flex items-center gap-1.5 text-xs font-medium text-[#111214] dark:text-[#F1F5F9] min-w-0 cursor-pointer"
                     >
                       {layer.visible ? (
-                        <Eye className="w-3.5 h-3.5 text-[#2563EB] shrink-0" />
+                        <Eye className="w-3.5 h-3.5 text-[#2563EB] dark:text-[#60A5FA] shrink-0" />
                       ) : (
-                        <EyeOff className="w-3.5 h-3.5 text-[#6E7078] shrink-0" />
+                        <EyeOff className="w-3.5 h-3.5 text-[#6E7078] dark:text-[#64748B] shrink-0" />
                       )}
                       <span className="truncate">{layer.label}</span>
                     </button>
@@ -2215,7 +2269,7 @@ export const CustomizePanel: React.FC<CustomizePanelProps> = ({
                         disabled={index === 0}
                         aria-label={`Descendre ${layer.label}`}
                         onClick={() => handleMoveLayer(layer.id, 'down')}
-                        className="p-1 text-[#5C5E66] hover:text-[#111214] disabled:opacity-30 cursor-pointer"
+                        className="p-1 text-[#5C5E66] dark:text-[#94A3B8] hover:text-[#111214] dark:hover:text-white disabled:opacity-30 cursor-pointer"
                       >
                         <ArrowDown className="w-3 h-3" />
                       </button>
@@ -2224,7 +2278,7 @@ export const CustomizePanel: React.FC<CustomizePanelProps> = ({
                         disabled={index === activeLayers.length - 1}
                         aria-label={`Monter ${layer.label}`}
                         onClick={() => handleMoveLayer(layer.id, 'up')}
-                        className="p-1 text-[#5C5E66] hover:text-[#111214] disabled:opacity-30 cursor-pointer"
+                        className="p-1 text-[#5C5E66] dark:text-[#94A3B8] hover:text-[#111214] dark:hover:text-white disabled:opacity-30 cursor-pointer"
                       >
                         <ArrowUp className="w-3 h-3" />
                       </button>

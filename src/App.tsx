@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AlertCircle, CheckCircle2, UserCheck } from 'lucide-react';
+import { AlertCircle, CheckCircle2, Monitor, Moon, Sun, UserCheck } from 'lucide-react';
 import { AdminPricingModal } from './components/AdminPricingModal';
 import { CustomizePanel, type CustomizeCategoryTab } from './components/CustomizePanel';
 import { ExperienceSecurityPanel } from './components/ExperienceSecurityPanel';
@@ -94,6 +94,8 @@ function parseViewerRoute(
 }
 
 type ActiveView = 'studio' | 'gallery' | 'conservation';
+type UiThemeMode = 'system' | 'light' | 'dark';
+const UI_THEME_STORAGE_KEY = 'sparkqr_ui_theme';
 
 async function buildE2eeTransmissionBundle(params: {
   src: QrSourceState;
@@ -261,6 +263,45 @@ export default function App() {
     DEFAULT_DYNAMIC_SECURITY
   );
   const [projectCategory, setProjectCategory] = useState<ProjectCategory>('Personnel');
+  const [uiThemeMode, setUiThemeMode] = useState<UiThemeMode>(() => {
+    if (typeof window === 'undefined') return 'system';
+    try {
+      const saved = localStorage.getItem(UI_THEME_STORAGE_KEY);
+      if (saved === 'light' || saved === 'dark' || saved === 'system') return saved;
+    } catch {
+      // Ignore storage errors
+    }
+    return 'system';
+  });
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const media = window.matchMedia('(prefers-color-scheme: dark)');
+    const applyTheme = () => {
+      const isDark =
+        uiThemeMode === 'dark' || (uiThemeMode === 'system' && media.matches);
+      document.documentElement.classList.toggle('dark', isDark);
+      document.documentElement.style.colorScheme = isDark ? 'dark' : 'light';
+      const meta = document.querySelector('meta[name="theme-color"]');
+      if (meta) {
+        meta.setAttribute('content', isDark ? '#0B0F1A' : '#F6F7FB');
+      }
+    };
+    applyTheme();
+    try {
+      localStorage.setItem(UI_THEME_STORAGE_KEY, uiThemeMode);
+    } catch {
+      // Ignore storage errors
+    }
+    media.addEventListener('change', applyTheme);
+    return () => media.removeEventListener('change', applyTheme);
+  }, [uiThemeMode]);
+
+  const cycleUiThemeMode = () => {
+    setUiThemeMode((prev) =>
+      prev === 'system' ? 'light' : prev === 'light' ? 'dark' : 'system'
+    );
+  };
 
   useEffect(() => {
     const onPopState = () => {
@@ -1093,9 +1134,9 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-[100dvh] flex flex-col spark-canvas-bg text-[#111214] pb-safe">
+    <div className="min-h-[100dvh] flex flex-col spark-canvas-bg text-[#111214] dark:text-[#F1F5F9] pb-safe">
       {/* Top Bar: strict 3-zone contract */}
-      <header className="sticky top-0 z-30 pt-safe bg-white/90 backdrop-blur-md border-b border-[#E2E6F0]">
+      <header className="sticky top-0 z-30 pt-safe bg-white/92 dark:bg-[#0F1522]/92 backdrop-blur-md border-b border-[#E2E6F0] dark:border-[#242C3D]">
         <div className="max-w-[1400px] mx-auto px-3 sm:px-6 h-14 sm:h-15 flex items-center justify-between gap-2 sm:gap-6">
           <a
             href="#studio"
@@ -1103,9 +1144,9 @@ export default function App() {
               e.preventDefault();
               setView('studio');
             }}
-            className="group inline-flex items-center gap-2 font-display text-base sm:text-xl font-bold tracking-tight text-[#111214] whitespace-nowrap shrink-0"
+            className="group inline-flex items-center gap-2.5 font-display text-base sm:text-xl font-bold tracking-tight text-[#111214] dark:text-[#F8FAFC] whitespace-nowrap shrink-0"
           >
-            <span className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl bg-gradient-to-br from-[#2563EB] via-[#4F46E5] to-[#EC4899] text-white flex items-center justify-center shadow-[0_4px_12px_rgba(79,70,229,0.3)] animate-spark-emblem">
+            <span className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl bg-[#2563EB] text-white flex items-center justify-center animate-spark-emblem">
               <svg viewBox="0 0 24 24" className="w-4 h-4 sm:w-4.5 sm:h-4.5" aria-hidden="true">
                 <rect x="3" y="3" width="6.5" height="6.5" rx="1.8" fill="none" stroke="currentColor" strokeWidth="2.2" />
                 <rect x="14.5" y="3" width="6.5" height="6.5" rx="3.2" fill="none" stroke="currentColor" strokeWidth="2.2" />
@@ -1113,21 +1154,19 @@ export default function App() {
                 <path d="M17.5 13 L18.6 16.4 L22 17.5 L18.6 18.6 L17.5 22 L16.4 18.6 L13 17.5 L16.4 16.4 Z" fill="currentColor" />
               </svg>
             </span>
-            <span className="bg-gradient-to-r from-[#111214] via-[#4F46E5] to-[#2563EB] bg-clip-text text-transparent">
-              SparkQR
-            </span>
+            <span>SparkQR</span>
           </a>
 
           <nav
             aria-label="Navigation principale"
-            className="hidden md:flex items-center gap-5 text-sm font-medium text-[#5C5E66]"
+            className="hidden md:flex items-center gap-5 text-sm font-medium text-[#5C5E66] dark:text-[#94A3B8]"
           >
             <button
               type="button"
               onClick={() => setView('studio')}
-              className={`py-1.5 hover:text-[#111214] transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+              className={`py-1.5 hover:text-[#111214] dark:hover:text-[#F8FAFC] transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
                 view === 'studio'
-                  ? 'text-[#111214] font-semibold underline underline-offset-8 decoration-2 decoration-[#2563EB]'
+                  ? 'text-[#111214] dark:text-[#F8FAFC] font-semibold underline underline-offset-8 decoration-2 decoration-[#2563EB]'
                   : ''
               }`}
             >
@@ -1142,9 +1181,9 @@ export default function App() {
                 void refreshHostedMedia();
                 setView('gallery');
               }}
-              className={`py-1.5 hover:text-[#111214] transition-colors whitespace-nowrap shrink-0 cursor-pointer tabular-nums ${
+              className={`py-1.5 hover:text-[#111214] dark:hover:text-[#F8FAFC] transition-colors whitespace-nowrap shrink-0 cursor-pointer tabular-nums ${
                 view === 'gallery'
-                  ? 'text-[#111214] font-semibold underline underline-offset-8 decoration-2 decoration-[#2563EB]'
+                  ? 'text-[#111214] dark:text-[#F8FAFC] font-semibold underline underline-offset-8 decoration-2 decoration-[#2563EB]'
                   : ''
               }`}
             >
@@ -1159,9 +1198,9 @@ export default function App() {
                 void refreshHostedMedia();
                 setView('conservation');
               }}
-              className={`py-1.5 hover:text-[#111214] transition-colors whitespace-nowrap shrink-0 cursor-pointer tabular-nums ${
+              className={`py-1.5 hover:text-[#111214] dark:hover:text-[#F8FAFC] transition-colors whitespace-nowrap shrink-0 cursor-pointer tabular-nums ${
                 view === 'conservation'
-                  ? 'text-[#111214] font-semibold underline underline-offset-8 decoration-2 decoration-[#2563EB]'
+                  ? 'text-[#111214] dark:text-[#F8FAFC] font-semibold underline underline-offset-8 decoration-2 decoration-[#2563EB]'
                   : ''
               }`}
             >
@@ -1175,7 +1214,7 @@ export default function App() {
               type="button"
               data-testid="nav-workspace-btn"
               onClick={() => setWorkspaceModalOpen(true)}
-              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-[#EEF2FF] hover:bg-[#E0E7FF] text-[#4F46E5] text-xs font-semibold transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-[#EEF2FF] hover:bg-[#E0E7FF] text-[#4F46E5] dark:bg-[#1E293B] dark:hover:bg-[#293548] dark:text-[#A5B4FC] text-xs font-semibold transition-colors whitespace-nowrap shrink-0 cursor-pointer"
             >
               <UserCheck className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
               <span className="max-w-[130px] truncate">
@@ -1187,18 +1226,46 @@ export default function App() {
               type="button"
               disabled={!isGenerated}
               onClick={() => isGenerated && setPreviewModalOpen(true)}
-              className="hidden lg:inline-block py-1.5 hover:text-[#111214] transition-colors whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+              className="hidden lg:inline-block py-1.5 hover:text-[#111214] dark:hover:text-[#F8FAFC] transition-colors whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
             >
               Aperçu scan
             </button>
           </nav>
 
           <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+            <button
+              type="button"
+              data-testid="ui-theme-toggle"
+              onClick={cycleUiThemeMode}
+              aria-label={
+                uiThemeMode === 'system'
+                  ? 'Thème : Automatique (système)'
+                  : uiThemeMode === 'dark'
+                  ? 'Thème : Sombre'
+                  : 'Thème : Clair'
+              }
+              title={
+                uiThemeMode === 'system'
+                  ? 'Thème automatique (système)'
+                  : uiThemeMode === 'dark'
+                  ? 'Thème sombre'
+                  : 'Thème clair'
+              }
+              className="inline-flex items-center justify-center w-9 h-9 rounded-xl border border-[#E2E6F0] dark:border-[#242C3D] bg-white dark:bg-[#131926] text-[#5C5E66] dark:text-[#94A3B8] hover:text-[#111214] dark:hover:text-[#F8FAFC] hover:bg-[#F5F7FA] dark:hover:bg-[#1E293B] transition-colors shrink-0 cursor-pointer"
+            >
+              {uiThemeMode === 'dark' ? (
+                <Moon className="w-4 h-4" aria-hidden="true" />
+              ) : uiThemeMode === 'light' ? (
+                <Sun className="w-4 h-4" aria-hidden="true" />
+              ) : (
+                <Monitor className="w-4 h-4" aria-hidden="true" />
+              )}
+            </button>
             <PWAInstallButton />
             <button
               type="button"
               onClick={() => setWorkspaceModalOpen(true)}
-              className="md:hidden inline-flex items-center gap-1 px-2.5 py-1.5 min-h-[36px] rounded-xl bg-[#EEF2FF] hover:bg-[#E0E7FF] text-[#4F46E5] text-xs font-semibold transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+              className="md:hidden inline-flex items-center gap-1 px-2.5 py-1.5 min-h-[36px] rounded-xl bg-[#EEF2FF] hover:bg-[#E0E7FF] text-[#4F46E5] dark:bg-[#1E293B] dark:hover:bg-[#293548] dark:text-[#A5B4FC] text-xs font-semibold transition-colors whitespace-nowrap shrink-0 cursor-pointer"
             >
               <UserCheck className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
               <span>Espace</span>
@@ -1208,7 +1275,7 @@ export default function App() {
               disabled={!isGenerated}
               onClick={() => isGenerated && setExportModalOpen(true)}
               aria-label="Exporter Pro"
-              className="px-3 sm:px-4 py-1.5 sm:py-2 min-h-[36px] sm:min-h-[38px] text-xs font-semibold text-white bg-gradient-to-r from-[#2563EB] to-[#4F46E5] hover:from-[#1D4ED8] hover:to-[#4338CA] shadow-[0_4px_12px_rgba(37,99,235,0.22)] rounded-xl transition-all duration-150 whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed disabled:shadow-none"
+              className="px-3 sm:px-4 py-1.5 sm:py-2 min-h-[36px] sm:min-h-[38px] text-xs font-semibold text-white bg-[#2563EB] hover:bg-[#1D4ED8] dark:bg-[#3B82F6] dark:hover:bg-[#2563EB] rounded-xl transition-colors whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
             >
               <span className="hidden sm:inline">Exporter Pro</span>
               <span className="sm:hidden">Export</span>
@@ -1218,15 +1285,15 @@ export default function App() {
 
         <nav
           aria-label="Navigation mobile"
-          className="md:hidden border-t border-[#EEF2F7] px-3 py-1 flex items-center justify-around gap-1 text-xs font-medium text-[#5C5E66]"
+          className="md:hidden border-t border-[#E2E6F0] dark:border-[#242C3D] px-3 py-1 flex items-center justify-around gap-1 text-xs font-medium text-[#5C5E66] dark:text-[#94A3B8]"
         >
           <button
             type="button"
             onClick={() => setView('studio')}
             className={`px-2.5 py-2 min-h-[38px] rounded-lg transition-colors whitespace-nowrap cursor-pointer ${
               view === 'studio'
-                ? 'text-[#111214] font-semibold bg-[#F1F5FF]'
-                : 'hover:text-[#111214]'
+                ? 'text-[#111214] dark:text-[#F8FAFC] font-semibold bg-[#F1F5FF] dark:bg-[#1E293B]'
+                : 'hover:text-[#111214] dark:hover:text-[#F8FAFC]'
             }`}
           >
             Créer
@@ -1241,8 +1308,8 @@ export default function App() {
             }}
             className={`px-2.5 py-2 min-h-[38px] rounded-lg transition-colors whitespace-nowrap cursor-pointer tabular-nums ${
               view === 'gallery'
-                ? 'text-[#111214] font-semibold bg-[#F1F5FF]'
-                : 'hover:text-[#111214]'
+                ? 'text-[#111214] dark:text-[#F8FAFC] font-semibold bg-[#F1F5FF] dark:bg-[#1E293B]'
+                : 'hover:text-[#111214] dark:hover:text-[#F8FAFC]'
             }`}
           >
             Mes QR ({savedItems.length})
@@ -1257,8 +1324,8 @@ export default function App() {
             }}
             className={`px-2.5 py-2 min-h-[38px] rounded-lg transition-colors whitespace-nowrap cursor-pointer tabular-nums ${
               view === 'conservation'
-                ? 'text-[#111214] font-semibold bg-[#F1F5FF]'
-                : 'hover:text-[#111214]'
+                ? 'text-[#111214] dark:text-[#F8FAFC] font-semibold bg-[#F1F5FF] dark:bg-[#1E293B]'
+                : 'hover:text-[#111214] dark:hover:text-[#F8FAFC]'
             }`}
           >
             Conservation{unreadNotificationsCount > 0 ? ` (${unreadNotificationsCount})` : ''}
@@ -1277,15 +1344,15 @@ export default function App() {
             data-testid="payment-status-banner"
             className={`mb-5 rounded-2xl border px-4 py-3 text-xs font-medium flex items-center justify-between gap-3 ${
               paymentBanner.type === 'success'
-                ? 'border-[#A7F3D0] bg-[#ECFDF5] text-[#065F46]'
-                : 'border-[#FECACA] bg-[#FEF2F2] text-[#B91C1C]'
+                ? 'border-[#A7F3D0] dark:border-[#065F46] bg-[#ECFDF5] dark:bg-[#052E16]/60 text-[#065F46] dark:text-[#6EE7B7]'
+                : 'border-[#FECACA] dark:border-[#7F1D1D] bg-[#FEF2F2] dark:bg-[#450A0A]/60 text-[#B91C1C] dark:text-[#FCA5A5]'
             }`}
           >
             <div className="flex items-center gap-2 min-w-0">
               {paymentBanner.type === 'success' ? (
-                <CheckCircle2 className="w-4 h-4 shrink-0 text-[#059669]" aria-hidden="true" />
+                <CheckCircle2 className="w-4 h-4 shrink-0 text-[#059669] dark:text-[#34D399]" aria-hidden="true" />
               ) : (
-                <AlertCircle className="w-4 h-4 shrink-0 text-[#DC2626]" aria-hidden="true" />
+                <AlertCircle className="w-4 h-4 shrink-0 text-[#DC2626] dark:text-[#F87171]" aria-hidden="true" />
               )}
               <span>{paymentBanner.text}</span>
             </div>
@@ -1301,24 +1368,14 @@ export default function App() {
 
         {view === 'studio' ? (
           <div className="space-y-5 animate-spark-enter">
-            {/* Concise Welcome Banner (<= 9 words, clean typographic focus) */}
             <section
               data-testid="welcome-intro-card"
               aria-label="Bienvenue sur SparkQR"
-              className="rounded-2xl border border-[#DCE6FF] bg-gradient-to-r from-[#EFF5FF] via-[#F5F3FF] to-[#FFF2F7] px-4 py-3.5 sm:px-6 sm:py-4 shadow-[0_6px_22px_rgba(79,70,229,0.06)] flex items-center justify-between gap-3"
+              className="rounded-2xl border border-[#E2E6F0] dark:border-[#242C3D] bg-white dark:bg-[#131926] px-4 py-3.5 sm:px-6 sm:py-4"
             >
-              <p className="font-display text-base sm:text-xl font-bold tracking-tight text-[#111214] leading-snug">
+              <p className="font-display text-base sm:text-xl font-bold tracking-tight text-[#111214] dark:text-[#F8FAFC] leading-snug">
                 Transformez vos idées en codes QR.
               </p>
-
-              <button
-                type="button"
-                onClick={() => setWorkspaceModalOpen(true)}
-                className="inline-flex items-center gap-1.5 px-3 py-2 min-h-[38px] text-xs font-semibold text-[#4F46E5] bg-white/90 hover:bg-white border border-[#C7D2FE] rounded-xl transition-colors whitespace-nowrap shrink-0 cursor-pointer"
-              >
-                <UserCheck className="w-3.5 h-3.5" aria-hidden="true" />
-                <span>{workspace?.name || 'Mon espace'}</span>
-              </button>
             </section>
 
             <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_480px] xl:grid-cols-[minmax(0,1fr)_520px] gap-6 xl:gap-8 items-start">
@@ -1432,15 +1489,15 @@ export default function App() {
         )}
       </main>
 
-      <footer className="border-t border-[#E2E6F0] bg-white/75 backdrop-blur-xs">
-        <div className="max-w-[1400px] mx-auto px-3.5 sm:px-6 py-3.5 flex flex-wrap items-center justify-between gap-3 text-xs text-[#5C5E66]">
+      <footer className="border-t border-[#E2E6F0] dark:border-[#242C3D] bg-white/85 dark:bg-[#0F1522]/85 backdrop-blur-xs">
+        <div className="max-w-[1400px] mx-auto px-3.5 sm:px-6 py-3.5 flex flex-wrap items-center justify-between gap-3 text-xs text-[#5C5E66] dark:text-[#94A3B8]">
           <span>SparkQR Studio · Confidentialité &amp; conservation maîtrisée</span>
           <div className="flex flex-wrap items-center gap-4">
             <button
               type="button"
               data-testid="footer-privacy-btn"
               onClick={() => setPrivacyModalOpen(true)}
-              className="font-medium hover:text-[#111214] hover:underline cursor-pointer"
+              className="font-medium hover:text-[#111214] dark:hover:text-[#F8FAFC] hover:underline cursor-pointer"
             >
               Confidentialité &amp; Conditions
             </button>
@@ -1468,7 +1525,12 @@ export default function App() {
             : generatedSnapshot?.dynamicSlug ?? null
         }
         dynamicHasPin={
-          galleryPreviewItem ? false : generatedSnapshot?.dynamicHasPin ?? false
+          galleryPreviewItem
+            ? Boolean(
+                galleryPreviewItem.dynamicSlug &&
+                  dynamicRecords.find((d) => d.slug === galleryPreviewItem.dynamicSlug)?.hasPin
+              )
+            : generatedSnapshot?.dynamicHasPin ?? false
         }
       />
 

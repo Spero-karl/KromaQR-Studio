@@ -60,8 +60,13 @@ test('chunked SPK1 binary encryption roundtrips multi-chunk files and detects ta
   assert.equal(isEncryptedSpk1Buffer(encrypted), true);
   assert.ok(encrypted.length > plain.length);
 
-  const decrypted = await decryptBufferChunked(encrypted, key);
+  const progressSteps: number[] = [];
+  const decrypted = await decryptBufferChunked(encrypted, key, (frac) => {
+    progressSteps.push(frac);
+  });
   assert.deepEqual(decrypted, plain);
+  assert.equal(progressSteps.length, 5);
+  assert.equal(progressSteps[progressSteps.length - 1], 1);
 
   await assert.rejects(() => decryptBufferChunked(encrypted, wrongKey));
 

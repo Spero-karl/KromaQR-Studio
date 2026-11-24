@@ -64,15 +64,15 @@ export const ExportModal: React.FC<ExportModalProps> = ({
     >
       <div
         data-testid="pro-export-modal"
-        className="w-full max-w-md bg-white border border-[#E2E6F0] rounded-t-3xl sm:rounded-2xl p-5 sm:p-6 pb-safe shadow-2xl space-y-5 max-h-[92dvh] overflow-y-auto animate-modal-enter"
+        className="w-full max-w-md bg-white dark:bg-[#131926] border border-[#E2E6F0] dark:border-[#242C3D] rounded-t-3xl sm:rounded-2xl p-5 sm:p-6 pb-safe shadow-2xl space-y-5 max-h-[92dvh] overflow-y-auto animate-modal-enter"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-start justify-between gap-3">
           <div>
-            <h2 id="export-modal-title" className="font-display text-lg font-bold text-[#111214]">
+            <h2 id="export-modal-title" className="font-display text-lg font-bold text-[#111214] dark:text-[#F1F5F9]">
               Exportation professionnelle
             </h2>
-            <p className="text-xs text-[#6E7078] mt-0.5 truncate">
+            <p className="text-xs text-[#6E7078] dark:text-[#94A3B8] mt-0.5 truncate">
               {title || 'SparkQR'}
             </p>
           </div>
@@ -80,7 +80,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
             type="button"
             onClick={onClose}
             aria-label="Fermer la fenêtre d’exportation"
-            className="p-1.5 text-[#5C5E66] hover:text-[#111214] rounded-lg cursor-pointer"
+            className="p-1.5 text-[#5C5E66] dark:text-[#94A3B8] hover:text-[#111214] dark:hover:text-white rounded-lg cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>
@@ -88,7 +88,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
 
         {/* Format */}
         <div className="space-y-2">
-          <span className="block text-xs font-semibold text-[#111214]">Format de fichier</span>
+          <span className="block text-xs font-semibold text-[#111214] dark:text-[#F1F5F9]">Format de fichier</span>
           <div className="grid grid-cols-3 gap-2">
             {(
               [
@@ -107,8 +107,8 @@ export const ExportModal: React.FC<ExportModalProps> = ({
                   onClick={() => setOptions({ ...options, format: fmt.id })}
                   className={`flex flex-col items-center gap-1 py-2.5 px-2 rounded-xl border text-xs font-semibold transition-colors cursor-pointer ${
                     active
-                      ? 'border-[#1D4ED8] bg-[#EFF4FF] text-[#1D4ED8]'
-                      : 'border-[#E6E4DC] bg-[#FAF9F5] text-[#2C2E33] hover:bg-white'
+                      ? 'border-[#2563EB] bg-[#EFF4FF] dark:bg-[#1E293B] text-[#1D4ED8] dark:text-[#93C5FD]'
+                      : 'border-[#E2E6F0] dark:border-[#242C3D] bg-[#F8FAFC] dark:bg-[#0F172A] text-[#2C2E33] dark:text-[#CBD5E1] hover:bg-white dark:hover:bg-[#1E293B]'
                   }`}
                 >
                   <Icon className="w-4 h-4" aria-hidden="true" />
@@ -121,7 +121,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
 
         {/* Scope */}
         <div className="space-y-2">
-          <span className="block text-xs font-semibold text-[#111214]">Zone exportée</span>
+          <span className="block text-xs font-semibold text-[#111214] dark:text-[#F1F5F9]">Zone exportée</span>
           <div className="grid grid-cols-2 gap-2">
             <button
               type="button"
@@ -129,8 +129,8 @@ export const ExportModal: React.FC<ExportModalProps> = ({
               onClick={() => setOptions({ ...options, scope: 'card' })}
               className={`px-3 py-2 rounded-xl border text-xs font-semibold transition-colors cursor-pointer ${
                 options.scope === 'card'
-                  ? 'border-[#1D4ED8] bg-[#EFF4FF] text-[#1D4ED8]'
-                  : 'border-[#E6E4DC] bg-[#FAF9F5] text-[#2C2E33]'
+                  ? 'border-[#2563EB] bg-[#EFF4FF] dark:bg-[#1E293B] text-[#1D4ED8] dark:text-[#93C5FD]'
+                  : 'border-[#E2E6F0] dark:border-[#242C3D] bg-[#F8FAFC] dark:bg-[#0F172A] text-[#2C2E33] dark:text-[#CBD5E1]'
               }`}
             >
               Carte QR complète
@@ -141,8 +141,8 @@ export const ExportModal: React.FC<ExportModalProps> = ({
               onClick={() => setOptions({ ...options, scope: 'qr-only' })}
               className={`px-3 py-2 rounded-xl border text-xs font-semibold transition-colors cursor-pointer ${
                 options.scope === 'qr-only'
-                  ? 'border-[#1D4ED8] bg-[#EFF4FF] text-[#1D4ED8]'
-                  : 'border-[#E6E4DC] bg-[#FAF9F5] text-[#2C2E33]'
+                  ? 'border-[#2563EB] bg-[#EFF4FF] dark:bg-[#1E293B] text-[#1D4ED8] dark:text-[#93C5FD]'
+                  : 'border-[#E2E6F0] dark:border-[#242C3D] bg-[#F8FAFC] dark:bg-[#0F172A] text-[#2C2E33] dark:text-[#CBD5E1]'
               }`}
             >
               QR seul (sans cadre)
@@ -153,7 +153,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
         {/* Resolution (PNG / PDF) */}
         {options.format !== 'svg' && (
           <div className="space-y-2">
-            <span className="block text-xs font-semibold text-[#111214]">Résolution</span>
+            <span className="block text-xs font-semibold text-[#111214] dark:text-[#F1F5F9]">Résolution</span>
             <div className="grid grid-cols-3 gap-2">
               {RESOLUTIONS.map((res) => {
                 const active = options.width === res.width;
@@ -165,8 +165,8 @@ export const ExportModal: React.FC<ExportModalProps> = ({
                     onClick={() => setOptions({ ...options, width: res.width })}
                     className={`py-2 px-2 rounded-xl border text-center transition-colors cursor-pointer ${
                       active
-                        ? 'border-[#1D4ED8] bg-[#EFF4FF] text-[#1D4ED8]'
-                        : 'border-[#E6E4DC] bg-[#FAF9F5] text-[#2C2E33]'
+                        ? 'border-[#2563EB] bg-[#EFF4FF] dark:bg-[#1E293B] text-[#1D4ED8] dark:text-[#93C5FD]'
+                        : 'border-[#E2E6F0] dark:border-[#242C3D] bg-[#F8FAFC] dark:bg-[#0F172A] text-[#2C2E33] dark:text-[#CBD5E1]'
                     }`}
                   >
                     <span className="block text-xs font-bold tabular-nums">{res.label}</span>
@@ -179,7 +179,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
         )}
 
         {/* Transparent background */}
-        <label className="flex items-start gap-2.5 p-3 rounded-xl bg-[#FAF9F5] border border-[#E6E4DC] cursor-pointer">
+        <label className="flex items-start gap-2.5 p-3 rounded-xl bg-[#F8FAFC] dark:bg-[#0F172A] border border-[#E2E6F0] dark:border-[#242C3D] cursor-pointer">
           <input
             type="checkbox"
             data-testid="export-transparent-toggle"
@@ -187,29 +187,29 @@ export const ExportModal: React.FC<ExportModalProps> = ({
             onChange={(e) =>
               setOptions({ ...options, transparentBackground: e.target.checked })
             }
-            className="w-4 h-4 mt-0.5 accent-[#1D4ED8]"
+            className="w-4 h-4 mt-0.5 accent-[#2563EB]"
           />
           <div>
-            <span className="block text-xs font-semibold text-[#111214]">
+            <span className="block text-xs font-semibold text-[#111214] dark:text-[#F1F5F9]">
               Fond transparent
             </span>
-            <span className="block text-[11px] text-[#5C5E66]">
+            <span className="block text-[11px] text-[#5C5E66] dark:text-[#94A3B8]">
               Idéal sur affiche claire ou maquette vectorielle. Vérifiez le contraste si fond sombre.
             </span>
           </div>
         </label>
 
         {error && (
-          <p role="alert" className="text-xs font-medium text-[#B91C1C]">
+          <p role="alert" className="text-xs font-medium text-[#B91C1C] dark:text-[#F87171]">
             {error}
           </p>
         )}
 
-        <div className="flex items-center justify-end gap-2 pt-2 border-t border-[#EFECE4]">
+        <div className="flex items-center justify-end gap-2 pt-2 border-t border-[#EFEFF5] dark:border-[#242C3D]">
           <button
             type="button"
             onClick={onClose}
-            className="px-4 py-2 text-xs font-semibold text-[#5C5E66] hover:text-[#111214] rounded-xl cursor-pointer"
+            className="px-4 py-2 text-xs font-semibold text-[#5C5E66] dark:text-[#94A3B8] hover:text-[#111214] dark:hover:text-white rounded-xl cursor-pointer"
           >
             Annuler
           </button>
@@ -218,7 +218,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
             data-testid="execute-pro-export-btn"
             disabled={exporting}
             onClick={() => void handleRun()}
-            className="inline-flex items-center gap-2 px-5 py-2.5 text-xs font-semibold text-white bg-[#1D4ED8] hover:bg-[#1E40AF] rounded-xl transition-colors cursor-pointer disabled:opacity-60"
+            className="inline-flex items-center gap-2 px-5 py-2.5 text-xs font-semibold text-white bg-[#2563EB] hover:bg-[#1D4ED8] rounded-xl transition-colors cursor-pointer disabled:opacity-60 whitespace-nowrap shrink-0"
           >
             <Download className="w-4 h-4" aria-hidden="true" />
             <span>{exporting ? 'Préparation...' : 'Télécharger'}</span>
