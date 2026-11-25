@@ -4,6 +4,7 @@ import { readJsonFileAtomic, withDataDirLock, writeJsonFileAtomic } from './json
 import type { S3StateBackupService } from './s3StateBackup';
 import { sanitizeJsonObject } from './securityGuard';
 import { buildSocialPayload } from '../utils/qrLogic';
+import { ... } from './jsonStore.ts';
 
 export const ALLOWED_EXAMPLE_INTENTS: readonly QrIntent[] = [
   'url',
