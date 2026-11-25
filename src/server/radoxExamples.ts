@@ -1,10 +1,9 @@
 import path from 'path';
 import type { QrIntent } from '../types/qr';
-import { readJsonFileAtomic, withDataDirLock, writeJsonFileAtomic } from './jsonStore';
+import { readJsonFileAtomic, withDataDirLock, writeJsonFileAtomic } from './jsonStore.ts';
 import type { S3StateBackupService } from './s3StateBackup';
-import { sanitizeJsonObject } from './securityGuard';
-import { buildSocialPayload } from '../utils/qrLogic';
-import { ... } from './jsonStore.ts';
+import { sanitizeJsonObject } from './securityGuard.ts';
+import { buildSocialPayload } from '../utils/qrLogic.ts';
 
 export const ALLOWED_EXAMPLE_INTENTS: readonly QrIntent[] = [
   'url',
