@@ -360,6 +360,8 @@ export function sanitizeGeneratedSample(
 }
 
 export class RadoxExamplesService {
+  private readonly dataDir: string;
+  private readonly stateBackup?: S3StateBackupService;
   private readonly quotaFile: string;
   private readonly apiKey: string;
   private readonly baseUrl: string;
@@ -370,10 +372,12 @@ export class RadoxExamplesService {
   private readonly maxDailyTokens: number;
 
   constructor(
-    private readonly dataDir: string,
-    private readonly stateBackup?: S3StateBackupService,
+    dataDir: string,
+    stateBackup?: S3StateBackupService,
     options?: RadoxExamplesOptions
   ) {
+    this.dataDir = dataDir;
+    this.stateBackup = stateBackup;
     this.quotaFile = path.join(dataDir, 'ai-quota.json');
     this.apiKey = (options?.apiKey ?? process.env.RADOX_AI_API_KEY ?? '').trim();
     this.baseUrl = (options?.baseUrl ?? process.env.RADOX_AI_BASE_URL ?? 'https://radoxai.com/v1')
