@@ -188,7 +188,7 @@ export const ExperienceSecurityPanel: React.FC<ExperienceSecurityPanelProps> = (
             id="exp-sec-heading"
             className="font-display text-sm sm:text-base font-bold tracking-tight text-[#111214] dark:text-[#F1F5F9] mt-0.5"
           >
-            Affichage après scan &amp; Sécurité
+            Affichage après scan &amp; Contrôle d’accès
           </h2>
           <p className="text-xs text-[#6E7078] dark:text-[#94A3B8] truncate mt-0.5">
             {activeTemplateMeta?.label || 'Aperçu direct'}

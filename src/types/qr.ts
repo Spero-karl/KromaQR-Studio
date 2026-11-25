@@ -1,8 +1,44 @@
-export type QrSourceType = 'text' | 'image' | 'video';
+export type QrSourceType = 'text' | 'image' | 'video' | 'document' | 'audio';
 
-export type QrTextMode = 'url' | 'text' | 'wifi';
+export type QrTextMode =
+  | 'url'
+  | 'text'
+  | 'wifi'
+  | 'tiktok'
+  | 'instagram'
+  | 'facebook'
+  | 'telegram'
+  | 'twitter'
+  | 'vcard'
+  | 'event'
+  | 'email'
+  | 'phone'
+  | 'sms'
+  | 'whatsapp'
+  | 'geo'
+  | 'payment';
 
-export type QrIntent = 'url' | 'text' | 'wifi' | 'image' | 'video';
+export type QrIntent =
+  | 'url'
+  | 'text'
+  | 'wifi'
+  | 'tiktok'
+  | 'instagram'
+  | 'facebook'
+  | 'telegram'
+  | 'twitter'
+  | 'vcard'
+  | 'event'
+  | 'email'
+  | 'phone'
+  | 'sms'
+  | 'whatsapp'
+  | 'geo'
+  | 'payment'
+  | 'image'
+  | 'video'
+  | 'document'
+  | 'audio';
 
 export type QrModuleShape =
   | 'capsule'
@@ -226,7 +262,8 @@ export type ProjectCategory =
   | 'Professionnel'
   | 'Événement'
   | 'Média'
-  | 'Privé';
+  | 'Privé'
+  | 'Importé';
 
 export interface StorageStatusInfo {
   provider: 'dosya.dev';
@@ -350,6 +387,49 @@ export interface QrSourceState {
   wifiSsid: string;
   wifiPassword: string;
   wifiSecurity: 'WPA' | 'WEP' | 'nopass';
+  // Contact vCard 3.0
+  vcardFirstName?: string;
+  vcardLastName?: string;
+  vcardOrg?: string;
+  vcardTitle?: string;
+  vcardPhone?: string;
+  vcardEmail?: string;
+  vcardWebsite?: string;
+  vcardAddress?: string;
+  // Calendar Event iCalendar
+  eventTitle?: string;
+  eventStart?: string;
+  eventEnd?: string;
+  eventLocation?: string;
+  eventDescription?: string;
+  // Email / Phone / SMS / WhatsApp
+  emailAddress?: string;
+  emailSubject?: string;
+  emailBody?: string;
+  phoneNumber?: string;
+  smsPhone?: string;
+  smsMessage?: string;
+  whatsappPhone?: string;
+  whatsappMessage?: string;
+  // Social profiles (anti-spoof canonical handles/URLs)
+  tiktokHandle?: string;
+  instagramHandle?: string;
+  facebookHandle?: string;
+  telegramHandle?: string;
+  twitterHandle?: string;
+  // Geolocation
+  geoLat?: string;
+  geoLng?: string;
+  geoLabel?: string;
+  // Payment (SEPA EPC / Payment link)
+  paymentMode?: 'sepa' | 'link';
+  paymentName?: string;
+  paymentIban?: string;
+  paymentBic?: string;
+  paymentAmount?: string;
+  paymentReference?: string;
+  paymentUrl?: string;
+  // Hosted Image / Video / Document / Audio
   imageUrl: string;
   imageName: string;
   imagePageUrl: string;
@@ -364,6 +444,18 @@ export interface QrSourceState {
   videoMimeType?: string;
   videoSize?: number;
   videoEncrypted?: boolean;
+  documentUrl?: string;
+  documentName?: string;
+  documentPageUrl?: string;
+  documentMimeType?: string;
+  documentSize?: number;
+  documentEncrypted?: boolean;
+  audioUrl?: string;
+  audioName?: string;
+  audioPageUrl?: string;
+  audioMimeType?: string;
+  audioSize?: number;
+  audioEncrypted?: boolean;
   e2eeEnabled?: boolean;
   e2eeKeyFragment?: string;
 }
@@ -432,13 +524,15 @@ export interface QrConfig {
   margin: number;
   cornerRadius: number;
   laserEnabled?: boolean;
+  energyWaveEnabled?: boolean;
 }
 
 export interface QrThemePreset {
   id: string;
   name: string;
   tagline: string;
-  collection: 'studio' | 'premium' | 'master';
+  collection: 'studio' | 'premium' | 'master' | 'legendary';
+  editionBadge?: string;
   swatches: [string, string, string];
   patch: Partial<QrConfig>;
 }

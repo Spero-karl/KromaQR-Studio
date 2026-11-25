@@ -188,7 +188,7 @@ export const PreviewStage: React.FC<PreviewStageProps> = ({
             </div>
 
           {isGenerated ? (
-            <div className="flex items-center gap-1.5 shrink-0">
+            <div className="flex flex-wrap items-center gap-1.5 shrink-0">
               <button
                 type="button"
                 aria-pressed={laserEnabled}
@@ -234,7 +234,7 @@ export const PreviewStage: React.FC<PreviewStageProps> = ({
 
         {/* Enlarged Gallery Pedestal */}
         <div
-          className={`mt-4 rounded-2xl border p-6 sm:p-8 flex flex-col items-center justify-center relative transition-colors duration-200 min-h-[420px] sm:min-h-[460px] ${
+          className={`mt-4 rounded-2xl border p-6 sm:p-8 flex flex-col items-center justify-center relative overflow-hidden transition-colors duration-200 min-h-[420px] sm:min-h-[460px] ${
             isGenerated && isDarkCard
               ? 'studio-grid-dark border-[#1F2433]'
               : 'studio-grid-mat border-[#E4E1D7] dark:border-[#252D40]'
@@ -388,7 +388,7 @@ export const PreviewStage: React.FC<PreviewStageProps> = ({
               </div>
 
               {/* Clean Single-line Verification & Contrast Readout (no pill clutter) */}
-              <div className="mt-5 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-xs">
+              <div className="mt-7 relative z-10 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-xs">
                 <span className={`inline-flex items-center gap-1.5 font-semibold ${statusColors}`}>
                   {report.status === 'optimal' ? (
                     <CheckCircle2 className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
@@ -454,19 +454,43 @@ export const PreviewStage: React.FC<PreviewStageProps> = ({
           </p>
         )}
 
-        {/* Export Dock */}
+        {/* Export & Explicit Save Dock */}
         <div className="mt-4 space-y-2.5">
+          <button
+            type="button"
+            data-testid="finish-save-qr-btn"
+            disabled={!isGenerated}
+            onClick={onSaveToHistory}
+            className={`w-full inline-flex items-center justify-center gap-2 px-4 py-3 text-sm font-semibold rounded-xl transition-colors whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${
+              justSaved
+                ? 'bg-[#15803D] text-white'
+                : 'bg-[#111214] dark:bg-[#059669] hover:bg-[#27292E] dark:hover:bg-[#047857] text-white'
+            }`}
+          >
+            {justSaved ? (
+              <>
+                <Check className="w-4 h-4" aria-hidden="true" />
+                <span>Enregistré dans Mes QR</span>
+              </>
+            ) : (
+              <>
+                <Bookmark className="w-4 h-4" aria-hidden="true" />
+                <span>Terminer &amp; enregistrer</span>
+              </>
+            )}
+          </button>
+
           <button
             type="button"
             disabled={!isGenerated}
             onClick={handlePng}
-            className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 text-sm font-semibold text-white bg-[#2563EB] hover:bg-[#1D4ED8] dark:bg-[#3B82F6] dark:hover:bg-[#2563EB] active:scale-[0.985] rounded-xl transition-colors whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+            className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-semibold text-white bg-[#2563EB] hover:bg-[#1D4ED8] dark:bg-[#3B82F6] dark:hover:bg-[#2563EB] active:scale-[0.985] rounded-xl transition-colors whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
           >
             <Download className="w-4 h-4" aria-hidden="true" />
             <span>Télécharger PNG HD</span>
           </button>
 
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          <div className="grid grid-cols-3 gap-2">
             <button
               type="button"
               disabled={!isGenerated}
@@ -498,25 +522,6 @@ export const PreviewStage: React.FC<PreviewStageProps> = ({
 
             <button
               type="button"
-              disabled={!isGenerated}
-              onClick={onSaveToHistory}
-              className="inline-flex items-center justify-center gap-1.5 px-3 py-2 min-h-[42px] text-xs font-semibold text-[#111214] dark:text-[#E2E8F0] border border-[#DFDDD4] dark:border-[#2A3348] hover:bg-[#FAF9F5] dark:hover:bg-[#1E2536] rounded-xl transition-colors whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
-            >
-              {justSaved ? (
-                <>
-                  <Check className="w-3.5 h-3.5 text-[#15803D] dark:text-[#4ADE80]" aria-hidden="true" />
-                  <span>Sauvé</span>
-                </>
-              ) : (
-                <>
-                  <Bookmark className="w-3.5 h-3.5" aria-hidden="true" />
-                  <span>Sauver</span>
-                </>
-              )}
-            </button>
-
-            <button
-              type="button"
               data-testid="copy-share-package-btn"
               disabled={!isGenerated}
               onClick={async () => {
@@ -537,7 +542,7 @@ export const PreviewStage: React.FC<PreviewStageProps> = ({
                 }
               }}
               title="Copier le code SparkQR complet (design et faisceau laser inclus)"
-              className="inline-flex items-center justify-center gap-1.5 px-3 py-2 min-h-[42px] text-xs font-semibold text-[#4F46E5] dark:text-[#A5B4FC] bg-[#EEF2FF] dark:bg-[#1E2440] hover:bg-[#E0E7FF] dark:hover:bg-[#273054] rounded-xl transition-colors whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+              className="inline-flex items-center justify-center gap-1.5 px-3 py-2 min-h-[40px] text-xs font-semibold text-[#4F46E5] dark:text-[#A5B4FC] bg-[#EEF2FF] dark:bg-[#1E2440] hover:bg-[#E0E7FF] dark:hover:bg-[#273054] rounded-xl transition-colors whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
             >
               {sharedPackageCopied ? (
                 <>

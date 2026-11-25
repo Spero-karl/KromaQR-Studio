@@ -34,7 +34,7 @@ export const PrivacyTermsModal: React.FC<PrivacyTermsModalProps> = ({ open, onCl
         <div className="flex items-start justify-between gap-3 pb-3 border-b border-[#EFEFF5] dark:border-[#242C3D]">
           <div>
             <span className="block text-[11px] font-semibold uppercase tracking-[0.14em] text-[#2563EB] dark:text-[#60A5FA]">
-              Transparence &amp; Sécurité
+              Transparence &amp; Confidentialité
             </span>
             <h2
               id="privacy-modal-title"
@@ -70,7 +70,7 @@ export const PrivacyTermsModal: React.FC<PrivacyTermsModalProps> = ({ open, onCl
           <section className="rounded-xl border border-[#FDE68A] dark:border-[#78350F] bg-[#FFFBEB] dark:bg-[#451A03]/30 p-4 space-y-1.5">
             <div className="flex items-center gap-2 font-bold text-[#92400E] dark:text-[#FCD34D]">
               <ShieldCheck className="w-4 h-4 text-[#D97706] dark:text-[#FBBF24]" aria-hidden="true" />
-              <h3>2. Partage et accès sécurisés</h3>
+              <h3>2. Partage et accès chiffrés</h3>
             </div>
             <p className="text-[#78350F] dark:text-[#FDE68A]">
               Toute personne qui scanne votre QR code ou dispose du lien complet peut consulter le contenu tant que celui-ci est actif. Partagez uniquement vos créations privées avec des destinataires de confiance.

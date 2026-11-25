@@ -22,7 +22,7 @@ const baseSource: QrSourceState = {
   urlValue: 'atelier-kroma.fr',
   textValue: 'Bonjour',
   wifiSsid: 'Atelier_Guest',
-  wifiPassword: 'secret',
+  wifiPassword: 'secret123',
   wifiSecurity: 'WPA',
   imageUrl: '',
   imageName: '',
@@ -82,7 +82,7 @@ const baseConfig: QrConfig = {
 test('buildPayload normalizes URLs, preserves mailto/tel schemes, and validates Wi-Fi passwords', () => {
   const urlRes = buildPayload(baseSource);
   assert.equal(urlRes.valid, true);
-  assert.equal(urlRes.payload, 'https://atelier-kroma.fr');
+  assert.equal(urlRes.payload, 'https://atelier-kroma.fr/');
 
   const mailRes = buildPayload({ ...baseSource, urlValue: 'mailto:bonjour@kroma.fr' });
   assert.equal(mailRes.valid, true);
@@ -93,7 +93,10 @@ test('buildPayload normalizes URLs, preserves mailto/tel schemes, and validates 
 
   const wifiRes = buildPayload({ ...baseSource, textMode: 'wifi' });
   assert.equal(wifiRes.valid, true);
-  assert.equal(wifiRes.payload, 'WIFI:T:WPA;S:Atelier_Guest;P:secret;;');
+  assert.equal(wifiRes.payload, 'WIFI:T:WPA;S:Atelier_Guest;P:secret123;;');
+
+  const wifiShortPass = buildPayload({ ...baseSource, textMode: 'wifi', wifiPassword: 'short' });
+  assert.equal(wifiShortPass.valid, false);
 
   const wifiMissingPass = buildPayload({ ...baseSource, textMode: 'wifi', wifiPassword: '' });
   assert.equal(wifiMissingPass.valid, false);
@@ -311,8 +314,42 @@ test('source image never acts as center QR logo and all 20 redesigned presets + 
     );
   }
 
-  // All 20 presets must have >= 4.5 WCAG contrast for both primary & secondary foregrounds
-  assert.equal(THEME_PRESETS.length, 20);
+  // All 24 presets (4 Studio + 11 Ultra Premium + 5 Master + 4 Légendaire) must have >= 4.5 WCAG contrast and zero GTA/Entreprise prefixes
+  assert.equal(THEME_PRESETS.length, 24);
+  for (const preset of THEME_PRESETS) {
+    assert.equal(/\bgta\b/i.test(preset.name), false, `Forbidden GTA in name: ${preset.name}`);
+    assert.equal(/\bentreprise\b|\bbanque\b|\bcorporate\b/i.test(preset.name), false, `Forbidden Entreprise/Banque in name: ${preset.name}`);
+    assert.equal(preset.editionBadge === 'GTA Edition', false, `Forbidden GTA Edition badge on ${preset.id}`);
+  }
+
+  const vicePreset = THEME_PRESETS.find((t) => t.id === 'vice-city-neon');
+  assert.ok(vicePreset, 'Missing Master preset vice-city-neon');
+  assert.equal(vicePreset.collection, 'master');
+  assert.equal(vicePreset.name, 'Vice City Neon');
+  const viceBackdrop = buildShowcaseBackdrop({ ...DEFAULT_CONFIG, ...vicePreset.patch });
+  assert.equal(viceBackdrop.textPrimary, '#FFF5FC');
+  assert.equal(viceBackdrop.accentColor, '#45F3FF');
+
+  const lsPreset = THEME_PRESETS.find((t) => t.id === 'los-santos-prestige');
+  assert.ok(lsPreset, 'Missing Master preset los-santos-prestige');
+  assert.equal(lsPreset.collection, 'master');
+  assert.equal(lsPreset.name, 'Los Santos Prestige');
+  const lsBackdrop = buildShowcaseBackdrop({ ...DEFAULT_CONFIG, ...lsPreset.patch });
+  assert.equal(lsBackdrop.textPrimary, '#FAF5E4');
+  assert.equal(lsBackdrop.accentColor, '#F5C43D');
+
+  for (const premId of ['meridien-ardoise', 'foret-laiton']) {
+    const p = THEME_PRESETS.find((t) => t.id === premId);
+    assert.ok(p, `Missing premium preset ${premId}`);
+    assert.equal(p.collection, 'premium');
+  }
+
+  const legendaryPresets = THEME_PRESETS.filter((t) => t.collection === 'legendary');
+  assert.equal(legendaryPresets.length, 4);
+  for (const leg of legendaryPresets) {
+    assert.equal(leg.patch.energyWaveEnabled, true, `${leg.id} should enable energy waves`);
+  }
+
   for (const preset of THEME_PRESETS) {
     const cfg = { ...DEFAULT_CONFIG, ...preset.patch };
     const report = evaluateScannability(cfg, baseSource);
@@ -335,5 +372,157 @@ test('source image never acts as center QR logo and all 20 redesigned presets + 
   assert.ok(EMOJI_STICKER_CATALOG.some((e) => e.category === 'fete' && e.emoji === '🎉'));
   assert.ok(EMOJI_STICKER_CATALOG.some((e) => e.category === 'universel' && e.emoji === '✨'));
 });
+
+test('buildPayload generates standards-compliant payloads for all remaining QR capabilities (vCard, Event, Email, Phone, SMS, WhatsApp, Geo, Payment, Document, Audio)', () => {
+  const vcard = buildPayload({
+    ...baseSource,
+    textMode: 'vcard',
+    vcardFirstName: 'Camille',
+    vcardLastName: 'Laurent',
+    vcardOrg: 'Spark Studio',
+    vcardPhone: '+33142685510',
+    vcardEmail: 'camille@spark.fr',
+  });
+  assert.equal(vcard.valid, true);
+  assert.match(vcard.payload, /^BEGIN:VCARD\nVERSION:3\.0/);
+  assert.match(vcard.payload, /FN:Camille Laurent/);
+  assert.match(vcard.payload, /ORG:Spark Studio/);
+
+  const eventRes = buildPayload({
+    ...baseSource,
+    textMode: 'event',
+    eventTitle: 'Gala SparkQR',
+    eventStart: '2026-06-18T19:30',
+    eventEnd: '2026-06-18T22:30',
+    eventLocation: 'Paris',
+  });
+  assert.equal(eventRes.valid, true);
+  assert.match(eventRes.payload, /^BEGIN:VCALENDAR/);
+  assert.match(eventRes.payload, /SUMMARY:Gala SparkQR/);
+  assert.match(eventRes.payload, /DTSTART:20260618T193000/);
+
+  const emailRes = buildPayload({
+    ...baseSource,
+    textMode: 'email',
+    emailAddress: 'bonjour@spark.fr',
+    emailSubject: 'Contact',
+    emailBody: 'Salut',
+  });
+  assert.equal(emailRes.valid, true);
+  assert.equal(emailRes.payload, 'mailto:bonjour@spark.fr?subject=Contact&body=Salut');
+
+  const phoneRes = buildPayload({ ...baseSource, textMode: 'phone', phoneNumber: '+33 1 42 68 55 10' });
+  assert.equal(phoneRes.valid, true);
+  assert.equal(phoneRes.payload, 'tel:+33142685510');
+
+  const smsRes = buildPayload({
+    ...baseSource,
+    textMode: 'sms',
+    smsPhone: '+33612345678',
+    smsMessage: 'Oui',
+  });
+  assert.equal(smsRes.valid, true);
+  assert.equal(smsRes.payload, 'sms:+33612345678?body=Oui');
+
+  const waRes = buildPayload({
+    ...baseSource,
+    textMode: 'whatsapp',
+    whatsappPhone: '+33 6 12 34 56 78',
+    whatsappMessage: 'Info',
+  });
+  assert.equal(waRes.valid, true);
+  assert.equal(waRes.payload, 'https://wa.me/33612345678?text=Info');
+
+  const geoRes = buildPayload({
+    ...baseSource,
+    textMode: 'geo',
+    geoLat: '48.8566',
+    geoLng: '2.3522',
+    geoLabel: 'Paris',
+  });
+  assert.equal(geoRes.valid, true);
+  assert.match(geoRes.payload, /^geo:48\.856600,2\.352200\?q=/);
+
+  const sepaRes = buildPayload({
+    ...baseSource,
+    textMode: 'payment',
+    paymentMode: 'sepa',
+    paymentName: 'Atelier SAS',
+    paymentIban: 'FR7630006000011234567890189',
+    paymentBic: 'AGRIFRPPXXX',
+    paymentAmount: '45.50',
+    paymentReference: 'INV-42',
+  });
+  assert.equal(sepaRes.valid, true);
+  assert.match(sepaRes.payload, /^BCD\n002\n1\nSCT\nAGRIFRPPXXX\nAtelier SAS\nFR7630006000011234567890189\nEUR45\.50/);
+
+  const payLinkRes = buildPayload({
+    ...baseSource,
+    textMode: 'payment',
+    paymentMode: 'link',
+    paymentUrl: 'https://pay.exemple.fr/123',
+  });
+  assert.equal(payLinkRes.valid, true);
+  assert.equal(payLinkRes.payload, 'https://pay.exemple.fr/123');
+
+  const docRes = buildPayload(
+    { ...baseSource, type: 'document', documentUrl: '/uploads/brochure.pdf', documentPageUrl: '/m/doc123' },
+    'https://demo.example.com'
+  );
+  assert.equal(docRes.valid, true);
+  assert.equal(docRes.payload, 'https://demo.example.com/m/doc123');
+
+  const audioRes = buildPayload(
+    { ...baseSource, type: 'audio', audioUrl: '/uploads/track.mp3', audioPageUrl: '/m/aud123' },
+    'https://demo.example.com'
+  );
+  assert.equal(audioRes.valid, true);
+  assert.equal(audioRes.payload, 'https://demo.example.com/m/aud123');
+});
+
+test('buildPayload supports and hardens all 5 social formats and blocks phishing/punycode/credential URLs', () => {
+  const ttHandle = buildPayload({ ...baseSource, textMode: 'tiktok', tiktokHandle: '@atelier.travers' });
+  assert.equal(ttHandle.valid, true);
+  assert.equal(ttHandle.payload, 'https://www.tiktok.com/@atelier.travers');
+
+  const igUrl = buildPayload({
+    ...baseSource,
+    textMode: 'instagram',
+    instagramHandle: 'https://instagram.com/atelier.travers/?utm_source=test',
+  });
+  assert.equal(igUrl.valid, true);
+  assert.equal(igUrl.payload, 'https://www.instagram.com/atelier.travers/');
+
+  const fbHandle = buildPayload({ ...baseSource, textMode: 'facebook', facebookHandle: 'atelier.travers.paris' });
+  assert.equal(fbHandle.valid, true);
+  assert.equal(fbHandle.payload, 'https://www.facebook.com/atelier.travers.paris');
+
+  const tgHandle = buildPayload({ ...baseSource, textMode: 'telegram', telegramHandle: '@atelier_travers' });
+  assert.equal(tgHandle.valid, true);
+  assert.equal(tgHandle.payload, 'https://t.me/atelier_travers');
+
+  const xUrl = buildPayload({ ...baseSource, textMode: 'twitter', twitterHandle: 'https://twitter.com/ateliertravers' });
+  assert.equal(xUrl.valid, true);
+  assert.equal(xUrl.payload, 'https://x.com/ateliertravers');
+
+  // Phishing domain, credential injection, traversal, punycode must all fail
+  assert.equal(
+    buildPayload({ ...baseSource, textMode: 'tiktok', tiktokHandle: 'https://evil-tiktok.com/@user' }).valid,
+    false
+  );
+  assert.equal(
+    buildPayload({ ...baseSource, textMode: 'instagram', instagramHandle: 'user..admin' }).valid,
+    false
+  );
+  assert.equal(
+    buildPayload({ ...baseSource, textMode: 'url', urlValue: 'https://user:pass@atelier.fr' }).valid,
+    false
+  );
+  assert.equal(
+    buildPayload({ ...baseSource, textMode: 'url', urlValue: 'https://xn--pple-43d.com' }).valid,
+    false
+  );
+});
+
 
 

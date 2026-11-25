@@ -82,6 +82,10 @@ export function normalizeConfigWithDefaults(
       typeof partial.laserEnabled === 'boolean'
         ? partial.laserEnabled
         : defaults.laserEnabled ?? true,
+    energyWaveEnabled:
+      typeof partial.energyWaveEnabled === 'boolean'
+        ? partial.energyWaveEnabled
+        : defaults.energyWaveEnabled ?? false,
     layers:
       Array.isArray(partial.layers) && partial.layers.length > 0
         ? partial.layers

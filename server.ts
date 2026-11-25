@@ -71,6 +71,19 @@ import {
   resolveImmediateScanLocation,
   type ServerDynamicStats,
 } from './src/server/scanAnalytics.ts';
+import {
+  createRateLimitMiddleware,
+  inspectUploadedFileBuffer,
+  isValidResourceId,
+  sanitizeJsonObject,
+  SlidingWindowRateLimiter,
+  SparkQrMarkRegistry,
+} from './src/server/securityGuard.ts';
+import {
+  ALLOWED_EXAMPLE_INTENTS,
+  RadoxExamplesService,
+} from './src/server/radoxExamples.ts';
+import type { QrIntent } from './src/types/qr.ts';
 
 interface MediaRecord extends MediaRecordLike {
   type: 'image' | 'video' | 'document' | 'audio' | 'collection';
@@ -78,7 +91,27 @@ interface MediaRecord extends MediaRecordLike {
 
 interface ServerDynamicRecord extends DynamicRecordLike {
   destination: {
-    intent: 'url' | 'text' | 'wifi' | 'image' | 'video' | 'document' | 'audio';
+    intent:
+      | 'url'
+      | 'text'
+      | 'wifi'
+      | 'vcard'
+      | 'event'
+      | 'email'
+      | 'phone'
+      | 'sms'
+      | 'whatsapp'
+      | 'tiktok'
+      | 'instagram'
+      | 'facebook'
+      | 'telegram'
+      | 'twitter'
+      | 'geo'
+      | 'payment'
+      | 'image'
+      | 'video'
+      | 'document'
+      | 'audio';
     payload: string;
     title: string;
     sourceSnapshot: Record<string, unknown>;
@@ -536,6 +569,49 @@ export async function createSparkQrApp(options: CreateSparkQrAppOptions = {}): P
     backupEnabled ? stateBackup : undefined
   );
   const adminAuth = new AdminAuthService(DATA_DIR, HMAC_SECRET);
+  const sparkQrMarks = new SparkQrMarkRegistry(
+    DATA_DIR,
+    HMAC_SECRET,
+    backupEnabled ? stateBackup : undefined
+  );
+  const radoxExamples = new RadoxExamplesService(
+    DATA_DIR,
+    backupEnabled ? stateBackup : undefined
+  );
+  const rateLimiter = new SlidingWindowRateLimiter();
+
+  const uploadLimiter = createRateLimitMiddleware(rateLimiter, {
+    bucket: 'upload',
+    maxRequests: 40,
+    windowMs: 10 * 60 * 1000,
+  });
+  const pinLimiter = createRateLimitMiddleware(rateLimiter, {
+    bucket: 'pin',
+    maxRequests: 25,
+    windowMs: 5 * 60 * 1000,
+    message: 'Trop de tentatives de code PIN. Réessayez dans quelques instants.',
+  });
+  const adminLimiter = createRateLimitMiddleware(rateLimiter, {
+    bucket: 'admin',
+    maxRequests: 15,
+    windowMs: 10 * 60 * 1000,
+  });
+  const emailLimiter = createRateLimitMiddleware(rateLimiter, {
+    bucket: 'email',
+    maxRequests: 12,
+    windowMs: 10 * 60 * 1000,
+  });
+  const signLimiter = createRateLimitMiddleware(rateLimiter, {
+    bucket: 'sparkqr-sign',
+    maxRequests: 180,
+    windowMs: 5 * 60 * 1000,
+  });
+  const exampleLimiter = createRateLimitMiddleware(rateLimiter, {
+    bucket: 'examples-generate',
+    maxRequests: 30,
+    windowMs: 10 * 60 * 1000,
+    message: 'Trop de demandes d’exemple en peu de temps. Réessayez dans un instant.',
+  });
 
   const readJsonStore = <T>(filePath: string, fallback: T): T =>
     readJsonFileAtomic(filePath, fallback);
@@ -685,6 +761,36 @@ export async function createSparkQrApp(options: CreateSparkQrAppOptions = {}): P
 
   const app = express();
   app.set('trust proxy', true);
+  app.disable('x-powered-by');
+
+  // Defensive CIA HTTP headers on all routes (including /health) while preserving iframe & keep-alive
+  app.use((_req, res, next) => {
+    res.setHeader('Referrer-Policy', 'no-referrer');
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('X-DNS-Prefetch-Control', 'off');
+    res.setHeader('X-Permitted-Cross-Domain-Policies', 'none');
+    res.setHeader(
+      'Permissions-Policy',
+      'geolocation=(self), camera=(self), microphone=(), payment=(), usb=()'
+    );
+    res.setHeader(
+      'Content-Security-Policy',
+      [
+        "default-src 'self'",
+        "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+        "font-src 'self' data: https://fonts.gstatic.com",
+        "img-src 'self' data: blob: https:",
+        "media-src 'self' blob: https:",
+        "connect-src 'self' https: ws: wss:",
+        "object-src 'none'",
+        "base-uri 'self'",
+        "form-action 'self'",
+        "frame-ancestors 'self' https://aistudio.google.com https://*.google.com https://*.run.app",
+      ].join('; ')
+    );
+    next();
+  });
 
   // Ultra-lightweight Render keep-alive endpoint (zero disk I/O, zero S3, zero heavy operations)
   app.get('/health', (_req, res) => {
@@ -700,9 +806,12 @@ export async function createSparkQrApp(options: CreateSparkQrAppOptions = {}): P
   app.use(express.json({ limit: '8mb' }));
   app.use(express.urlencoded({ extended: false }));
 
-  // Privacy & scan headers: prevent #fragment key leakage via Referer and allow public QR readers
+  // Anti-prototype-pollution body scrubbing + cache-control on non-public APIs
   app.use((req, res, next) => {
-    res.setHeader('Referrer-Policy', 'no-referrer');
+    if (req.body && typeof req.body === 'object') {
+      req.body = sanitizeJsonObject(req.body);
+    }
+
     const isPublicRoute =
       req.path.startsWith('/api/reader/') ||
       req.path.startsWith('/api/media') ||
@@ -725,6 +834,57 @@ export async function createSparkQrApp(options: CreateSparkQrAppOptions = {}): P
       }
     }
     next();
+  });
+
+  // Strict ID validation guard for parameterized resource routes
+  app.param('id', (req, res, next, val) => {
+    if (!isValidResourceId(val)) {
+      res.status(400).json({ error: 'Identifiant de ressource invalide.' });
+      return;
+    }
+    next();
+  });
+
+  app.param('slug', (req, res, next, val) => {
+    if (!isValidResourceId(val)) {
+      res.status(400).json({ error: 'Identifiant dynamique invalide.' });
+      return;
+    }
+    next();
+  });
+
+  // SparkQR authenticity signing & verification registry (used on export and strict SparkQR image import)
+  app.post('/api/sparkqr/sign', signLimiter, (req, res) => {
+    const result = sparkQrMarks.signAndRegister((req.body as { bundle?: unknown })?.bundle);
+    if (!result.ok) {
+      res.status(400).json({ error: result.error });
+      return;
+    }
+    res.json({ hmac: result.hmac, fingerprint: result.fingerprint });
+  });
+
+  app.post('/api/sparkqr/verify', signLimiter, (req, res) => {
+    const body = (req.body || {}) as {
+      bundle?: Record<string, unknown> | null;
+      fingerprint?: string;
+    };
+    const result = sparkQrMarks.verify({
+      bundle: body.bundle ?? null,
+      fingerprint: body.fingerprint,
+    });
+    res.json(result);
+  });
+
+  // Server-only Step-1 example generator (strict daily quota, zero key or provider leakage)
+  app.post('/api/examples/generate', exampleLimiter, async (req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
+    const rawIntent = typeof req.body?.intent === 'string' ? req.body.intent.trim() : '';
+    if (!ALLOWED_EXAMPLE_INTENTS.includes(rawIntent as QrIntent)) {
+      res.status(400).json({ error: 'Format d’exemple non pris en charge.' });
+      return;
+    }
+    const result = await radoxExamples.generateExample(rawIntent as QrIntent);
+    res.json(result);
   });
 
   // =========================================================================
@@ -808,7 +968,7 @@ export async function createSparkQrApp(options: CreateSparkQrAppOptions = {}): P
     res.json(getEffectivePublicConfig(req));
   });
 
-  app.post('/api/upload', upload.single('file'), async (req, res) => {
+  app.post('/api/upload', uploadLimiter, upload.single('file'), async (req, res) => {
     if (!req.file) {
       res.status(400).json({ error: 'Aucun fichier reçu.' });
       return;
@@ -827,6 +987,12 @@ export async function createSparkQrApp(options: CreateSparkQrAppOptions = {}): P
       originalSize?: string;
     };
     const isEncrypted = bodyFlags.isEncrypted === 'true' || bodyFlags.isEncrypted === '1';
+
+    const inspected = inspectUploadedFileBuffer(req.file.buffer, req.file.mimetype, isEncrypted);
+    if (!inspected.safe) {
+      res.status(400).json({ error: inspected.reason || 'Fichier rejeté lors de la vérification.' });
+      return;
+    }
 
     let type: 'image' | 'video' | 'document' | 'audio' = 'image';
     if (
@@ -1576,7 +1742,7 @@ export async function createSparkQrApp(options: CreateSparkQrAppOptions = {}): P
   });
 
   // Server-side PIN verification API (used by interactive Showcase Modal as well)
-  app.post('/api/dynamic/:slug/verify-pin', (req, res) => {
+  app.post('/api/dynamic/:slug/verify-pin', pinLimiter, (req, res) => {
     const store = readDynamicStore();
     const rec = store[req.params.slug];
     if (!rec) {
@@ -1789,7 +1955,7 @@ export async function createSparkQrApp(options: CreateSparkQrAppOptions = {}): P
     next();
   });
 
-  app.post('/d/:slug/unlock', (req, res) => {
+  app.post('/d/:slug/unlock', pinLimiter, (req, res) => {
     const store = readDynamicStore();
     const rec = store[req.params.slug];
     if (!rec) {
@@ -1941,7 +2107,7 @@ export async function createSparkQrApp(options: CreateSparkQrAppOptions = {}): P
     res.json({ ok: true });
   });
 
-  app.post('/api/notifications/email/request', async (req, res) => {
+  app.post('/api/notifications/email/request', emailLimiter, async (req, res) => {
     const resolved = resolveRequestWorkspace(req, res, true)!;
     const rawEmail = typeof req.body?.email === 'string' ? req.body.email.trim().toLowerCase() : '';
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(rawEmail)) {
@@ -1983,7 +2149,7 @@ export async function createSparkQrApp(options: CreateSparkQrAppOptions = {}): P
     }
   });
 
-  app.post('/api/notifications/email/verify', (req, res) => {
+  app.post('/api/notifications/email/verify', emailLimiter, (req, res) => {
     const resolved = resolveRequestWorkspace(req, res, true)!;
     const code = typeof req.body?.code === 'string' ? req.body.code.trim() : '';
     const sub = retentionEngine.getEmailSubscription(resolved.workspace.id);
@@ -2114,7 +2280,7 @@ export async function createSparkQrApp(options: CreateSparkQrAppOptions = {}): P
     });
   });
 
-  app.post('/api/admin/claim', (req, res) => {
+  app.post('/api/admin/claim', adminLimiter, (req, res) => {
     const passcode = typeof req.body?.passcode === 'string' ? req.body.passcode : '';
     const claimed = adminAuth.claimFirstRunPasscode(passcode);
     if (!claimed.ok) {
@@ -2124,7 +2290,7 @@ export async function createSparkQrApp(options: CreateSparkQrAppOptions = {}): P
     res.json({ token: claimed.token });
   });
 
-  app.post('/api/admin/login', (req, res) => {
+  app.post('/api/admin/login', adminLimiter, (req, res) => {
     const passcode = typeof req.body?.passcode === 'string' ? req.body.passcode : '';
     if (!adminAuth.verifyPasscode(passcode)) {
       res.status(403).json({ error: 'Code administrateur invalide.' });

@@ -109,6 +109,8 @@ async function buildE2eeTransmissionBundle(params: {
     ...src,
     imageName: '',
     videoName: '',
+    documentName: '',
+    audioName: '',
     e2eeKeyFragment: undefined,
   };
   const encryptedMeta = await encryptJsonWithKey(
@@ -127,10 +129,49 @@ async function buildE2eeTransmissionBundle(params: {
     urlValue: '',
     wifiSsid: '',
     wifiPassword: '',
+    vcardFirstName: '',
+    vcardLastName: '',
+    vcardOrg: '',
+    vcardTitle: '',
+    vcardPhone: '',
+    vcardEmail: '',
+    vcardWebsite: '',
+    vcardAddress: '',
+    eventTitle: '',
+    eventStart: '',
+    eventEnd: '',
+    eventLocation: '',
+    eventDescription: '',
+    emailAddress: '',
+    emailSubject: '',
+    emailBody: '',
+    phoneNumber: '',
+    smsPhone: '',
+    smsMessage: '',
+    whatsappPhone: '',
+    whatsappMessage: '',
+    tiktokHandle: '',
+    instagramHandle: '',
+    facebookHandle: '',
+    telegramHandle: '',
+    twitterHandle: '',
+    geoLat: '',
+    geoLng: '',
+    geoLabel: '',
+    paymentName: '',
+    paymentIban: '',
+    paymentBic: '',
+    paymentAmount: '',
+    paymentReference: '',
+    paymentUrl: '',
     imagePageUrl: '',
     videoPageUrl: '',
+    documentPageUrl: '',
+    audioPageUrl: '',
     imageName: '',
     videoName: '',
+    documentName: '',
+    audioName: '',
     e2eeEnabled: true,
   };
 
@@ -166,11 +207,29 @@ function getWorkspaceStorageKey(workspaceId: string): string {
   return `${WORKSPACE_STORAGE_PREFIX}${workspaceId}`;
 }
 
+const LEGACY_THEME_ID_MAP: Record<string, string> = {
+  'gta-vice-city': 'vice-city-neon',
+  'gta-los-santos': 'los-santos-prestige',
+  'enterprise-executive': 'meridien-ardoise',
+  'enterprise-banque-privee': 'foret-laiton',
+  'enterprise-corporate-cobalt': 'atelier-alpin',
+  'enterprise-summit': 'verre-glassmorph',
+};
+
 function normalizeSavedItem(item: SavedQrItem): SavedQrItem {
+  const rawConfig = item.config
+    ? {
+        ...item.config,
+        themeId:
+          item.config.themeId && LEGACY_THEME_ID_MAP[item.config.themeId]
+            ? LEGACY_THEME_ID_MAP[item.config.themeId]
+            : item.config.themeId,
+      }
+    : DEFAULT_CONFIG;
   return {
     ...item,
     category: item.category || 'Personnel',
-    config: normalizeConfigWithDefaults(item.config, DEFAULT_CONFIG),
+    config: normalizeConfigWithDefaults(rawConfig, DEFAULT_CONFIG),
     experience: item.experience
       ? { ...DEFAULT_EXPERIENCE, ...item.experience }
       : DEFAULT_EXPERIENCE,
@@ -219,26 +278,54 @@ function deriveAutoTitle(
   if (exp.headline.trim()) return exp.headline.trim();
   const customCardTitle = cfg.titleText.trim();
   if (customCardTitle && customCardTitle !== 'Mon Code QR') return customCardTitle;
-  if (src.type === 'image') return 'Image';
-  if (src.type === 'video') return 'Vidéo';
-  if (src.textMode === 'wifi') return src.wifiSsid.trim() || 'Accès Wi-Fi';
-  if (src.textMode === 'url') {
-    const cleaned = src.urlValue
-      .trim()
-      .replace(/^https?:\/\//i, '')
-      .replace(/\/$/, '');
-    return cleaned ? cleaned.slice(0, 40) : 'Lien web';
+  if (src.type === 'image') return 'Code QR · Image';
+  if (src.type === 'video') return 'Code QR · Vidéo';
+  if (src.type === 'document') return 'Code QR · Document';
+  if (src.type === 'audio') return 'Code QR · Audio';
+  switch (src.textMode) {
+    case 'wifi':
+      return 'Code QR · Wi-Fi';
+    case 'vcard':
+      return 'Code QR · Contact vCard';
+    case 'event':
+      return 'Code QR · Événement';
+    case 'email':
+      return 'Code QR · E-mail';
+    case 'phone':
+      return 'Code QR · Téléphone';
+    case 'sms':
+      return 'Code QR · SMS';
+    case 'whatsapp':
+      return 'Code QR · WhatsApp';
+    case 'tiktok':
+      return 'Code QR · TikTok';
+    case 'instagram':
+      return 'Code QR · Instagram';
+    case 'facebook':
+      return 'Code QR · Facebook';
+    case 'telegram':
+      return 'Code QR · Telegram';
+    case 'twitter':
+      return 'Code QR · Twitter (X)';
+    case 'geo':
+      return 'Code QR · Position GPS';
+    case 'payment':
+      return 'Code QR · Paiement';
+    case 'url':
+      return 'Code QR · Lien web';
+    default:
+      return 'Code QR · Message';
   }
-  const textSnippet = src.textValue.trim().replace(/\s+/g, ' ');
-  return textSnippet ? textSnippet.slice(0, 40) : 'Message SparkQR';
 }
 
 function intentToSourcePatch(intent: QrIntent, current: QrSourceState): QrSourceState {
-  if (intent === 'image') {
-    return { ...current, type: 'image' };
-  }
-  if (intent === 'video') {
-    return { ...current, type: 'video' };
+  if (
+    intent === 'image' ||
+    intent === 'video' ||
+    intent === 'document' ||
+    intent === 'audio'
+  ) {
+    return { ...current, type: intent };
   }
   return { ...current, type: 'text', textMode: intent };
 }
@@ -317,6 +404,8 @@ export default function App() {
     experience: PostScanExperience;
     dynamicSlug: string | null;
     dynamicHasPin: boolean;
+    accessibilityKind?: 'permanent' | 'hosted' | 'dynamic';
+    serverCollectionId?: string | null;
     serverExpiresAt?: string | null;
   } | null>(null);
   const [validationError, setValidationError] = useState<string | undefined>(undefined);
@@ -791,20 +880,15 @@ export default function App() {
           slug: rec.slug,
           hasPin: rec.hasPin,
         }));
+        setJustSaved(false);
         setGeneratedSnapshot({
           source: snapshotSource,
           payload: finalPayload,
           experience: { ...experience },
           dynamicSlug: rec.slug,
           dynamicHasPin: rec.hasPin,
-          serverExpiresAt: serverExpiry,
-        });
-        recordGeneratedQrInLibrary({
-          snapshotSource,
-          snapshotExperience: experience,
-          finalPayload,
-          dynamicSlug: rec.slug,
           accessibilityKind: 'dynamic',
+          serverCollectionId: null,
           serverExpiresAt: serverExpiry,
         });
         void refreshDynamicRecords();
@@ -855,19 +939,13 @@ export default function App() {
         const serverExpiry =
           hosted.serverExpiresAt || computeDefaultServerExpiry(new Date().toISOString());
 
+        setJustSaved(false);
         setGeneratedSnapshot({
           source: snapshotSource,
           payload: finalPayload,
           experience: { ...experience },
           dynamicSlug: null,
           dynamicHasPin: false,
-          serverExpiresAt: serverExpiry,
-        });
-        recordGeneratedQrInLibrary({
-          snapshotSource,
-          snapshotExperience: experience,
-          finalPayload,
-          dynamicSlug: null,
           accessibilityKind: 'hosted',
           serverCollectionId: hosted.id,
           serverExpiresAt: serverExpiry,
@@ -886,19 +964,15 @@ export default function App() {
       return;
     }
 
+    setJustSaved(false);
     setGeneratedSnapshot({
       source: { ...source },
       payload: effectivePayload,
       experience: { ...experience },
       dynamicSlug: null,
       dynamicHasPin: false,
-    });
-    recordGeneratedQrInLibrary({
-      snapshotSource: source,
-      snapshotExperience: experience,
-      finalPayload: effectivePayload,
-      dynamicSlug: null,
       accessibilityKind: 'permanent',
+      serverCollectionId: null,
       serverExpiresAt: null,
     });
   };
@@ -914,11 +988,6 @@ export default function App() {
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/^-|-$/g, '') || 'sparkqr';
 
-  const handleDownloadPng = async () => {
-    if (!isGenerated || !qrSvgRef.current) return;
-    await downloadQrPng(qrSvgRef.current, `${makeFileSlug()}.png`);
-  };
-
   const buildExportMetadata = () => ({
     name: config.titleText || 'Code QR SparkQR',
     payload: activePayload,
@@ -926,6 +995,13 @@ export default function App() {
     config,
     experience: activeExperience,
   });
+
+  const handleDownloadPng = async () => {
+    if (!isGenerated || !qrSvgRef.current) return;
+    await downloadQrPng(qrSvgRef.current, `${makeFileSlug()}.png`, {
+      sparkQrMetadata: buildExportMetadata(),
+    });
+  };
 
   const handleDownloadSvg = async () => {
     if (!isGenerated || !qrSvgRef.current) return;
@@ -936,7 +1012,7 @@ export default function App() {
 
   const handleCopyPng = async () => {
     if (!isGenerated || !qrSvgRef.current) return;
-    await copyQrPngToClipboard(qrSvgRef.current);
+    await copyQrPngToClipboard(qrSvgRef.current, buildExportMetadata());
   };
 
   const handleProExport = async (options: ExportOptions) => {
@@ -953,42 +1029,39 @@ export default function App() {
   const handleSaveToHistory = () => {
     if (!generatedSnapshot) return;
     const isHosted = /\/m\/[a-zA-Z0-9_-]+/.test(generatedSnapshot.payload);
-    const newId = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
     const nowIso = new Date().toISOString();
-    const newItem: SavedQrItem = {
-      id: newId,
-      workspaceId: workspace?.id,
-      name: deriveAutoTitle(generatedSnapshot.source, config, generatedSnapshot.experience),
-      category: projectCategory,
-      createdAt: nowIso,
-      source: { ...generatedSnapshot.source },
-      config: { ...config },
-      experience: { ...generatedSnapshot.experience },
-      dynamicSlug: generatedSnapshot.dynamicSlug,
-      payload: generatedSnapshot.payload,
-      accessibilityKind: generatedSnapshot.dynamicSlug
-        ? 'dynamic'
-        : isHosted
-        ? 'hosted'
-        : 'permanent',
-      serverExpiresAt: generatedSnapshot.dynamicSlug
+    const accessibilityKind =
+      generatedSnapshot.accessibilityKind ||
+      (generatedSnapshot.dynamicSlug ? 'dynamic' : isHosted ? 'hosted' : 'permanent');
+    const serverExpiresAt =
+      generatedSnapshot.serverExpiresAt !== undefined
+        ? generatedSnapshot.serverExpiresAt
+        : generatedSnapshot.dynamicSlug
         ? dynamicSecurity.expiresAt || null
         : isHosted
         ? computeDefaultServerExpiry(nowIso)
-        : null,
-    };
-    setSavedItems((prev) => [newItem, ...prev]);
+        : null;
+
+    recordGeneratedQrInLibrary({
+      snapshotSource: generatedSnapshot.source,
+      snapshotExperience: generatedSnapshot.experience,
+      finalPayload: generatedSnapshot.payload,
+      dynamicSlug: generatedSnapshot.dynamicSlug,
+      accessibilityKind,
+      serverCollectionId: generatedSnapshot.serverCollectionId ?? null,
+      serverExpiresAt,
+    });
     setJustSaved(true);
-    setTimeout(() => setJustSaved(false), 2200);
   };
 
   const handleLoadSavedItem = (item: SavedQrItem) => {
     const normalized = normalizeSavedItem(item);
     const nextIntent: QrIntent =
-      normalized.source.type === 'image'
-        ? 'image'
-        : normalized.source.type === 'video'
-        ? 'video'
+      normalized.source.type === 'image' ||
+      normalized.source.type === 'video' ||
+      normalized.source.type === 'document' ||
+      normalized.source.type === 'audio'
+        ? normalized.source.type
         : normalized.source.textMode;
     setSelectedIntent(nextIntent);
     setSource(normalized.source);
@@ -1040,10 +1113,11 @@ export default function App() {
   };
 
   const handleDuplicateItem = (item: SavedQrItem) => {
+    const cleanBase = item.name?.trim() || deriveAutoTitle(item.source, item.config, item.experience ?? DEFAULT_EXPERIENCE);
     const copy: SavedQrItem = {
       ...normalizeSavedItem(item),
       id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-      name: `${item.name || 'Projet'} (copie)`,
+      name: `${cleanBase} (copie)`,
       createdAt: new Date().toISOString(),
       dynamicSlug: null,
       accessibilityKind: item.accessibilityKind === 'dynamic' ? 'permanent' : item.accessibilityKind,

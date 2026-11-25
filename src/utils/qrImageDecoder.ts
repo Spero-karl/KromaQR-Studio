@@ -1,4 +1,10 @@
 import { verifyQrDecodeFromImageData } from './qrLogic';
+import {
+  extractOpticalSparkQrWatermark,
+  extractSparkQrChunkFromPngBytes,
+  verifyLocalSparkQrBundle,
+  verifySparkQrViaServer,
+} from './sparkqrMark';
 
 export interface QrDecodeAttemptOptions {
   allowAdaptive?: boolean;
@@ -18,6 +24,9 @@ export interface DecodedQrImageResult {
     | 'card-crop'
     | 'svg-metadata';
   sparkQrMetadata?: Record<string, unknown> | null;
+  sparkQrAuthentic?: boolean;
+  sparkQrFingerprint?: string;
+  sparkQrRejectReason?: string;
 }
 
 /**
@@ -266,15 +275,103 @@ function drawRegionAndDecode(
   return decodeQrFromRgbaBuffer(imgData.data, canvas.width, canvas.height, opts);
 }
 
+async function verifyExtractedSparkQrAuthenticity(params: {
+  decodedPayload: string;
+  rawMetadata: Record<string, unknown> | null;
+  opticalFingerprint?: string;
+}): Promise<{
+  authentic: boolean;
+  bundle: Record<string, unknown> | null;
+  fingerprint?: string;
+  rejectReason?: string;
+}> {
+  if (params.rawMetadata) {
+    const localCheck = await verifyLocalSparkQrBundle(params.rawMetadata);
+    if (!localCheck.valid || !localCheck.bundle) {
+      return {
+        authentic: false,
+        bundle: null,
+        rejectReason:
+          localCheck.reason ||
+          'Cette image ne comporte pas une signature SparkQR valide.',
+      };
+    }
+    if (
+      localCheck.bundle.payload.trim() !== params.decodedPayload.trim()
+    ) {
+      return {
+        authentic: false,
+        bundle: null,
+        rejectReason:
+          'Le contenu du QR code ne correspond pas aux attributs signés SparkQR.',
+      };
+    }
+    if (localCheck.bundle.hmac) {
+      const serverCheck = await verifySparkQrViaServer({ bundle: localCheck.bundle });
+      if (serverCheck && serverCheck.reason === 'invalid-hmac') {
+        return {
+          authentic: false,
+          bundle: null,
+          rejectReason: 'Signature SparkQR invalide ou modifiée.',
+        };
+      }
+    }
+    return {
+      authentic: true,
+      bundle: localCheck.bundle as unknown as Record<string, unknown>,
+      fingerprint: localCheck.bundle.fingerprint,
+    };
+  }
+
+  if (params.opticalFingerprint) {
+    const recovered = await verifySparkQrViaServer({
+      fingerprint: params.opticalFingerprint,
+    });
+    if (recovered.authentic && recovered.bundle) {
+      if (recovered.bundle.payload.trim() === params.decodedPayload.trim()) {
+        return {
+          authentic: true,
+          bundle: recovered.bundle as unknown as Record<string, unknown>,
+          fingerprint: recovered.bundle.fingerprint,
+        };
+      }
+    }
+  }
+
+  return {
+    authentic: false,
+    bundle: null,
+    fingerprint: params.opticalFingerprint,
+    rejectReason:
+      'Seules les images de codes QR générées par SparkQR sont acceptées dans l’importateur.',
+  };
+}
+
 /**
  * Browser intelligent QR image decoder for SparkQR customized cards (laser beams,
- * gradients, colors, logos, decorations, transparent SVGs/PNGs) and classic QR codes.
+ * energy waves, gradients, colors, logos, decorations, transparent SVGs/PNGs).
  */
 export async function decodeQrImageFile(file: File): Promise<DecodedQrImageResult> {
+  const lowerName = file.name.toLowerCase();
+  const isSvg = file.type === 'image/svg+xml' || lowerName.endsWith('.svg');
+  const isPng = file.type === 'image/png' || lowerName.endsWith('.png');
+  const isAllowedImage =
+    isSvg ||
+    isPng ||
+    file.type === 'image/jpeg' ||
+    file.type === 'image/webp' ||
+    /\.(png|jpe?g|webp|svg)$/i.test(lowerName);
+
+  if (!isAllowedImage) {
+    throw new Error(
+      'Format refusé. Importez uniquement une image de code QR générée par SparkQR (PNG, JPG, WEBP ou SVG).'
+    );
+  }
+
   let sparkQrMetadata: Record<string, unknown> | null = null;
   let svgQrCropAttrs: { x: number; y: number; size: number; vbW: number; vbH: number } | null = null;
 
-  if (file.type === 'image/svg+xml' || file.name.toLowerCase().endsWith('.svg')) {
+  if (isSvg) {
     try {
       const svgText = await file.text();
       sparkQrMetadata = tryExtractSvgMetadata(svgText);
@@ -294,9 +391,20 @@ export async function decodeQrImageFile(file: File): Promise<DecodedQrImageResul
     } catch {
       // Ignore SVG pre-inspection error
     }
+  } else if (isPng) {
+    try {
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      sparkQrMetadata = extractSparkQrChunkFromPngBytes(bytes);
+    } catch {
+      // Ignore PNG chunk read error
+    }
   }
 
-  return new Promise((resolve, reject) => {
+  const decoded = await new Promise<{
+    payload: string;
+    strategy: DecodedQrImageResult['strategy'];
+    opticalFingerprint?: string;
+  }>((resolve, reject) => {
     const objectUrl = URL.createObjectURL(file);
     const img = new Image();
 
@@ -304,6 +412,27 @@ export async function decodeQrImageFile(file: File): Promise<DecodedQrImageResul
       try {
         const natW = img.naturalWidth || img.width || 960;
         const natH = img.naturalHeight || img.height || 960;
+        let opticalFingerprint: string | undefined;
+
+        if (!sparkQrMetadata && natW >= 420 && natH >= 420 && natW <= 3000 && natH <= 3000) {
+          try {
+            const natCanvas = document.createElement('canvas');
+            natCanvas.width = natW;
+            natCanvas.height = natH;
+            const natCtx = natCanvas.getContext('2d', { willReadFrequently: true });
+            if (natCtx) {
+              natCtx.drawImage(img, 0, 0, natW, natH);
+              const natPixels = natCtx.getImageData(0, 0, natW, natH);
+              const optical = extractOpticalSparkQrWatermark(natPixels.data, natW, natH);
+              if (optical.detected && optical.fingerprint) {
+                opticalFingerprint = optical.fingerprint;
+              }
+            }
+          } catch {
+            // Non-blocking optical watermark check
+          }
+        }
+
         const maxSide = 1280;
         const minSide = 480;
         const rawMax = Math.max(natW, natH, 1);
@@ -348,7 +477,7 @@ export async function decodeQrImageFile(file: File): Promise<DecodedQrImageResul
         );
         if (pass1) {
           URL.revokeObjectURL(objectUrl);
-          resolve({ ...pass1, sparkQrMetadata });
+          resolve({ ...pass1, opticalFingerprint });
           return;
         }
 
@@ -369,7 +498,7 @@ export async function decodeQrImageFile(file: File): Promise<DecodedQrImageResul
         );
         if (pass2) {
           URL.revokeObjectURL(objectUrl);
-          resolve({ ...pass2, sparkQrMetadata });
+          resolve({ ...pass2, opticalFingerprint });
           return;
         }
 
@@ -393,7 +522,7 @@ export async function decodeQrImageFile(file: File): Promise<DecodedQrImageResul
             resolve({
               payload: passDark.payload,
               strategy: 'dark-backdrop',
-              sparkQrMetadata,
+              opticalFingerprint,
             });
             return;
           }
@@ -424,7 +553,7 @@ export async function decodeQrImageFile(file: File): Promise<DecodedQrImageResul
               resolve({
                 payload: svgBoxHit.payload,
                 strategy: 'card-crop',
-                sparkQrMetadata,
+                opticalFingerprint,
               });
               return;
             }
@@ -434,28 +563,24 @@ export async function decodeQrImageFile(file: File): Promise<DecodedQrImageResul
         // Pass 5: SparkQR card & screenshot crops (top-title, bottom-title, center-tight)
         const minDim = Math.min(natW, natH);
         const cropRegions: Array<[number, number, number, number]> = [
-          // Center wide (standard QR card)
           [
             Math.round((natW - natW * 0.84) / 2),
             Math.round((natH - natH * 0.78) / 2),
             Math.max(120, Math.round(natW * 0.84)),
             Math.max(120, Math.round(natH * 0.78)),
           ],
-          // Bottom-shifted square (top-header cards: signature, vip-gold, glass)
           [
             Math.round((natW - minDim * 0.82) / 2),
             Math.round(natH * 0.18),
             Math.max(120, Math.round(minDim * 0.82)),
             Math.min(natH - Math.round(natH * 0.18), Math.max(120, Math.round(minDim * 0.82))),
           ],
-          // Top-shifted square (bottom-header cards: polaroid, ticket)
           [
             Math.round((natW - minDim * 0.82) / 2),
             Math.round(natH * 0.04),
             Math.max(120, Math.round(minDim * 0.82)),
             Math.min(natH - Math.round(natH * 0.04), Math.max(120, Math.round(minDim * 0.82))),
           ],
-          // Tight center (phone screenshot around card)
           [
             Math.round((natW - minDim * 0.62) / 2),
             Math.round((natH - minDim * 0.62) / 2),
@@ -485,7 +610,7 @@ export async function decodeQrImageFile(file: File): Promise<DecodedQrImageResul
               resolve({
                 payload: cropHit.payload,
                 strategy: 'card-crop',
-                sparkQrMetadata,
+                opticalFingerprint,
               });
               return;
             }
@@ -515,4 +640,19 @@ export async function decodeQrImageFile(file: File): Promise<DecodedQrImageResul
 
     img.src = objectUrl;
   });
+
+  const auth = await verifyExtractedSparkQrAuthenticity({
+    decodedPayload: decoded.payload,
+    rawMetadata: sparkQrMetadata,
+    opticalFingerprint: decoded.opticalFingerprint,
+  });
+
+  return {
+    payload: decoded.payload,
+    strategy: decoded.strategy,
+    sparkQrMetadata: auth.bundle,
+    sparkQrAuthentic: auth.authentic,
+    sparkQrFingerprint: auth.fingerprint,
+    sparkQrRejectReason: auth.rejectReason,
+  };
 }

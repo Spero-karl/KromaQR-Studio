@@ -91,13 +91,15 @@ test('parseReceivedQrInput supports #sq= and ?sq= URL share wrappers and .sparkq
   }
 });
 
-test('parseReceivedQrInput supports plain URL/Wi-Fi QR payloads, rejects arbitrary non-QR text, and blocks XSS schemes', () => {
+test('parseReceivedQrInput supports plain URL/Wi-Fi QR payloads with neutral non-identifying names, rejects arbitrary non-QR text, and blocks XSS schemes', () => {
   const urlParsed = parseReceivedQrInput('https://www.exemple.fr/menu');
   assert.equal(urlParsed.ok, true);
   if (urlParsed.ok) {
     assert.equal(urlParsed.originKind, 'raw-qr');
     assert.equal(urlParsed.item.source.textMode, 'url');
     assert.equal(urlParsed.item.config.laserEnabled, true);
+    assert.equal(urlParsed.item.name, 'Code QR · Lien web');
+    assert.equal(urlParsed.item.name.includes('exemple.fr'), false);
   }
 
   const wifiParsed = parseReceivedQrInput('WIFI:T:WPA;S:Studio_5G;P:pass123;;');
@@ -130,4 +132,88 @@ test('extractSparkQrReaderEndpoint parses /m/:id and /d/:slug links with E2EE ha
   assert.deepEqual(dyn, { kind: 'dynamic', id: 'mon-lien', keyFragment: null });
 
   assert.equal(extractSparkQrReaderEndpoint('https://google.com/search?q=qr'), null);
+});
+
+test('buildSourceFromPlainPayload parses vCard, iCal, mailto, tel, sms, whatsapp, geo, and SEPA EPC payloads', () => {
+  const vcard = buildSourceFromPlainPayload(
+    'BEGIN:VCARD\nVERSION:3.0\nN:Laurent;Camille;;;\nFN:Camille Laurent\nORG:Atelier\nTEL:+33142685510\nEMAIL:a@b.fr\nEND:VCARD'
+  );
+  assert.equal(vcard.textMode, 'vcard');
+  assert.equal(vcard.vcardFirstName, 'Camille');
+  assert.equal(vcard.vcardOrg, 'Atelier');
+
+  const event = buildSourceFromPlainPayload(
+    'BEGIN:VCALENDAR\nVERSION:2.0\nBEGIN:VEVENT\nSUMMARY:Gala\nDTSTART:20260618T193000\nLOCATION:Paris\nEND:VEVENT\nEND:VCALENDAR'
+  );
+  assert.equal(event.textMode, 'event');
+  assert.equal(event.eventTitle, 'Gala');
+  assert.equal(event.eventLocation, 'Paris');
+
+  assert.equal(buildSourceFromPlainPayload('mailto:test@spark.fr?subject=Sujet').textMode, 'email');
+  assert.equal(buildSourceFromPlainPayload('tel:+33123456789').phoneNumber, '+33123456789');
+  assert.equal(buildSourceFromPlainPayload('sms:+33612345678?body=Hello').smsMessage, 'Hello');
+  assert.equal(buildSourceFromPlainPayload('https://wa.me/33612345678?text=Salut').whatsappPhone, '33612345678');
+  assert.equal(buildSourceFromPlainPayload('geo:48.856600,2.352200?q=48.856600,2.352200(Paris)').geoLabel, 'Paris');
+
+  const sepa = buildSourceFromPlainPayload(
+    'BCD\n002\n1\nSCT\nAGRIFRPPXXX\nAtelier SAS\nFR7630006000011234567890189\nEUR45.00\n\nINV-1'
+  );
+  assert.equal(sepa.textMode, 'payment');
+  assert.equal(sepa.paymentName, 'Atelier SAS');
+  assert.equal(sepa.paymentAmount, '45.00');
+
+  // Social networks
+  assert.equal(buildSourceFromPlainPayload('https://www.tiktok.com/@atelier.travers').tiktokHandle, '@atelier.travers');
+  assert.equal(buildSourceFromPlainPayload('https://www.instagram.com/atelier.travers').instagramHandle, '@atelier.travers');
+  assert.equal(buildSourceFromPlainPayload('https://www.facebook.com/atelier.travers.paris').facebookHandle, 'atelier.travers.paris');
+  assert.equal(buildSourceFromPlainPayload('https://t.me/atelier_travers').telegramHandle, '@atelier_travers');
+  assert.equal(buildSourceFromPlainPayload('https://x.com/ateliertravers').twitterHandle, '@ateliertravers');
+});
+
+test('buildImportedSparkQrItem enforces SparkQR authenticity, migrates legacy theme IDs, preserves attributes, and forces category Importé', async () => {
+  const { buildImportedSparkQrItem } = await import('./sharedQrPackage');
+  const vicePreset = THEME_PRESETS.find((t) => t.id === 'vice-city-neon');
+  assert.ok(vicePreset);
+
+  const rejected = buildImportedSparkQrItem({
+    decodedPayload: 'https://external.example.com',
+    sparkQrAuthentic: false,
+    sparkQrMetadata: null,
+  });
+  assert.equal(rejected.ok, false);
+
+  const accepted = buildImportedSparkQrItem({
+    decodedPayload: 'https://sparkqr.example/vice',
+    sparkQrAuthentic: true,
+    sparkQrMetadata: {
+      name: 'Vice Neon',
+      category: 'Professionnel',
+      payload: 'https://sparkqr.example/vice',
+      config: {
+        ...DEFAULT_CONFIG,
+        ...vicePreset.patch,
+        themeId: 'gta-vice-city',
+        laserEnabled: true,
+        energyWaveEnabled: true,
+      },
+      source: {
+        ...DEFAULT_SOURCE,
+        textMode: 'url',
+        urlValue: 'https://sparkqr.example/vice',
+      },
+      experience: {
+        ...DEFAULT_EXPERIENCE,
+        readerThemeMode: 'dark',
+      },
+    },
+  });
+
+  assert.equal(accepted.ok, true);
+  if (accepted.ok) {
+    assert.equal(accepted.item.category, 'Importé');
+    assert.equal(accepted.item.config.themeId, 'vice-city-neon');
+    assert.equal(accepted.item.config.laserEnabled, true);
+    assert.equal(accepted.item.config.energyWaveEnabled, true);
+    assert.equal(accepted.item.experience?.readerThemeMode, 'dark');
+  }
 });

@@ -225,7 +225,7 @@ export function detectEnvironmentIssue(browserOrigin: string): EnvironmentDiagno
         isAiStudioPreview: false,
         isNonHttps: true,
         hostname: host,
-        summary: `Origine HTTP non sécurisée (${parsed.origin}). Utilisez une URL publique HTTPS dans PUBLIC_APP_URL.`,
+        summary: `Origine HTTP non chiffrée (${parsed.origin}). Utilisez une URL publique HTTPS dans PUBLIC_APP_URL.`,
       };
     }
 

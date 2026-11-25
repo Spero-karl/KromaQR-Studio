@@ -5,6 +5,7 @@ import type {
   QrCornerPlacement,
   QrErrorCorrection,
   QrFrameStyle,
+  QrIntent,
   QrSourceState,
   ScannabilityReport,
 } from '../types/qr';
@@ -22,6 +23,256 @@ export interface QrMatrixData {
   version: number;
 }
 
+export function resolveSourceIntent(source: QrSourceState): QrIntent {
+  if (
+    source.type === 'image' ||
+    source.type === 'video' ||
+    source.type === 'document' ||
+    source.type === 'audio'
+  ) {
+    return source.type;
+  }
+  return source.textMode;
+}
+
+function formatIcalDateTime(raw?: string): string {
+  const clean = (raw || '').trim();
+  if (!clean) return '';
+  const digits = clean.replace(/[-:]/g, '');
+  if (/^\d{8}T\d{4}$/.test(digits)) {
+    return `${digits}00`;
+  }
+  if (/^\d{8}T\d{6}Z?$/.test(digits)) {
+    return digits;
+  }
+  if (/^\d{8}$/.test(digits)) {
+    return digits;
+  }
+  const parsed = Date.parse(clean);
+  if (Number.isFinite(parsed)) {
+    const iso = new Date(parsed).toISOString().replace(/[-:]/g, '');
+    return `${iso.slice(0, 15)}Z`;
+  }
+  return '';
+}
+
+function buildHostedMediaTargetPayload(
+  rawMedia: string,
+  rawTarget: string,
+  emptyError: string,
+  publicOrigin: string
+): { payload: string; valid: boolean; error?: string } {
+  if (!rawTarget) {
+    return { payload: '', valid: false, error: emptyError };
+  }
+  if (rawMedia) {
+    const mediaSafety = inspectMediaUrlForQr(rawMedia);
+    if (!mediaSafety.safe) {
+      return { payload: '', valid: false, error: mediaSafety.error };
+    }
+  }
+  if (/^https?:\/\//i.test(rawTarget)) {
+    const targetSafety = inspectMediaUrlForQr(rawTarget);
+    if (!targetSafety.safe) {
+      return { payload: '', valid: false, error: targetSafety.error };
+    }
+    return { payload: rawTarget, valid: true };
+  }
+  const originCheck = validatePublicAppUrl(publicOrigin);
+  if (!originCheck.valid) {
+    return { payload: '', valid: false, error: originCheck.error };
+  }
+  return { payload: buildPublicReaderUrl(originCheck.normalizedUrl, rawTarget), valid: true };
+}
+
+const CONTROL_CHARS_RE = /[\u0000-\u001f\u007f]/;
+const MULTILINE_CONTROL_RE = /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/;
+
+function hasAsciiControlChars(value: string, allowNewlines = false): boolean {
+  return allowNewlines ? MULTILINE_CONTROL_RE.test(value) : CONTROL_CHARS_RE.test(value);
+}
+
+function stripIcalAndVcardInjection(value: string): string {
+  return value
+    .replace(/[\u0000-\u001f\u007f]/g, ' ')
+    .replace(/\b(?:BEGIN|END|VERSION|DTSTART|DTEND|SUMMARY|LOCATION|UID|METHOD)\s*:/gi, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+export type SocialNetworkKey = 'tiktok' | 'instagram' | 'facebook' | 'telegram' | 'twitter';
+
+const SOCIAL_NETWORK_META: Record<
+  SocialNetworkKey,
+  {
+    label: string;
+    officialHosts: string[];
+    canonicalUrl: (handle: string) => string;
+    handleRegex: RegExp;
+    formatHint: string;
+  }
+> = {
+  tiktok: {
+    label: 'TikTok',
+    officialHosts: ['tiktok.com', 'www.tiktok.com', 'm.tiktok.com'],
+    canonicalUrl: (h) => `https://www.tiktok.com/@${h}`,
+    handleRegex: /^[A-Za-z0-9._]{2,24}$/,
+    formatHint: '@identifiant (2 à 24 caractères : lettres, chiffres, . ou _)',
+  },
+  instagram: {
+    label: 'Instagram',
+    officialHosts: ['instagram.com', 'www.instagram.com', 'm.instagram.com'],
+    canonicalUrl: (h) => `https://www.instagram.com/${h}/`,
+    handleRegex: /^[A-Za-z0-9._]{1,30}$/,
+    formatHint: '@identifiant (1 à 30 caractères : lettres, chiffres, . ou _)',
+  },
+  facebook: {
+    label: 'Facebook',
+    officialHosts: ['facebook.com', 'www.facebook.com', 'm.facebook.com', 'fb.com', 'www.fb.com'],
+    canonicalUrl: (h) => `https://www.facebook.com/${h}`,
+    handleRegex: /^[A-Za-z0-9.]{5,50}$/,
+    formatHint: 'nom de page ou profil (5 à 50 caractères : lettres, chiffres ou .)',
+  },
+  telegram: {
+    label: 'Telegram',
+    officialHosts: ['t.me', 'www.t.me', 'telegram.me', 'www.telegram.me'],
+    canonicalUrl: (h) => `https://t.me/${h}`,
+    handleRegex: /^[A-Za-z][A-Za-z0-9_]{3,31}$/,
+    formatHint: '@identifiant (4 à 32 caractères, commençant par une lettre)',
+  },
+  twitter: {
+    label: 'Twitter (X)',
+    officialHosts: ['x.com', 'www.x.com', 'twitter.com', 'www.twitter.com', 'mobile.twitter.com'],
+    canonicalUrl: (h) => `https://x.com/${h}`,
+    handleRegex: /^[A-Za-z0-9_]{1,15}$/,
+    formatHint: '@identifiant (1 à 15 caractères : lettres, chiffres ou _)',
+  },
+};
+
+export function buildSocialPayload(
+  rawInput: string,
+  network: SocialNetworkKey
+): { payload: string; valid: boolean; error?: string; normalizedHandle?: string } {
+  const meta = SOCIAL_NETWORK_META[network];
+  const raw = (rawInput || '').trim();
+  if (!raw) {
+    return {
+      payload: '',
+      valid: false,
+      error: `Indiquez votre identifiant ou lien officiel ${meta.label}.`,
+    };
+  }
+  if (hasAsciiControlChars(raw) || /\s/.test(raw) || raw.length > 260) {
+    return {
+      payload: '',
+      valid: false,
+      error: `Identifiant ${meta.label} invalide (espaces ou caractères interdits).`,
+    };
+  }
+  if (/[^\x20-\x7E]/.test(raw)) {
+    return {
+      payload: '',
+      valid: false,
+      error: `Utilisez uniquement des caractères ASCII standards pour ${meta.label}.`,
+    };
+  }
+
+  let candidate = raw;
+  const looksLikeUrl = /^[a-z][a-z0-9+.-]*:\/\//i.test(candidate) || candidate.includes('/');
+
+  if (looksLikeUrl) {
+    const withScheme = /^[a-z][a-z0-9+.-]*:\/\//i.test(candidate)
+      ? candidate
+      : `https://${candidate}`;
+    let parsed: URL;
+    try {
+      parsed = new URL(withScheme);
+    } catch {
+      return {
+        payload: '',
+        valid: false,
+        error: `Lien ${meta.label} mal formé.`,
+      };
+    }
+    if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
+      return {
+        payload: '',
+        valid: false,
+        error: `Protocole non autorisé pour ${meta.label}.`,
+      };
+    }
+    if (parsed.username || parsed.password) {
+      return {
+        payload: '',
+        valid: false,
+        error: `Les liens ${meta.label} contenant des identifiants intégrés sont refusés.`,
+      };
+    }
+    const host = parsed.hostname.toLowerCase();
+    if (!meta.officialHosts.includes(host)) {
+      return {
+        payload: '',
+        valid: false,
+        error: `Seuls les domaines officiels ${meta.label} (${meta.officialHosts[0]}) sont acceptés.`,
+      };
+    }
+    if (parsed.pathname.includes('..')) {
+      return {
+        payload: '',
+        valid: false,
+        error: `Chemin ${meta.label} invalide.`,
+      };
+    }
+    const segments = parsed.pathname
+      .split('/')
+      .map((s) => s.trim())
+      .filter(Boolean);
+    const blockedSegments = new Set([
+      'login',
+      'signin',
+      'signup',
+      'oauth',
+      'auth',
+      'share',
+      'sharer.php',
+      'intent',
+      'accounts',
+      'password',
+      'admin',
+    ]);
+    if (segments.length === 0 || blockedSegments.has(segments[0].toLowerCase())) {
+      return {
+        payload: '',
+        valid: false,
+        error: `Indiquez un profil ou compte ${meta.label} valide (et non une page de connexion).`,
+      };
+    }
+    candidate = segments[0];
+  }
+
+  const handle = candidate.replace(/^@+/, '');
+  if (!handle || handle.includes('..') || handle.endsWith('.')) {
+    return {
+      payload: '',
+      valid: false,
+      error: `Format ${meta.label} attendu : ${meta.formatHint}.`,
+    };
+  }
+  if (!meta.handleRegex.test(handle)) {
+    return {
+      payload: '',
+      valid: false,
+      error: `Format ${meta.label} invalide (${meta.formatHint}).`,
+    };
+  }
+
+  return {
+    payload: meta.canonicalUrl(handle),
+    valid: true,
+    normalizedHandle: handle,
+  };
+}
+
 export function buildPayload(source: QrSourceState, publicOrigin = ''): {
   payload: string;
   valid: boolean;
@@ -33,11 +284,47 @@ export function buildPayload(source: QrSourceState, publicOrigin = ''): {
       if (!trimmed) {
         return { payload: '', valid: false, error: 'Saisissez un lien URL valide.' };
       }
+      if (hasAsciiControlChars(trimmed) || /\s/.test(trimmed)) {
+        return {
+          payload: '',
+          valid: false,
+          error: 'L’URL ne doit contenir ni espaces ni caractères de contrôle.',
+        };
+      }
+      const lower = trimmed.toLowerCase();
+      if (
+        lower.startsWith('javascript:') ||
+        lower.startsWith('vbscript:') ||
+        lower.startsWith('data:') ||
+        lower.startsWith('file:') ||
+        lower.startsWith('ftp:') ||
+        lower.startsWith('intent:')
+      ) {
+        return {
+          payload: '',
+          valid: false,
+          error: 'Schéma de lien refusé : utilisez une URL HTTPS ou HTTP publique.',
+        };
+      }
       const hasScheme = /^(https?:\/\/|mailto:|tel:|sms:)/i.test(trimmed);
       const normalized = hasScheme ? trimmed : `https://${trimmed}`;
       if (/^https?:\/\//i.test(normalized)) {
         try {
           const parsed = new URL(normalized);
+          if (parsed.username || parsed.password) {
+            return {
+              payload: '',
+              valid: false,
+              error: 'Les URL intégrant des identifiants (utilisateur@hôte) sont bloquées.',
+            };
+          }
+          if (parsed.hostname.toLowerCase().includes('xn--')) {
+            return {
+              payload: '',
+              valid: false,
+              error: 'Les domaines encodés punycode (xn--) sont bloqués par précaution.',
+            };
+          }
           if (!parsed.hostname || !parsed.hostname.includes('.')) {
             return {
               payload: '',
@@ -61,22 +348,62 @@ export function buildPayload(source: QrSourceState, publicOrigin = ''): {
                 'Adresse locale (localhost / IP privée) inutilisable depuis un smartphone externe.',
             };
           }
+          return { payload: parsed.toString(), valid: true };
         } catch {
           return { payload: '', valid: false, error: 'Format d’adresse URL invalide.' };
         }
       }
       return { payload: normalized, valid: true };
     }
+
+    if (
+      source.textMode === 'tiktok' ||
+      source.textMode === 'instagram' ||
+      source.textMode === 'facebook' ||
+      source.textMode === 'telegram' ||
+      source.textMode === 'twitter'
+    ) {
+      const fieldMap: Record<SocialNetworkKey, string | undefined> = {
+        tiktok: source.tiktokHandle,
+        instagram: source.instagramHandle,
+        facebook: source.facebookHandle,
+        telegram: source.telegramHandle,
+        twitter: source.twitterHandle,
+      };
+      return buildSocialPayload(fieldMap[source.textMode] || '', source.textMode);
+    }
+
     if (source.textMode === 'wifi') {
       const ssid = source.wifiSsid.trim();
       if (!ssid) {
         return { payload: '', valid: false, error: 'Indiquez le nom du réseau Wi-Fi (SSID).' };
+      }
+      if (hasAsciiControlChars(ssid) || hasAsciiControlChars(source.wifiPassword)) {
+        return {
+          payload: '',
+          valid: false,
+          error: 'Le SSID ou le mot de passe Wi-Fi contient des caractères invalides.',
+        };
+      }
+      if (ssid.length > 32) {
+        return {
+          payload: '',
+          valid: false,
+          error: 'Le nom du réseau Wi-Fi (SSID) ne peut pas dépasser 32 caractères.',
+        };
       }
       if (source.wifiSecurity !== 'nopass' && !source.wifiPassword.trim()) {
         return {
           payload: '',
           valid: false,
           error: 'Saisissez le mot de passe Wi-Fi ou sélectionnez le mode « Ouvert ».',
+        };
+      }
+      if (source.wifiSecurity === 'WPA' && source.wifiPassword.length < 8) {
+        return {
+          payload: '',
+          valid: false,
+          error: 'Un mot de passe Wi-Fi WPA/WPA2 doit contenir au moins 8 caractères.',
         };
       }
       const esc = (v: string) => v.replace(/([\\;,:"])/g, '\\$1');
@@ -86,7 +413,262 @@ export function buildPayload(source: QrSourceState, publicOrigin = ''): {
         valid: true,
       };
     }
-    const text = source.textValue.trim();
+
+    if (source.textMode === 'vcard') {
+      const first = stripIcalAndVcardInjection(source.vcardFirstName || '');
+      const last = stripIcalAndVcardInjection(source.vcardLastName || '');
+      const org = stripIcalAndVcardInjection(source.vcardOrg || '');
+      const phone = stripIcalAndVcardInjection(source.vcardPhone || '');
+      const email = stripIcalAndVcardInjection(source.vcardEmail || '');
+      const title = stripIcalAndVcardInjection(source.vcardTitle || '');
+      const website = stripIcalAndVcardInjection(source.vcardWebsite || '');
+      const address = stripIcalAndVcardInjection(source.vcardAddress || '');
+
+      if (!first && !last && !org) {
+        return {
+          payload: '',
+          valid: false,
+          error: 'Saisissez au moins un nom, prénom ou nom d’entreprise pour la carte contact.',
+        };
+      }
+      if (!phone && !email) {
+        return {
+          payload: '',
+          valid: false,
+          error: 'Ajoutez un numéro de téléphone ou un e-mail pour le contact.',
+        };
+      }
+      if (email && !/^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]{2,}$/.test(email)) {
+        return {
+          payload: '',
+          valid: false,
+          error: 'Adresse e-mail du contact invalide.',
+        };
+      }
+      let safeWebsite = '';
+      if (website) {
+        const siteUrl = /^https?:\/\//i.test(website) ? website : `https://${website}`;
+        try {
+          const parsedSite = new URL(siteUrl);
+          if (
+            (parsedSite.protocol !== 'https:' && parsedSite.protocol !== 'http:') ||
+            parsedSite.username ||
+            parsedSite.password ||
+            isLocalOrPrivateHost(parsedSite.hostname)
+          ) {
+            return {
+              payload: '',
+              valid: false,
+              error: 'Le site web du contact doit être une URL publique valide.',
+            };
+          }
+          safeWebsite = parsedSite.toString();
+        } catch {
+          return {
+            payload: '',
+            valid: false,
+            error: 'Format de site web invalide dans la carte contact.',
+          };
+        }
+      }
+      const cleanSemi = (v: string) => v.replace(/[;\\]/g, ' ');
+      const fullName = [first, last].filter(Boolean).join(' ') || org;
+      const lines = [
+        'BEGIN:VCARD',
+        'VERSION:3.0',
+        `N:${cleanSemi(last)};${cleanSemi(first)};;;`,
+        `FN:${fullName}`,
+      ];
+      if (org) lines.push(`ORG:${org}`);
+      if (title) lines.push(`TITLE:${title}`);
+      if (phone) lines.push(`TEL;TYPE=CELL:${phone}`);
+      if (email) lines.push(`EMAIL:${email}`);
+      if (safeWebsite) lines.push(`URL:${safeWebsite}`);
+      if (address) lines.push(`ADR;TYPE=WORK:;;${cleanSemi(address)};;;;`);
+      lines.push('END:VCARD');
+      return { payload: lines.join('\n'), valid: true };
+    }
+
+    if (source.textMode === 'event') {
+      const title = stripIcalAndVcardInjection(source.eventTitle || '');
+      const start = formatIcalDateTime(source.eventStart);
+      const end = formatIcalDateTime(source.eventEnd) || start;
+      const location = stripIcalAndVcardInjection(source.eventLocation || '');
+      const description = (source.eventDescription || '')
+        .replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, '')
+        .replace(/\b(?:BEGIN|END)\s*:/gi, '')
+        .trim();
+      if (!title) {
+        return { payload: '', valid: false, error: 'Indiquez le titre de l’événement.' };
+      }
+      if (!start) {
+        return { payload: '', valid: false, error: 'Sélectionnez la date et l’heure de début.' };
+      }
+      const lines = [
+        'BEGIN:VCALENDAR',
+        'VERSION:2.0',
+        'PRODID:-//SparkQR//FR',
+        'BEGIN:VEVENT',
+        `SUMMARY:${title}`,
+        `DTSTART:${start}`,
+        `DTEND:${end}`,
+      ];
+      if (location) lines.push(`LOCATION:${location}`);
+      if (description) lines.push(`DESCRIPTION:${description.replace(/\r?\n/g, '\\n')}`);
+      lines.push('END:VEVENT', 'END:VCALENDAR');
+      return { payload: lines.join('\n'), valid: true };
+    }
+
+    if (source.textMode === 'email') {
+      const addr = (source.emailAddress || '').trim();
+      if (
+        !addr ||
+        hasAsciiControlChars(addr) ||
+        !/^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]{2,}$/.test(addr)
+      ) {
+        return { payload: '', valid: false, error: 'Saisissez une adresse e-mail valide.' };
+      }
+      const params = new URLSearchParams();
+      if (source.emailSubject?.trim()) {
+        params.set('subject', source.emailSubject.replace(/[\r\n]/g, ' ').trim());
+      }
+      if (source.emailBody?.trim()) {
+        params.set('body', source.emailBody.replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, '').trim());
+      }
+      const qs = params.toString();
+      return { payload: `mailto:${addr}${qs ? `?${qs}` : ''}`, valid: true };
+    }
+
+    if (source.textMode === 'phone') {
+      const raw = (source.phoneNumber || '').trim();
+      const cleaned = raw.replace(/[^\d+]/g, '');
+      const digitCount = cleaned.replace(/\D/g, '').length;
+      if (!cleaned || digitCount < 6 || digitCount > 15 || cleaned.indexOf('+', 1) !== -1) {
+        return { payload: '', valid: false, error: 'Saisissez un numéro de téléphone valide (6 à 15 chiffres).' };
+      }
+      return { payload: `tel:${cleaned}`, valid: true };
+    }
+
+    if (source.textMode === 'sms') {
+      const raw = (source.smsPhone || '').trim();
+      const cleaned = raw.replace(/[^\d+]/g, '');
+      const digitCount = cleaned.replace(/\D/g, '').length;
+      if (!cleaned || digitCount < 6 || digitCount > 15 || cleaned.indexOf('+', 1) !== -1) {
+        return { payload: '', valid: false, error: 'Saisissez un numéro destinataire valide pour le SMS.' };
+      }
+      const msg = (source.smsMessage || '').replace(/[\u0000-\u001f\u007f]/g, ' ').trim();
+      return {
+        payload: msg ? `sms:${cleaned}?body=${encodeURIComponent(msg)}` : `sms:${cleaned}`,
+        valid: true,
+      };
+    }
+
+    if (source.textMode === 'whatsapp') {
+      const raw = (source.whatsappPhone || '').trim();
+      const digits = raw.replace(/\D/g, '');
+      if (digits.length < 7 || digits.length > 15) {
+        return {
+          payload: '',
+          valid: false,
+          error: 'Saisissez un numéro WhatsApp valide avec indicatif pays (7 à 15 chiffres, ex. +33612345678).',
+        };
+      }
+      const msg = (source.whatsappMessage || '').replace(/[\u0000-\u001f\u007f]/g, ' ').trim();
+      return {
+        payload: msg
+          ? `https://wa.me/${digits}?text=${encodeURIComponent(msg)}`
+          : `https://wa.me/${digits}`,
+        valid: true,
+      };
+    }
+
+    if (source.textMode === 'geo') {
+      const lat = Number((source.geoLat || '').trim().replace(',', '.'));
+      const lng = Number((source.geoLng || '').trim().replace(',', '.'));
+      if (!Number.isFinite(lat) || lat < -90 || lat > 90 || !Number.isFinite(lng) || lng < -180 || lng > 180) {
+        return {
+          payload: '',
+          valid: false,
+          error: 'Indiquez des coordonnées GPS valides (latitude -90..90, longitude -180..180).',
+        };
+      }
+      const label = (source.geoLabel || '').replace(/[\u0000-\u001f\u007f]/g, ' ').trim();
+      const latStr = lat.toFixed(6);
+      const lngStr = lng.toFixed(6);
+      return {
+        payload: label
+          ? `geo:${latStr},${lngStr}?q=${latStr},${lngStr}(${encodeURIComponent(label)})`
+          : `geo:${latStr},${lngStr}`,
+        valid: true,
+      };
+    }
+
+    if (source.textMode === 'payment') {
+      const mode = source.paymentMode || 'sepa';
+      if (mode === 'link') {
+        const rawUrl = (source.paymentUrl || '').trim();
+        if (!rawUrl || hasAsciiControlChars(rawUrl) || /\s/.test(rawUrl)) {
+          return { payload: '', valid: false, error: 'Collez un lien de paiement HTTPS valide.' };
+        }
+        const normalized = /^https?:\/\//i.test(rawUrl) ? rawUrl : `https://${rawUrl}`;
+        try {
+          const parsed = new URL(normalized);
+          if (
+            parsed.protocol !== 'https:' ||
+            parsed.username ||
+            parsed.password ||
+            parsed.hostname.toLowerCase().includes('xn--') ||
+            isAiStudioOrPreviewHost(parsed.hostname) ||
+            isLocalOrPrivateHost(parsed.hostname)
+          ) {
+            return {
+              payload: '',
+              valid: false,
+              error: 'Utilisez une URL de paiement publique en HTTPS sans identifiants intégrés.',
+            };
+          }
+          return { payload: parsed.toString(), valid: true };
+        } catch {
+          return { payload: '', valid: false, error: 'URL de paiement invalide.' };
+        }
+      }
+
+      // Standard European EPC SEPA QR Code (v002)
+      const name = (source.paymentName || '').replace(/[\u0000-\u001f\u007f]/g, ' ').trim().slice(0, 70);
+      const iban = (source.paymentIban || '').replace(/\s+/g, '').toUpperCase();
+      const bic = (source.paymentBic || '').replace(/\s+/g, '').toUpperCase();
+      const amountNum = Number((source.paymentAmount || '').trim().replace(',', '.'));
+      const ref = (source.paymentReference || '').replace(/[\u0000-\u001f\u007f]/g, ' ').trim().slice(0, 140);
+
+      if (!name) {
+        return { payload: '', valid: false, error: 'Indiquez le nom du bénéficiaire.' };
+      }
+      if (!/^[A-Z]{2}\d{2}[A-Z0-9]{10,30}$/.test(iban)) {
+        return { payload: '', valid: false, error: 'Saisissez un IBAN valide (ex. FR76...).' };
+      }
+      if (bic && !/^[A-Z]{4}[A-Z]{2}[A-Z0-9]{2}([A-Z0-9]{3})?$/.test(bic)) {
+        return { payload: '', valid: false, error: 'Format de code BIC invalide (8 ou 11 caractères).' };
+      }
+      const amountLine =
+        Number.isFinite(amountNum) && amountNum > 0 && amountNum <= 999999999.99
+          ? `EUR${amountNum.toFixed(2)}`
+          : '';
+      const epcLines = [
+        'BCD',
+        '002',
+        '1',
+        'SCT',
+        bic,
+        name,
+        iban,
+        amountLine,
+        '',
+        ref,
+      ];
+      return { payload: epcLines.join('\n'), valid: true };
+    }
+
+    const text = source.textValue.replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/g, '').trim();
     if (!text) {
       return { payload: '', valid: false, error: 'Saisissez un texte à encoder.' };
     }
@@ -94,79 +676,39 @@ export function buildPayload(source: QrSourceState, publicOrigin = ''): {
   }
 
   if (source.type === 'image') {
-    const rawMedia = source.imageUrl.trim();
-    const rawTarget = (source.imagePageUrl || source.imageUrl).trim();
-    if (!rawTarget) {
-      return {
-        payload: '',
-        valid: false,
-        error: 'Importez une image ou collez son lien URL public.',
-      };
-    }
-    if (rawMedia) {
-      const mediaSafety = inspectMediaUrlForQr(rawMedia);
-      if (!mediaSafety.safe) {
-        return {
-          payload: '',
-          valid: false,
-          error: mediaSafety.error,
-        };
-      }
-    }
-    if (/^https?:\/\//i.test(rawTarget)) {
-      const targetSafety = inspectMediaUrlForQr(rawTarget);
-      if (!targetSafety.safe) {
-        return { payload: '', valid: false, error: targetSafety.error };
-      }
-      return { payload: rawTarget, valid: true };
-    }
-    const originCheck = validatePublicAppUrl(publicOrigin);
-    if (!originCheck.valid) {
-      return {
-        payload: '',
-        valid: false,
-        error: originCheck.error,
-      };
-    }
-    return { payload: buildPublicReaderUrl(originCheck.normalizedUrl, rawTarget), valid: true };
+    return buildHostedMediaTargetPayload(
+      source.imageUrl.trim(),
+      (source.imagePageUrl || source.imageUrl).trim(),
+      'Importez une image ou collez son lien URL public.',
+      publicOrigin
+    );
+  }
+
+  if (source.type === 'document') {
+    return buildHostedMediaTargetPayload(
+      (source.documentUrl || '').trim(),
+      (source.documentPageUrl || source.documentUrl || '').trim(),
+      'Importez un document (PDF, DOCX, TXT) pour générer son QR.',
+      publicOrigin
+    );
+  }
+
+  if (source.type === 'audio') {
+    return buildHostedMediaTargetPayload(
+      (source.audioUrl || '').trim(),
+      (source.audioPageUrl || source.audioUrl || '').trim(),
+      'Importez un fichier audio (MP3, WAV, M4A) pour générer son QR.',
+      publicOrigin
+    );
   }
 
   // video
-  const rawVideoMedia = source.videoUrl.trim();
-  const rawVideo = (source.videoPageUrl || source.videoUrl).trim();
-  if (!rawVideo) {
-    return {
-      payload: '',
-      valid: false,
-      error: 'Importez une vidéo ou collez son lien URL public.',
-    };
-  }
-  if (rawVideoMedia) {
-    const mediaSafety = inspectMediaUrlForQr(rawVideoMedia);
-    if (!mediaSafety.safe) {
-      return {
-        payload: '',
-        valid: false,
-        error: mediaSafety.error,
-      };
-    }
-  }
-  if (/^https?:\/\//i.test(rawVideo)) {
-    const targetSafety = inspectMediaUrlForQr(rawVideo);
-    if (!targetSafety.safe) {
-      return { payload: '', valid: false, error: targetSafety.error };
-    }
-    return { payload: rawVideo, valid: true };
-  }
-  const originCheck = validatePublicAppUrl(publicOrigin);
-  if (!originCheck.valid) {
-    return {
-      payload: '',
-      valid: false,
-      error: originCheck.error,
-    };
-  }
-  return { payload: buildPublicReaderUrl(originCheck.normalizedUrl, rawVideo), valid: true };
+  return buildHostedMediaTargetPayload(
+    source.videoUrl.trim(),
+    (source.videoPageUrl || source.videoUrl).trim(),
+    'Importez une vidéo ou collez son lien URL public.',
+    publicOrigin
+  );
 }
 
 export function verifyQrDecodeFromImageData(
@@ -417,6 +959,54 @@ export function buildShowcaseBackdrop(
   config: QrConfig,
   mood: 'auto' | 'gold-velvet' | 'midnight-neon' | 'cinema-35' | 'botanical' = 'auto'
 ): ShowcaseBackdrop {
+  if (mood === 'auto' && (config.themeId === 'vice-city-neon' || config.themeId === 'gta-vice-city')) {
+    return {
+      outerBackground:
+        'radial-gradient(circle at 18% 12%, rgba(255,92,225,0.34), transparent 52%), radial-gradient(circle at 84% 82%, rgba(69,243,255,0.28), transparent 56%), linear-gradient(155deg, #16062c 0%, #100720 52%, #070312 100%)',
+      accentGlow: 'rgba(255,92,225,0.42)',
+      cardBackground: 'rgba(18, 7, 36, 0.94)',
+      cardBorder: 'rgba(255, 92, 225, 0.38)',
+      textPrimary: '#FFF5FC',
+      textMuted: '#D6B4F7',
+      accentColor: '#45F3FF',
+    };
+  }
+  if (mood === 'auto' && (config.themeId === 'los-santos-prestige' || config.themeId === 'gta-los-santos')) {
+    return {
+      outerBackground:
+        'radial-gradient(circle at 16% 16%, rgba(245,196,61,0.26), transparent 52%), radial-gradient(circle at 85% 84%, rgba(74,222,128,0.20), transparent 58%), linear-gradient(155deg, #0b100b 0%, #111711 55%, #070907 100%)',
+      accentGlow: 'rgba(245,196,61,0.38)',
+      cardBackground: 'rgba(14, 18, 14, 0.95)',
+      cardBorder: 'rgba(212, 175, 55, 0.42)',
+      textPrimary: '#FAF5E4',
+      textMuted: '#B8C4B4',
+      accentColor: '#F5C43D',
+    };
+  }
+  if (mood === 'auto' && config.themeId === 'legend-ligue-arcane') {
+    return {
+      outerBackground:
+        'radial-gradient(circle at 20% 14%, rgba(253,224,71,0.28), transparent 52%), radial-gradient(circle at 84% 82%, rgba(192,132,252,0.28), transparent 56%), linear-gradient(155deg, #1a0b38 0%, #110726 55%, #080314 100%)',
+      accentGlow: 'rgba(253,224,71,0.42)',
+      cardBackground: 'rgba(24, 11, 51, 0.94)',
+      cardBorder: 'rgba(245, 158, 11, 0.44)',
+      textPrimary: '#FEF9C3',
+      textMuted: '#D8B4FE',
+      accentColor: '#FDE047',
+    };
+  }
+  if (mood === 'auto' && config.themeId === 'legend-magma-volcanique') {
+    return {
+      outerBackground:
+        'radial-gradient(circle at 18% 16%, rgba(255,179,71,0.28), transparent 52%), radial-gradient(circle at 85% 84%, rgba(255,107,107,0.24), transparent 56%), linear-gradient(155deg, #210c07 0%, #160705 55%, #090302 100%)',
+      accentGlow: 'rgba(249,115,22,0.4)',
+      cardBackground: 'rgba(26, 10, 7, 0.94)',
+      cardBorder: 'rgba(249, 115, 22, 0.38)',
+      textPrimary: '#FFF3E6',
+      textMuted: '#FDBA74',
+      accentColor: '#FFB347',
+    };
+  }
   if (mood === 'gold-velvet') {
     return {
       outerBackground:

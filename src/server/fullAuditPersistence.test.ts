@@ -215,7 +215,10 @@ test('Audit Tests 1-8: Image, Video & Text QRs, metadata/S3 verification, access
       assert.equal(healthJson.status, 'alive');
 
       // Test 1: Create QR code containing an Image
-      const imageBytes = Buffer.from('FAKE_PNG_BINARY_HEADER_1234567890');
+      const imageBytes = Buffer.concat([
+        Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+        Buffer.from('AUDIT_PNG_BINARY_PAYLOAD_1234567890'),
+      ]);
       const uploadedImg = await uploadMedia(
         srv.baseUrl,
         wsId,
@@ -416,7 +419,10 @@ test('Audit Tests 9-11 & Render State Recovery: Manual deletion, S3 failure retr
         wsId,
         'manual-delete.png',
         'image/png',
-        Buffer.from('MANUAL_DELETE_IMAGE_DATA'),
+        Buffer.concat([
+          Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+          Buffer.from('MANUAL_DELETE_IMAGE_DATA'),
+        ]),
         'image'
       );
       const manualColRes = await fetch(`${srv.baseUrl}/api/media-collection`, {
@@ -450,7 +456,10 @@ test('Audit Tests 9-11 & Render State Recovery: Manual deletion, S3 failure retr
         wsId,
         'retry-outage.png',
         'image/png',
-        Buffer.from('RETRY_OUTAGE_PAYLOAD'),
+        Buffer.concat([
+          Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+          Buffer.from('RETRY_OUTAGE_PAYLOAD'),
+        ]),
         'image'
       );
       const dynRes = await fetch(`${srv.baseUrl}/api/dynamic`, {
@@ -508,7 +517,10 @@ test('Audit Tests 9-11 & Render State Recovery: Manual deletion, S3 failure retr
       // -------------------------------------------------------------------
       // Test 11: Shared media referenced by QR A and QR B
       // -------------------------------------------------------------------
-      const sharedBytes = Buffer.from('SHARED_HIGH_RES_IMAGE_99999');
+      const sharedBytes = Buffer.concat([
+        Buffer.from([0xff, 0xd8, 0xff, 0xe0]),
+        Buffer.from('SHARED_HIGH_RES_IMAGE_99999'),
+      ]);
       const sharedImg = await uploadMedia(
         srv.baseUrl,
         wsId,
@@ -647,7 +659,10 @@ test('Server Public Config (PUBLIC_APP_URL & RENDER_EXTERNAL_URL) and Halved 4-P
         wsId,
         'render-check.png',
         'image/png',
-        Buffer.from('PNG_DATA'),
+        Buffer.concat([
+          Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+          Buffer.from('PNG_DATA'),
+        ]),
         'image'
       );
       const mediaInfoRes = await fetch(`${srv.baseUrl}/api/media/${uploaded.id}`, {

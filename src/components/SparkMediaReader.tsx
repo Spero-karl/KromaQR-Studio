@@ -3,9 +3,11 @@ import {
   AlertCircle,
   ArrowLeft,
   ArrowRight,
+  Building2,
   Calendar,
   Check,
   Copy,
+  CreditCard,
   Download,
   ExternalLink,
   FileText,
@@ -16,13 +18,16 @@ import {
   Mail,
   MapPin,
   Maximize2,
+  MessageSquare,
   Minimize2,
   Moon,
   Music,
+  Navigation,
   Phone,
   RotateCw,
   ShieldCheck,
   Sun,
+  UserPlus,
   Wifi,
   X,
   ZoomIn,
@@ -629,7 +634,22 @@ export const SparkMediaReader: React.FC<SparkMediaReaderProps> = ({
 
   const hasDedicatedPageAction = isWebLink && !standalone;
   const showCopyInFooter =
-    category === 'text-free' || category === 'url' || category === 'mixed-collection';
+    category === 'text-free' ||
+    category === 'url' ||
+    category === 'tiktok' ||
+    category === 'instagram' ||
+    category === 'facebook' ||
+    category === 'telegram' ||
+    category === 'twitter' ||
+    category === 'mixed-collection' ||
+    category === 'vcard' ||
+    category === 'event' ||
+    category === 'email' ||
+    category === 'phone' ||
+    category === 'sms' ||
+    category === 'whatsapp' ||
+    category === 'geo' ||
+    category === 'payment';
 
   const showFooter =
     pinUnlocked && (showCopyInFooter || hasDedicatedPageAction);
@@ -1753,6 +1773,103 @@ export const SparkMediaReader: React.FC<SparkMediaReaderProps> = ({
                 </div>
               )}
 
+              {/* 8b. SOCIAL NETWORK CARD */}
+              {(category === 'tiktok' ||
+                category === 'instagram' ||
+                category === 'facebook' ||
+                category === 'telegram' ||
+                category === 'twitter') && (() => {
+                  const socialLabels: Record<
+                    'tiktok' | 'instagram' | 'facebook' | 'telegram' | 'twitter',
+                    string
+                  > = {
+                    tiktok: 'TikTok',
+                    instagram: 'Instagram',
+                    facebook: 'Facebook',
+                    telegram: 'Telegram',
+                    twitter: 'Twitter (X)',
+                  };
+                  const label = socialLabels[category];
+                  const rawHandle =
+                    category === 'tiktok'
+                      ? source.tiktokHandle
+                      : category === 'instagram'
+                      ? source.instagramHandle
+                      : category === 'facebook'
+                      ? source.facebookHandle
+                      : category === 'telegram'
+                      ? source.telegramHandle
+                      : source.twitterHandle;
+                  let handleDisplay = (rawHandle || '').trim();
+                  if (!handleDisplay && isWebLink) {
+                    try {
+                      const u = new URL(payload);
+                      const seg = u.pathname.split('/').filter(Boolean)[0] || '';
+                      if (seg) {
+                        handleDisplay =
+                          category === 'facebook' ? seg : `@${seg.replace(/^@/, '')}`;
+                      }
+                    } catch {
+                      // Keep empty
+                    }
+                  } else if (handleDisplay && category !== 'facebook' && !handleDisplay.startsWith('@')) {
+                    handleDisplay = `@${handleDisplay}`;
+                  }
+                  const safeExternalHref = /^https:\/\//i.test(payload) ? payload : undefined;
+
+                  return (
+                    <div
+                      data-testid={`reader-social-${category}`}
+                      className="rounded-xl p-4 sm:p-5 border space-y-3"
+                      style={{
+                        borderColor: tokens.borderColor,
+                        backgroundColor: tokens.surfaceElevated,
+                      }}
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2 text-xs font-semibold" style={{ color: tokens.accentColor }}>
+                          <Globe className="w-4 h-4 shrink-0" aria-hidden="true" />
+                          <span>Profil officiel · {label}</span>
+                        </div>
+                        {hostname && (
+                          <span className="text-[11px] font-mono" style={{ color: tokens.textMuted }}>
+                            {hostname}
+                          </span>
+                        )}
+                      </div>
+
+                      {handleDisplay && (
+                        <p className="text-base sm:text-lg font-bold break-all" style={{ color: tokens.textPrimary }}>
+                          {handleDisplay}
+                        </p>
+                      )}
+
+                      <p
+                        className="text-xs font-mono break-all select-all"
+                        style={{ color: tokens.textMuted }}
+                      >
+                        {payload}
+                      </p>
+
+                      {safeExternalHref && (
+                        <a
+                          href={safeExternalHref}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1.5 px-4 min-h-[42px] rounded-xl text-xs font-semibold transition-opacity hover:opacity-90"
+                          style={{
+                            backgroundColor: tokens.accentColor,
+                            color: tokens.accentContrastText,
+                          }}
+                        >
+                          <ExternalLink className="w-3.5 h-3.5" aria-hidden="true" />
+                          <span>Ouvrir sur {label}</span>
+                        </a>
+                      )}
+                    </div>
+                  );
+                })()}
+
               {/* 9. WI-FI CARD */}
               {category === 'wifi' && (
                 <div
@@ -1812,6 +1929,346 @@ export const SparkMediaReader: React.FC<SparkMediaReaderProps> = ({
                           </>
                         )}
                       </button>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* 10. VCARD CONTACT CARD */}
+              {category === 'vcard' && (
+                <div
+                  data-testid="reader-vcard-view"
+                  className="rounded-xl p-4 sm:p-5 border space-y-3"
+                  style={{
+                    borderColor: tokens.borderColor,
+                    backgroundColor: tokens.surfaceElevated,
+                  }}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-base sm:text-lg font-bold truncate" style={{ color: tokens.textPrimary }}>
+                        {[source.vcardFirstName, source.vcardLastName].filter(Boolean).join(' ') || 'Contact'}
+                      </p>
+                      {(source.vcardTitle || source.vcardOrg) && (
+                        <p className="text-xs font-semibold flex items-center gap-1.5 mt-0.5" style={{ color: tokens.accentColor }}>
+                          <Building2 className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
+                          <span>{[source.vcardTitle, source.vcardOrg].filter(Boolean).join(' · ')}</span>
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                    {source.vcardPhone && (
+                      <a
+                        href={`tel:${source.vcardPhone.replace(/\s+/g, '')}`}
+                        className="inline-flex items-center gap-1.5 hover:underline"
+                        style={{ color: tokens.textPrimary }}
+                      >
+                        <Phone className="w-3.5 h-3.5 shrink-0" style={{ color: tokens.accentColor }} aria-hidden="true" />
+                        <span>{source.vcardPhone}</span>
+                      </a>
+                    )}
+                    {source.vcardEmail && (
+                      <a
+                        href={`mailto:${source.vcardEmail}`}
+                        className="inline-flex items-center gap-1.5 hover:underline truncate"
+                        style={{ color: tokens.textPrimary }}
+                      >
+                        <Mail className="w-3.5 h-3.5 shrink-0" style={{ color: tokens.accentColor }} aria-hidden="true" />
+                        <span className="truncate">{source.vcardEmail}</span>
+                      </a>
+                    )}
+                    {source.vcardWebsite && (
+                      <a
+                        href={source.vcardWebsite}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1.5 hover:underline truncate"
+                        style={{ color: tokens.textPrimary }}
+                      >
+                        <Globe className="w-3.5 h-3.5 shrink-0" style={{ color: tokens.accentColor }} aria-hidden="true" />
+                        <span className="truncate">{source.vcardWebsite}</span>
+                      </a>
+                    )}
+                    {source.vcardAddress && (
+                      <span className="inline-flex items-center gap-1.5" style={{ color: tokens.textMuted }}>
+                        <MapPin className="w-3.5 h-3.5 shrink-0" style={{ color: tokens.accentColor }} aria-hidden="true" />
+                        <span>{source.vcardAddress}</span>
+                      </span>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const vcf = payload.startsWith('BEGIN:VCARD')
+                        ? payload
+                        : [
+                            'BEGIN:VCARD',
+                            'VERSION:3.0',
+                            `N:${source.vcardLastName || ''};${source.vcardFirstName || ''};;;`,
+                            `FN:${[source.vcardFirstName, source.vcardLastName].filter(Boolean).join(' ')}`,
+                            source.vcardOrg ? `ORG:${source.vcardOrg}` : '',
+                            source.vcardTitle ? `TITLE:${source.vcardTitle}` : '',
+                            source.vcardPhone ? `TEL:${source.vcardPhone}` : '',
+                            source.vcardEmail ? `EMAIL:${source.vcardEmail}` : '',
+                            source.vcardWebsite ? `URL:${source.vcardWebsite}` : '',
+                            'END:VCARD',
+                          ]
+                            .filter(Boolean)
+                            .join('\r\n');
+                      const blob = new Blob([vcf], { type: 'text/vcard;charset=utf-8' });
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement('a');
+                      a.href = url;
+                      a.download = 'contact-sparkqr.vcf';
+                      a.click();
+                      setTimeout(() => URL.revokeObjectURL(url), 1000);
+                    }}
+                    className="inline-flex items-center gap-1.5 px-4 min-h-[40px] rounded-xl text-xs font-semibold cursor-pointer transition-opacity hover:opacity-90"
+                    style={{
+                      backgroundColor: tokens.accentColor,
+                      color: tokens.accentContrastText,
+                    }}
+                  >
+                    <UserPlus className="w-3.5 h-3.5" aria-hidden="true" />
+                    <span>Enregistrer le contact (.vcf)</span>
+                  </button>
+                </div>
+              )}
+
+              {/* 11. CALENDAR EVENT CARD */}
+              {category === 'event' && (
+                <div
+                  data-testid="reader-event-view"
+                  className="rounded-xl p-4 sm:p-5 border space-y-3"
+                  style={{
+                    borderColor: tokens.borderColor,
+                    backgroundColor: tokens.surfaceElevated,
+                  }}
+                >
+                  <div className="space-y-1">
+                    <p className="text-base font-bold" style={{ color: tokens.textPrimary }}>
+                      {source.eventTitle || displayTitle}
+                    </p>
+                    <p className="text-xs font-semibold flex items-center gap-1.5" style={{ color: tokens.accentColor }}>
+                      <Calendar className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
+                      <span>
+                        {source.eventStart ? new Date(source.eventStart).toLocaleString('fr-FR') : ''}
+                        {source.eventEnd ? ` → ${new Date(source.eventEnd).toLocaleString('fr-FR')}` : ''}
+                      </span>
+                    </p>
+                    {source.eventLocation && (
+                      <p className="text-xs flex items-center gap-1.5" style={{ color: tokens.textMuted }}>
+                        <MapPin className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
+                        <span>{source.eventLocation}</span>
+                      </p>
+                    )}
+                    {source.eventDescription && (
+                      <p className="text-xs leading-relaxed pt-1" style={{ color: tokens.textPrimary }}>
+                        {source.eventDescription}
+                      </p>
+                    )}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const ics = payload.startsWith('BEGIN:VEVENT')
+                        ? `BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//SparkQR//FR\r\n${payload}\r\nEND:VCALENDAR`
+                        : payload;
+                      const blob = new Blob([ics], { type: 'text/calendar;charset=utf-8' });
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement('a');
+                      a.href = url;
+                      a.download = 'evenement-sparkqr.ics';
+                      a.click();
+                      setTimeout(() => URL.revokeObjectURL(url), 1000);
+                    }}
+                    className="inline-flex items-center gap-1.5 px-4 min-h-[40px] rounded-xl text-xs font-semibold cursor-pointer transition-opacity hover:opacity-90"
+                    style={{
+                      backgroundColor: tokens.accentColor,
+                      color: tokens.accentContrastText,
+                    }}
+                  >
+                    <Calendar className="w-3.5 h-3.5" aria-hidden="true" />
+                    <span>Ajouter au calendrier (.ics)</span>
+                  </button>
+                </div>
+              )}
+
+              {/* 12. EMAIL / PHONE / SMS / WHATSAPP DIRECT ACTIONS */}
+              {(category === 'email' ||
+                category === 'phone' ||
+                category === 'sms' ||
+                category === 'whatsapp') && (
+                <div
+                  data-testid={`reader-${category}-view`}
+                  className="rounded-xl p-4 sm:p-5 border space-y-3"
+                  style={{
+                    borderColor: tokens.borderColor,
+                    backgroundColor: tokens.surfaceElevated,
+                  }}
+                >
+                  <div className="flex items-center gap-2 text-xs font-semibold" style={{ color: tokens.accentColor }}>
+                    {category === 'email' && <Mail className="w-4 h-4 shrink-0" aria-hidden="true" />}
+                    {category === 'phone' && <Phone className="w-4 h-4 shrink-0" aria-hidden="true" />}
+                    {(category === 'sms' || category === 'whatsapp') && (
+                      <MessageSquare className="w-4 h-4 shrink-0" aria-hidden="true" />
+                    )}
+                    <span>
+                      {category === 'email'
+                        ? source.emailAddress
+                        : category === 'phone'
+                        ? source.phoneNumber
+                        : category === 'sms'
+                        ? source.smsPhone
+                        : source.whatsappPhone}
+                    </span>
+                  </div>
+                  {category === 'email' && source.emailSubject && (
+                    <p className="text-xs font-semibold" style={{ color: tokens.textPrimary }}>
+                      Objet : {source.emailSubject}
+                    </p>
+                  )}
+                  {(category === 'email'
+                    ? source.emailBody
+                    : category === 'sms'
+                    ? source.smsMessage
+                    : category === 'whatsapp'
+                    ? source.whatsappMessage
+                    : '') && (
+                    <p className="text-xs whitespace-pre-wrap leading-relaxed" style={{ color: tokens.textPrimary }}>
+                      {category === 'email'
+                        ? source.emailBody
+                        : category === 'sms'
+                        ? source.smsMessage
+                        : source.whatsappMessage}
+                    </p>
+                  )}
+                  <a
+                    href={payload}
+                    target={category === 'whatsapp' ? '_blank' : undefined}
+                    rel={category === 'whatsapp' ? 'noopener noreferrer' : undefined}
+                    className="inline-flex items-center gap-1.5 px-4 min-h-[40px] rounded-xl text-xs font-semibold transition-opacity hover:opacity-90"
+                    style={{
+                      backgroundColor: tokens.accentColor,
+                      color: tokens.accentContrastText,
+                    }}
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" aria-hidden="true" />
+                    <span>
+                      {category === 'email'
+                        ? 'Envoyer un e-mail'
+                        : category === 'phone'
+                        ? 'Appeler ce numéro'
+                        : category === 'sms'
+                        ? 'Envoyer le SMS'
+                        : 'Ouvrir WhatsApp'}
+                    </span>
+                  </a>
+                </div>
+              )}
+
+              {/* 13. GEOLOCATION GPS CARD */}
+              {category === 'geo' && (
+                <div
+                  data-testid="reader-geo-view"
+                  className="rounded-xl p-4 sm:p-5 border space-y-3"
+                  style={{
+                    borderColor: tokens.borderColor,
+                    backgroundColor: tokens.surfaceElevated,
+                  }}
+                >
+                  <div className="flex items-start gap-2.5">
+                    <MapPin className="w-5 h-5 shrink-0 mt-0.5" style={{ color: tokens.accentColor }} aria-hidden="true" />
+                    <div>
+                      {source.geoLabel && (
+                        <p className="text-sm font-bold" style={{ color: tokens.textPrimary }}>
+                          {source.geoLabel}
+                        </p>
+                      )}
+                      <p className="text-xs font-mono tabular-nums" style={{ color: tokens.textMuted }}>
+                        {source.geoLat}, {source.geoLng}
+                      </p>
+                    </div>
+                  </div>
+                  <a
+                    href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+                      `${source.geoLat},${source.geoLng}`
+                    )}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 px-4 min-h-[40px] rounded-xl text-xs font-semibold transition-opacity hover:opacity-90"
+                    style={{
+                      backgroundColor: tokens.accentColor,
+                      color: tokens.accentContrastText,
+                    }}
+                  >
+                    <Navigation className="w-3.5 h-3.5" aria-hidden="true" />
+                    <span>Ouvrir l’itinéraire</span>
+                  </a>
+                </div>
+              )}
+
+              {/* 14. PAYMENT CARD (SEPA EPC / LINK) */}
+              {category === 'payment' && (
+                <div
+                  data-testid="reader-payment-view"
+                  className="rounded-xl p-4 sm:p-5 border space-y-3"
+                  style={{
+                    borderColor: tokens.borderColor,
+                    backgroundColor: tokens.surfaceElevated,
+                  }}
+                >
+                  <div className="flex items-center gap-2 text-xs font-semibold" style={{ color: tokens.accentColor }}>
+                    <CreditCard className="w-4 h-4 shrink-0" aria-hidden="true" />
+                    <span>
+                      {source.paymentMode === 'link'
+                        ? 'Lien de paiement'
+                        : 'Virement SEPA (EPC)'}
+                    </span>
+                  </div>
+                  {source.paymentMode === 'link' ? (
+                    <div className="space-y-2.5">
+                      <p className="text-xs font-mono break-all" style={{ color: tokens.textPrimary }}>
+                        {source.paymentUrl || payload}
+                      </p>
+                      <a
+                        href={source.paymentUrl || payload}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1.5 px-4 min-h-[40px] rounded-xl text-xs font-semibold transition-opacity hover:opacity-90"
+                        style={{
+                          backgroundColor: tokens.accentColor,
+                          color: tokens.accentContrastText,
+                        }}
+                      >
+                        <ExternalLink className="w-3.5 h-3.5" aria-hidden="true" />
+                        <span>Accéder au paiement</span>
+                      </a>
+                    </div>
+                  ) : (
+                    <div className="space-y-1.5 text-xs">
+                      <p style={{ color: tokens.textPrimary }}>
+                        <strong>Bénéficiaire :</strong> {source.paymentName}
+                      </p>
+                      <p className="font-mono break-all" style={{ color: tokens.textPrimary }}>
+                        <strong>IBAN :</strong> {source.paymentIban}
+                      </p>
+                      {source.paymentBic && (
+                        <p className="font-mono" style={{ color: tokens.textMuted }}>
+                          <strong>BIC :</strong> {source.paymentBic}
+                        </p>
+                      )}
+                      {source.paymentAmount && (
+                        <p className="font-bold tabular-nums" style={{ color: tokens.accentColor }}>
+                          Montant : {source.paymentAmount} EUR
+                        </p>
+                      )}
+                      {source.paymentReference && (
+                        <p style={{ color: tokens.textMuted }}>
+                          Référence : {source.paymentReference}
+                        </p>
+                      )}
                     </div>
                   )}
                 </div>

@@ -1,6 +1,13 @@
 import { jsPDF } from 'jspdf';
-import type { ExportOptions } from '../types/qr';
+import type { ExportOptions, PostScanExperience, QrConfig, QrSourceState } from '../types/qr';
 import { decodeQrFromRgbaBuffer } from './qrImageDecoder';
+import {
+  createSparkQrAuthenticBundle,
+  embedOpticalSparkQrWatermark,
+  injectSparkQrChunkIntoPngBytes,
+  signSparkQrBundleViaServer,
+  type SparkQrAuthenticBundle,
+} from './sparkqrMark';
 
 async function inlineSvgImages(svgClone: SVGSVGElement): Promise<void> {
   const images = Array.from(svgClone.querySelectorAll('image'));
@@ -57,6 +64,23 @@ export interface SparkQrSvgMetadata {
   experience?: unknown;
 }
 
+async function resolveAuthenticBundle(
+  meta?: SparkQrSvgMetadata | SparkQrAuthenticBundle
+): Promise<SparkQrAuthenticBundle | null> {
+  if (!meta || !meta.payload || !meta.source || !meta.config) return null;
+  if ('format' in meta && meta.format === 'sparkqr-card-v1' && meta.localSeal) {
+    return meta;
+  }
+  const baseBundle = await createSparkQrAuthenticBundle({
+    name: meta.name,
+    payload: meta.payload,
+    source: meta.source as QrSourceState,
+    config: meta.config as QrConfig,
+    experience: meta.experience as PostScanExperience | undefined,
+  });
+  return signSparkQrBundleViaServer(baseBundle);
+}
+
 export async function serializeSvgForExport(
   svgEl: SVGSVGElement,
   options?: {
@@ -64,7 +88,7 @@ export async function serializeSvgForExport(
     height?: number;
     scope?: 'card' | 'qr-only';
     transparentBackground?: boolean;
-    sparkQrMetadata?: SparkQrSvgMetadata;
+    sparkQrMetadata?: SparkQrSvgMetadata | SparkQrAuthenticBundle;
   }
 ): Promise<string> {
   const scope = options?.scope ?? 'card';
@@ -89,9 +113,10 @@ export async function serializeSvgForExport(
 
   if (options?.sparkQrMetadata) {
     try {
+      const authenticBundle = await resolveAuthenticBundle(options.sparkQrMetadata);
       const metaEl = document.createElementNS('http://www.w3.org/2000/svg', 'metadata');
       metaEl.setAttribute('data-sparkqr-meta', '1');
-      metaEl.textContent = JSON.stringify(options.sparkQrMetadata);
+      metaEl.textContent = JSON.stringify(authenticBundle || options.sparkQrMetadata);
       clone.insertBefore(metaEl, clone.firstChild);
     } catch {
       // Non-blocking metadata attachment
@@ -124,13 +149,21 @@ export async function downloadQrSvg(
 export async function renderSvgToPngData(
   svgEl: SVGSVGElement,
   targetWidth = 1200,
-  options?: { scope?: 'card' | 'qr-only'; transparentBackground?: boolean }
+  options?: {
+    scope?: 'card' | 'qr-only';
+    transparentBackground?: boolean;
+    sparkQrMetadata?: SparkQrSvgMetadata;
+  }
 ): Promise<{ blob: Blob; dataUrl: string; width: number; height: number }> {
   const scope = options?.scope ?? 'card';
   const box = getSvgCropBox(svgEl, scope);
   const scale = targetWidth / box.width;
   const width = Math.round(box.width * scale);
   const height = Math.round(box.height * scale);
+
+  const authenticBundle = options?.sparkQrMetadata
+    ? await resolveAuthenticBundle(options.sparkQrMetadata)
+    : null;
 
   const svgString = await serializeSvgForExport(svgEl, {
     width,
@@ -159,8 +192,18 @@ export async function renderSvgToPngData(
     ctx.clearRect(0, 0, width, height);
     ctx.drawImage(img, 0, 0, width, height);
 
+    if (authenticBundle && !options?.transparentBackground) {
+      try {
+        const imgData = ctx.getImageData(0, 0, width, height);
+        embedOpticalSparkQrWatermark(imgData.data, width, height, authenticBundle.fingerprint);
+        ctx.putImageData(imgData, 0, 0);
+      } catch {
+        // Non-blocking optical watermark fallback
+      }
+    }
+
     const dataUrl = canvas.toDataURL('image/png', 1.0);
-    const pngBlob = await new Promise<Blob>((resolve, reject) => {
+    const rawPngBlob = await new Promise<Blob>((resolve, reject) => {
       canvas.toBlob(
         (blob) => {
           if (blob) resolve(blob);
@@ -170,7 +213,19 @@ export async function renderSvgToPngData(
         1.0
       );
     });
-    return { blob: pngBlob, dataUrl, width, height };
+
+    let finalBlob = rawPngBlob;
+    if (authenticBundle) {
+      try {
+        const bytes = new Uint8Array(await rawPngBlob.arrayBuffer());
+        const markedBytes = injectSparkQrChunkIntoPngBytes(bytes, authenticBundle);
+        finalBlob = new Blob([markedBytes.slice()], { type: 'image/png' });
+      } catch {
+        finalBlob = rawPngBlob;
+      }
+    }
+
+    return { blob: finalBlob, dataUrl, width, height };
   } finally {
     URL.revokeObjectURL(url);
   }
@@ -179,7 +234,11 @@ export async function renderSvgToPngData(
 export async function renderSvgToPngBlob(
   svgEl: SVGSVGElement,
   targetWidth = 1200,
-  options?: { scope?: 'card' | 'qr-only'; transparentBackground?: boolean }
+  options?: {
+    scope?: 'card' | 'qr-only';
+    transparentBackground?: boolean;
+    sparkQrMetadata?: SparkQrSvgMetadata;
+  }
 ): Promise<Blob> {
   const res = await renderSvgToPngData(svgEl, targetWidth, options);
   return res.blob;
@@ -188,11 +247,17 @@ export async function renderSvgToPngBlob(
 export async function downloadQrPng(
   svgEl: SVGSVGElement,
   filename = 'sparkqr-code.png',
-  options?: { width?: number; scope?: 'card' | 'qr-only'; transparentBackground?: boolean }
+  options?: {
+    width?: number;
+    scope?: 'card' | 'qr-only';
+    transparentBackground?: boolean;
+    sparkQrMetadata?: SparkQrSvgMetadata;
+  }
 ): Promise<void> {
   const blob = await renderSvgToPngBlob(svgEl, options?.width ?? 1200, {
     scope: options?.scope,
     transparentBackground: options?.transparentBackground,
+    sparkQrMetadata: options?.sparkQrMetadata,
   });
   const url = URL.createObjectURL(blob);
   triggerDownload(url, filename);
@@ -274,6 +339,7 @@ export async function executeProExport(
     width: options.width,
     scope: options.scope,
     transparentBackground: options.transparentBackground,
+    sparkQrMetadata,
   });
 }
 
@@ -341,8 +407,11 @@ export async function verifySvgQrScannable(
   return { decoded: crispDecoded ?? qrOnlyDecoded ?? cardDecoded, matches: false };
 }
 
-export async function copyQrPngToClipboard(svgEl: SVGSVGElement): Promise<void> {
-  const blob = await renderSvgToPngBlob(svgEl, 1000);
+export async function copyQrPngToClipboard(
+  svgEl: SVGSVGElement,
+  sparkQrMetadata?: SparkQrSvgMetadata
+): Promise<void> {
+  const blob = await renderSvgToPngBlob(svgEl, 1000, { sparkQrMetadata });
   if (typeof ClipboardItem === 'undefined' || !navigator.clipboard?.write) {
     throw new Error('La copie d’image dans le presse-papier n’est pas supportée par ce navigateur.');
   }

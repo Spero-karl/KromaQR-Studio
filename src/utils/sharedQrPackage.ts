@@ -72,6 +72,211 @@ export function buildSourceFromPlainPayload(rawPayload: string): QrSourceState {
       useSourceImageAsLogo: false,
     };
   }
+  if (/^BEGIN:VCARD/i.test(trimmed)) {
+    const fn = trimmed.match(/FN:([^\r\n]+)/i)?.[1]?.trim() || '';
+    const nLine = trimmed.match(/\nN:([^\r\n]+)/i)?.[1] || '';
+    const [last = '', first = ''] = nLine.split(';');
+    const org = trimmed.match(/ORG:([^\r\n]+)/i)?.[1]?.trim() || '';
+    const title = trimmed.match(/TITLE:([^\r\n]+)/i)?.[1]?.trim() || '';
+    const tel = trimmed.match(/TEL[^:]*:([^\r\n]+)/i)?.[1]?.trim() || '';
+    const email = trimmed.match(/EMAIL[^:]*:([^\r\n]+)/i)?.[1]?.trim() || '';
+    const url = trimmed.match(/URL[^:]*:([^\r\n]+)/i)?.[1]?.trim() || '';
+    return {
+      ...DEFAULT_SOURCE,
+      type: 'text',
+      textMode: 'vcard',
+      vcardFirstName: first.trim() || fn.split(' ')[0] || '',
+      vcardLastName: last.trim() || fn.split(' ').slice(1).join(' ') || '',
+      vcardOrg: org,
+      vcardTitle: title,
+      vcardPhone: tel,
+      vcardEmail: email,
+      vcardWebsite: url,
+      useSourceImageAsLogo: false,
+    };
+  }
+  if (/^BEGIN:VCALENDAR/i.test(trimmed)) {
+    const summary = trimmed.match(/SUMMARY:([^\r\n]+)/i)?.[1]?.trim() || '';
+    const location = trimmed.match(/LOCATION:([^\r\n]+)/i)?.[1]?.trim() || '';
+    const description = trimmed.match(/DESCRIPTION:([^\r\n]+)/i)?.[1]?.replace(/\\n/g, '\n').trim() || '';
+    const dtStart = trimmed.match(/DTSTART[^:]*:([^\r\n]+)/i)?.[1]?.trim() || '';
+    const dtEnd = trimmed.match(/DTEND[^:]*:([^\r\n]+)/i)?.[1]?.trim() || '';
+    return {
+      ...DEFAULT_SOURCE,
+      type: 'text',
+      textMode: 'event',
+      eventTitle: summary,
+      eventStart: dtStart,
+      eventEnd: dtEnd,
+      eventLocation: location,
+      eventDescription: description,
+      useSourceImageAsLogo: false,
+    };
+  }
+  if (/^mailto:/i.test(trimmed)) {
+    const withoutScheme = trimmed.slice(7);
+    const [addr, qs] = withoutScheme.split('?');
+    const params = new URLSearchParams(qs || '');
+    return {
+      ...DEFAULT_SOURCE,
+      type: 'text',
+      textMode: 'email',
+      emailAddress: decodeURIComponent(addr || ''),
+      emailSubject: params.get('subject') || '',
+      emailBody: params.get('body') || '',
+      useSourceImageAsLogo: false,
+    };
+  }
+  if (/^tel:/i.test(trimmed)) {
+    return {
+      ...DEFAULT_SOURCE,
+      type: 'text',
+      textMode: 'phone',
+      phoneNumber: trimmed.slice(4).trim(),
+      useSourceImageAsLogo: false,
+    };
+  }
+  if (/^sms:/i.test(trimmed)) {
+    const withoutScheme = trimmed.slice(4);
+    const [phone, qs] = withoutScheme.split('?');
+    const params = new URLSearchParams(qs || '');
+    return {
+      ...DEFAULT_SOURCE,
+      type: 'text',
+      textMode: 'sms',
+      smsPhone: phone || '',
+      smsMessage: params.get('body') || '',
+      useSourceImageAsLogo: false,
+    };
+  }
+  if (/^https:\/\/(?:www\.)?tiktok\.com\/@/i.test(trimmed)) {
+    try {
+      const u = new URL(trimmed);
+      const handle = u.pathname.split('/').filter(Boolean)[0]?.replace(/^@/, '') || '';
+      if (handle) {
+        return {
+          ...DEFAULT_SOURCE,
+          type: 'text',
+          textMode: 'tiktok',
+          tiktokHandle: `@${handle}`,
+          useSourceImageAsLogo: false,
+        };
+      }
+    } catch {
+      // Fall through to URL
+    }
+  }
+  if (/^https:\/\/(?:www\.)?instagram\.com\//i.test(trimmed)) {
+    try {
+      const u = new URL(trimmed);
+      const handle = u.pathname.split('/').filter(Boolean)[0]?.replace(/^@/, '') || '';
+      if (handle) {
+        return {
+          ...DEFAULT_SOURCE,
+          type: 'text',
+          textMode: 'instagram',
+          instagramHandle: `@${handle}`,
+          useSourceImageAsLogo: false,
+        };
+      }
+    } catch {
+      // Fall through to URL
+    }
+  }
+  if (/^https:\/\/(?:www\.)?(?:facebook|fb)\.com\//i.test(trimmed)) {
+    try {
+      const u = new URL(trimmed);
+      const handle = u.pathname.split('/').filter(Boolean)[0] || '';
+      if (handle) {
+        return {
+          ...DEFAULT_SOURCE,
+          type: 'text',
+          textMode: 'facebook',
+          facebookHandle: handle,
+          useSourceImageAsLogo: false,
+        };
+      }
+    } catch {
+      // Fall through to URL
+    }
+  }
+  if (/^https:\/\/(?:www\.)?(?:t\.me|telegram\.me)\//i.test(trimmed)) {
+    try {
+      const u = new URL(trimmed);
+      const handle = u.pathname.split('/').filter(Boolean)[0]?.replace(/^@/, '') || '';
+      if (handle) {
+        return {
+          ...DEFAULT_SOURCE,
+          type: 'text',
+          textMode: 'telegram',
+          telegramHandle: `@${handle}`,
+          useSourceImageAsLogo: false,
+        };
+      }
+    } catch {
+      // Fall through to URL
+    }
+  }
+  if (/^https:\/\/(?:www\.)?(?:x\.com|twitter\.com)\//i.test(trimmed)) {
+    try {
+      const u = new URL(trimmed);
+      const handle = u.pathname.split('/').filter(Boolean)[0]?.replace(/^@/, '') || '';
+      if (handle) {
+        return {
+          ...DEFAULT_SOURCE,
+          type: 'text',
+          textMode: 'twitter',
+          twitterHandle: `@${handle}`,
+          useSourceImageAsLogo: false,
+        };
+      }
+    } catch {
+      // Fall through to URL
+    }
+  }
+  if (/^https:\/\/wa\.me\//i.test(trimmed)) {
+    try {
+      const u = new URL(trimmed);
+      return {
+        ...DEFAULT_SOURCE,
+        type: 'text',
+        textMode: 'whatsapp',
+        whatsappPhone: u.pathname.replace(/\//g, ''),
+        whatsappMessage: u.searchParams.get('text') || '',
+        useSourceImageAsLogo: false,
+      };
+    } catch {
+      // Fall through to URL
+    }
+  }
+  if (/^geo:/i.test(trimmed)) {
+    const coords = trimmed.slice(4).split('?')[0].split(',');
+    const qMatch = trimmed.match(/\(([^)]+)\)/);
+    return {
+      ...DEFAULT_SOURCE,
+      type: 'text',
+      textMode: 'geo',
+      geoLat: coords[0] || '',
+      geoLng: coords[1] || '',
+      geoLabel: qMatch?.[1] ? decodeURIComponent(qMatch[1]) : '',
+      useSourceImageAsLogo: false,
+    };
+  }
+  if (/^BCD\r?\n002\r?\n1\r?\nSCT/i.test(trimmed)) {
+    const lines = trimmed.split(/\r?\n/);
+    return {
+      ...DEFAULT_SOURCE,
+      type: 'text',
+      textMode: 'payment',
+      paymentMode: 'sepa',
+      paymentBic: lines[4] || '',
+      paymentName: lines[5] || '',
+      paymentIban: lines[6] || '',
+      paymentAmount: (lines[7] || '').replace(/^EUR/i, ''),
+      paymentReference: lines[9] || '',
+      useSourceImageAsLogo: false,
+    };
+  }
   if (/^https?:\/\//i.test(trimmed)) {
     return {
       ...DEFAULT_SOURCE,
@@ -154,20 +359,32 @@ export function encodeSparkQrJsonFile(item: {
 
 function sanitizeParsedPackage(
   raw: Record<string, unknown>,
-  fallbackTitle?: string
+  fallbackTitle?: string,
+  forceCategory?: ProjectCategory
 ): { ok: true; item: SavedQrItem; originKind: 'sparkqr-package' | 'raw-qr' } | { ok: false; error: string } {
   const payload = typeof raw.payload === 'string' ? raw.payload.trim() : '';
   if (!payload) {
     return { ok: false, error: 'Le contenu du QR code reçu est vide.' };
   }
   if (isUnsafePayloadString(payload)) {
-    return { ok: false, error: 'Contenu non sécurisé refusé.' };
+    return { ok: false, error: 'Contenu non conforme refusé.' };
   }
 
   const rawCfg =
     raw.config && typeof raw.config === 'object'
-      ? (raw.config as Partial<QrConfig>)
+      ? ({ ...(raw.config as Partial<QrConfig>) })
       : {};
+  const legacyThemeMap: Record<string, string> = {
+    'gta-vice-city': 'vice-city-neon',
+    'gta-los-santos': 'los-santos-prestige',
+    'enterprise-executive': 'meridien-ardoise',
+    'enterprise-banque-privee': 'foret-laiton',
+    'enterprise-corporate-cobalt': 'atelier-alpin',
+    'enterprise-summit': 'verre-glassmorph',
+  };
+  if (rawCfg.themeId && legacyThemeMap[rawCfg.themeId]) {
+    rawCfg.themeId = legacyThemeMap[rawCfg.themeId];
+  }
   let mergedCfg = normalizeConfigWithDefaults(rawCfg, DEFAULT_CONFIG);
   if (rawCfg.themeId && rawCfg.themeId !== 'custom') {
     const preset = THEME_PRESETS.find((t) => t.id === rawCfg.themeId);
@@ -191,16 +408,26 @@ function sanitizeParsedPackage(
       ? ({ ...DEFAULT_EXPERIENCE, ...(raw.experience as Partial<PostScanExperience>) })
       : undefined;
 
-  const validCats: ProjectCategory[] = ['Personnel', 'Professionnel', 'Événement', 'Média', 'Privé'];
-  const cat = validCats.includes(raw.category as ProjectCategory)
-    ? (raw.category as ProjectCategory)
-    : 'Personnel';
+  const validCats: ProjectCategory[] = [
+    'Personnel',
+    'Professionnel',
+    'Événement',
+    'Média',
+    'Privé',
+    'Importé',
+  ];
+  const cat =
+    forceCategory ||
+    (validCats.includes(raw.category as ProjectCategory)
+      ? (raw.category as ProjectCategory)
+      : 'Personnel');
 
+  const formatNeutral = describeQrPayloadFormat(payload);
   const title =
     (typeof raw.name === 'string' && raw.name.trim()) ||
     (mergedCfg.titleText && mergedCfg.titleText !== 'Mon Code QR' ? mergedCfg.titleText : '') ||
     fallbackTitle ||
-    'QR reçu';
+    `Code QR · ${formatNeutral}`;
 
   const nowIso = new Date().toISOString();
   const item: SavedQrItem = {
@@ -244,7 +471,13 @@ export function isValidQrPayloadFormat(raw: string): boolean {
   if (/^sms:[+0-9().\-\s]{5,}/i.test(trimmed)) {
     return true;
   }
+  if (/^BEGIN:VCALENDAR[\s\S]+END:VCALENDAR$/i.test(trimmed)) {
+    return true;
+  }
   if (/^BEGIN:VCARD[\s\S]+END:VCARD$/i.test(trimmed)) {
+    return true;
+  }
+  if (/^BCD\r?\n002\r?\n1\r?\nSCT/i.test(trimmed)) {
     return true;
   }
   if (/^MATMSG:TO:[^;]+;/i.test(trimmed)) {
@@ -260,9 +493,17 @@ export function describeQrPayloadFormat(raw: string): string {
   const trimmed = (raw || '').trim();
   if (/^WIFI:/i.test(trimmed)) return 'Wi-Fi';
   if (/^BEGIN:VCARD/i.test(trimmed)) return 'Contact vCard';
+  if (/^BEGIN:VCALENDAR/i.test(trimmed)) return 'Événement iCal';
+  if (/^BCD\r?\n002\r?\n1\r?\nSCT/i.test(trimmed)) return 'Virement SEPA';
   if (/^mailto:/i.test(trimmed)) return 'E-mail';
   if (/^tel:/i.test(trimmed)) return 'Téléphone';
   if (/^sms:/i.test(trimmed)) return 'SMS';
+  if (/^https:\/\/(?:www\.)?tiktok\.com\//i.test(trimmed)) return 'TikTok';
+  if (/^https:\/\/(?:www\.)?instagram\.com\//i.test(trimmed)) return 'Instagram';
+  if (/^https:\/\/(?:www\.)?(?:facebook|fb)\.com\//i.test(trimmed)) return 'Facebook';
+  if (/^https:\/\/(?:www\.)?(?:t\.me|telegram\.me)\//i.test(trimmed)) return 'Telegram';
+  if (/^https:\/\/(?:www\.)?(?:x\.com|twitter\.com)\//i.test(trimmed)) return 'Twitter (X)';
+  if (/^https:\/\/wa\.me\//i.test(trimmed)) return 'WhatsApp';
   if (/^geo:/i.test(trimmed)) return 'Position GPS';
   if (/^MATMSG:/i.test(trimmed)) return 'E-mail';
   if (/^https?:\/\//i.test(trimmed)) return 'Lien web';
@@ -301,17 +542,22 @@ export function extractSparkQrReaderEndpoint(
 
 export function parseReceivedQrInput(
   rawInput: string,
-  options?: { fallbackTitle?: string; laserEnabled?: boolean; fromDecodedImage?: boolean }
+  options?: {
+    fallbackTitle?: string;
+    laserEnabled?: boolean;
+    fromDecodedImage?: boolean;
+    forceCategory?: ProjectCategory;
+  }
 ): { ok: true; item: SavedQrItem; originKind: 'sparkqr-package' | 'raw-qr' } | { ok: false; error: string } {
   const trimmed = (rawInput || '').trim();
   if (!trimmed) {
     return {
       ok: false,
-      error: 'Importez une image contenant un QR code ou collez un lien QR valide.',
+      error: 'Importez une image contenant un QR code généré par SparkQR.',
     };
   }
   if (isUnsafePayloadString(trimmed)) {
-    return { ok: false, error: 'Contenu non sécurisé refusé.' };
+    return { ok: false, error: 'Contenu non conforme refusé.' };
   }
 
   // 1. Check SparkQR shared wrapper (directly or inside ?sq= / #sq= param)
@@ -332,7 +578,7 @@ export function parseReceivedQrInput(
     try {
       const jsonText = base64UrlToUtf8(token);
       const parsed = JSON.parse(jsonText) as Record<string, unknown>;
-      return sanitizeParsedPackage(parsed, options?.fallbackTitle);
+      return sanitizeParsedPackage(parsed, options?.fallbackTitle, options?.forceCategory);
     } catch {
       return { ok: false, error: 'Ce code partagé est invalide ou incomplet.' };
     }
@@ -343,7 +589,7 @@ export function parseReceivedQrInput(
     try {
       const parsed = JSON.parse(trimmed) as Record<string, unknown>;
       if (typeof parsed.payload === 'string') {
-        return sanitizeParsedPackage(parsed, options?.fallbackTitle);
+        return sanitizeParsedPackage(parsed, options?.fallbackTitle, options?.forceCategory);
       }
       return { ok: false, error: 'Ce fichier ne contient aucun QR code exploitable.' };
     } catch {
@@ -355,47 +601,26 @@ export function parseReceivedQrInput(
   if (!options?.fromDecodedImage && !isValidQrPayloadFormat(trimmed)) {
     return {
       ok: false,
-      error: 'Texte non reconnu comme un QR code valide. Collez un lien (https://…), un code Wi-Fi ou importez directement l’image du QR code.',
+      error: 'Format non reconnu. Importez directement une image de QR code générée par SparkQR.',
     };
   }
 
   const source = buildSourceFromPlainPayload(trimmed);
-  let derivedTitle = options?.fallbackTitle || '';
-  if (!derivedTitle) {
-    if (source.textMode === 'url') {
-      try {
-        derivedTitle = new URL(trimmed).hostname.replace(/^www\./, '');
-      } catch {
-        derivedTitle = 'Lien QR';
-      }
-    } else if (source.textMode === 'wifi') {
-      derivedTitle = `Wi-Fi ${source.wifiSsid}`;
-    } else if (/^BEGIN:VCARD/i.test(trimmed)) {
-      const fnMatch = trimmed.match(/(?:FN|N):([^\r\n;]+)/i);
-      derivedTitle = fnMatch?.[1]?.trim() || 'Contact vCard';
-    } else if (/^mailto:/i.test(trimmed)) {
-      derivedTitle = trimmed.replace(/^mailto:/i, '').split('?')[0].slice(0, 38) || 'E-mail';
-    } else if (/^tel:/i.test(trimmed)) {
-      derivedTitle = trimmed.replace(/^tel:/i, '').slice(0, 28) || 'Téléphone';
-    } else if (/^geo:/i.test(trimmed)) {
-      derivedTitle = 'Position GPS';
-    } else {
-      derivedTitle = trimmed.slice(0, 34);
-    }
-  }
+  const neutralFormatLabel = describeQrPayloadFormat(trimmed);
+  const derivedTitle = options?.fallbackTitle || `Code QR · ${neutralFormatLabel}`;
 
   const nowIso = new Date().toISOString();
   const item: SavedQrItem = {
     id: `imported-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
-    name: derivedTitle || 'QR importé',
-    category: 'Personnel',
+    name: derivedTitle,
+    category: options?.forceCategory || 'Personnel',
     createdAt: nowIso,
     updatedAt: nowIso,
     payload: trimmed,
     source,
     config: {
       ...DEFAULT_CONFIG,
-      titleText: derivedTitle || 'Mon Code QR',
+      titleText: 'Mon Code QR',
       subtitleText: 'Scannez pour découvrir',
       laserEnabled: options?.laserEnabled ?? true,
     },
@@ -404,4 +629,45 @@ export function parseReceivedQrInput(
   };
 
   return { ok: true, item, originKind: 'raw-qr' };
+}
+
+/**
+ * Strictly validates and restores a QR image generated by SparkQR into category 'Importé'
+ * preserving every generated attribute (style, fonts, colors, laser, energy waves, source, experience).
+ */
+export function buildImportedSparkQrItem(params: {
+  decodedPayload: string;
+  sparkQrAuthentic?: boolean;
+  sparkQrMetadata?: Record<string, unknown> | null;
+  sparkQrRejectReason?: string;
+  fallbackTitle?: string;
+}): { ok: true; item: SavedQrItem } | { ok: false; error: string } {
+  if (!params.sparkQrAuthentic || !params.sparkQrMetadata) {
+    return {
+      ok: false,
+      error:
+        params.sparkQrRejectReason ||
+        'Ce code QR n’a pas été généré par SparkQR. Seules les images QR créées sur SparkQR sont acceptées.',
+    };
+  }
+
+  const restored = sanitizeParsedPackage(
+    {
+      ...params.sparkQrMetadata,
+      payload: params.decodedPayload,
+    },
+    params.fallbackTitle,
+    'Importé'
+  );
+  if (!restored.ok) {
+    return restored;
+  }
+
+  return {
+    ok: true,
+    item: {
+      ...restored.item,
+      category: 'Importé',
+    },
+  };
 }

@@ -18,6 +18,7 @@ import {
   Monitor,
   Plus,
   QrCode,
+  Radio,
   RefreshCw,
   ScanLine,
   Search,
@@ -51,20 +52,20 @@ import { decryptJsonWithKey, isValidE2eeEnvelope } from '../utils/e2eeCrypto';
 import { normalizeConfigWithDefaults } from '../utils/historyReducer';
 import { resolveMediaDownloadUrl } from '../utils/mediaReaderLogic';
 import { relativeLuminance } from '../utils/qrLogic';
-import { decodeQrImageFile, type DecodedQrImageResult } from '../utils/qrImageDecoder';
+import { decodeQrImageFile } from '../utils/qrImageDecoder';
 import { summarizeDynamicScanStats } from '../utils/scanStatsSummary';
 import {
   describeSavedQrAccessibility,
   formatRemainingDuration,
 } from '../utils/serverAvailability';
 import {
+  buildImportedSparkQrItem,
   describeQrPayloadFormat,
   encodeSparkQrJsonFile,
   encodeSparkQrSharePackage,
   extractSparkQrReaderEndpoint,
-  isUnsafePayloadString,
-  parseReceivedQrInput,
 } from '../utils/sharedQrPackage';
+import { LegendEnergyWaveOverlay } from './LegendEnergyWaveOverlay';
 import { QrCanvasRenderer } from './QrCanvasRenderer';
 
 function formatBytes(size: number): string {
@@ -120,6 +121,47 @@ function getLaserAccentColor(config: QrConfig): string {
     return config.foregroundSecondaryColor;
   }
   return '#2563EB';
+}
+
+function getSourceDisplayLabel(source: QrSourceState): string {
+  if (source.type === 'image') return 'Image';
+  if (source.type === 'video') return 'Vidéo';
+  if (source.type === 'document') return 'Document';
+  if (source.type === 'audio') return 'Audio';
+  switch (source.textMode) {
+    case 'wifi':
+      return 'Wi-Fi';
+    case 'url':
+      return 'Lien web';
+    case 'vcard':
+      return 'Contact vCard';
+    case 'event':
+      return 'Événement';
+    case 'email':
+      return 'E-mail';
+    case 'phone':
+      return 'Téléphone';
+    case 'sms':
+      return 'SMS';
+    case 'whatsapp':
+      return 'WhatsApp';
+    case 'tiktok':
+      return 'TikTok';
+    case 'instagram':
+      return 'Instagram';
+    case 'facebook':
+      return 'Facebook';
+    case 'telegram':
+      return 'Telegram';
+    case 'twitter':
+      return 'Twitter (X)';
+    case 'geo':
+      return 'Position GPS';
+    case 'payment':
+      return 'Paiement';
+    default:
+      return 'Texte';
+  }
 }
 
 interface HistoryGalleryProps {
@@ -187,25 +229,26 @@ export const HistoryGallery: React.FC<HistoryGalleryProps> = ({
   const [savingDynamic, setSavingDynamic] = useState(false);
   const [dynamicError, setDynamicError] = useState<string | null>(null);
 
-  // Saved QR Viewer Modal (with laser animation)
+  // Saved QR Viewer Modal (with laser & energy wave animations)
   const [viewerItem, setViewerItem] = useState<SavedQrItem | null>(null);
   const [viewerLaserActive, setViewerLaserActive] = useState(true);
+  const [viewerEnergyWaveActive, setViewerEnergyWaveActive] = useState(false);
   const [viewerCopiedShare, setViewerCopiedShare] = useState(false);
 
-  // Import Received QR Modal (with live preview & laser animation)
+  // Import Received QR Modal (SparkQR-signed QR images only -> category 'Importé')
   const [importModalOpen, setImportModalOpen] = useState(false);
   const [importDragActive, setImportDragActive] = useState(false);
-  const [importRawInput, setImportRawInput] = useState('');
   const [importParsed, setImportParsed] = useState<{
     name: string;
     payload: string;
     source: QrSourceState;
     config: QrConfig;
     experience: SavedQrItem['experience'];
-    category: ProjectCategory;
+    category: 'Importé';
     laserEnabled: boolean;
-    recognitionKind: 'sparkqr-custom' | 'classic-qr';
+    energyWaveEnabled: boolean;
     formatLabel: string;
+    fingerprint?: string;
   } | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
   const [importBusy, setImportBusy] = useState(false);
@@ -215,12 +258,12 @@ export const HistoryGallery: React.FC<HistoryGalleryProps> = ({
   const openViewerForSavedItem = (item: SavedQrItem) => {
     setViewerItem(item);
     setViewerLaserActive(item.config.laserEnabled !== false);
+    setViewerEnergyWaveActive(Boolean(item.config.energyWaveEnabled));
     setViewerCopiedShare(false);
   };
 
   const openImportModal = () => {
     importSeqRef.current += 1;
-    setImportRawInput('');
     setImportParsed(null);
     setImportError(null);
     setImportBusy(false);
@@ -228,226 +271,165 @@ export const HistoryGallery: React.FC<HistoryGalleryProps> = ({
     setImportModalOpen(true);
   };
 
-  const applyParsedInput = async (
-    raw: string,
-    opts?: {
-      fromDecodedImage?: boolean;
-      decodedResult?: DecodedQrImageResult;
-    }
-  ) => {
+  const handleImportFileChange = async (file: File) => {
     const seq = ++importSeqRef.current;
-    setImportRawInput(raw);
-    if (!raw.trim()) {
-      setImportParsed(null);
-      setImportError(null);
-      return;
-    }
-
-    const parsed = parseReceivedQrInput(raw, {
-      fromDecodedImage: opts?.fromDecodedImage,
-    });
-    if (!parsed.ok) {
-      setImportParsed(null);
-      setImportError(
-        isUnsafePayloadString(raw)
-          ? 'Ce contenu contient un protocole non sécurisé et ne peut pas être importé.'
-          : parsed.error
-      );
-      return;
-    }
-
+    setImportBusy(true);
     setImportError(null);
-    let nextName = parsed.item.name;
-    let nextPayload = parsed.item.payload;
-    let nextSource = parsed.item.source;
-    let nextConfig = parsed.item.config;
-    let nextExperience = parsed.item.experience ?? DEFAULT_EXPERIENCE;
-    const nextCategory = parsed.item.category || 'Personnel';
-    let recognitionKind: 'sparkqr-custom' | 'classic-qr' =
-      parsed.originKind === 'sparkqr-package' ? 'sparkqr-custom' : 'classic-qr';
+    setImportParsed(null);
+    try {
+      const decodedResult = await decodeQrImageFile(file);
+      if (seq !== importSeqRef.current) return;
 
-    const svgMeta = opts?.decodedResult?.sparkQrMetadata;
-    if (svgMeta) {
-      recognitionKind = 'sparkqr-custom';
-      if (svgMeta.config && typeof svgMeta.config === 'object') {
-        nextConfig = normalizeConfigWithDefaults(
-          svgMeta.config as Partial<QrConfig>,
-          DEFAULT_CONFIG
-        );
+      const built = buildImportedSparkQrItem({
+        decodedPayload: decodedResult.payload,
+        sparkQrAuthentic: decodedResult.sparkQrAuthentic,
+        sparkQrMetadata: decodedResult.sparkQrMetadata,
+        sparkQrRejectReason: decodedResult.sparkQrRejectReason,
+      });
+
+      if (!built.ok) {
+        setImportError(built.error);
+        return;
       }
-      if (svgMeta.source && typeof svgMeta.source === 'object') {
-        nextSource = {
-          ...DEFAULT_SOURCE,
-          ...(svgMeta.source as Partial<QrSourceState>),
-          useSourceImageAsLogo: false,
-        };
-      }
-      if (typeof svgMeta.title === 'string' && svgMeta.title.trim()) {
-        nextName = svgMeta.title.trim();
-      }
-    }
 
-    const endpointInfo = extractSparkQrReaderEndpoint(parsed.item.payload);
-    if (endpointInfo) {
-      recognitionKind = 'sparkqr-custom';
-      setImportBusy(true);
-      try {
-        const apiUrl =
-          endpointInfo.kind === 'media'
-            ? `/api/reader/media/${encodeURIComponent(endpointInfo.id)}`
-            : `/api/reader/dynamic/${encodeURIComponent(endpointInfo.id)}`;
-        const res = await fetch(apiUrl);
-        if (res.ok) {
-          const body = (await res.json()) as {
-            config?: Partial<QrConfig>;
-            cardTheme?: Partial<QrConfig>;
-            source?: Partial<QrSourceState>;
-            experience?: Partial<PostScanExperience>;
-            mediaType?: string;
-            title?: string;
-            payload?: string;
-            isEncrypted?: boolean;
-            encryptedMeta?: unknown;
-            locked?: boolean;
-          };
+      let nextName = built.item.name;
+      const nextPayload = built.item.payload;
+      let nextSource = built.item.source;
+      let nextConfig = built.item.config;
+      let nextExperience = built.item.experience ?? DEFAULT_EXPERIENCE;
 
-          if (seq !== importSeqRef.current) return;
-
-          if (body.config) {
-            nextConfig = normalizeConfigWithDefaults(body.config, DEFAULT_CONFIG);
-          } else if (body.cardTheme) {
-            nextConfig = normalizeConfigWithDefaults(body.cardTheme, DEFAULT_CONFIG);
-          }
-
-          if (body.source) {
-            nextSource = {
-              ...DEFAULT_SOURCE,
-              ...body.source,
-              imageName: '',
-              videoName: '',
-            };
-          }
-
-          if (body.experience) {
-            nextExperience = { ...DEFAULT_EXPERIENCE, ...body.experience };
-          }
-
-          if (
-            (body.mediaType === 'document' || body.mediaType === 'audio') &&
-            nextExperience.galleryItems.every(
-              (g) => !g.url.includes(`/api/media/${endpointInfo.id}/file`)
-            )
-          ) {
-            nextExperience = {
-              ...nextExperience,
-              template: 'media-gallery',
-              galleryItems: [
-                {
-                  id: `media-${endpointInfo.id}`,
-                  type: body.mediaType,
-                  url: `/api/media/${endpointInfo.id}/file`,
-                  caption: '',
-                  isEncrypted: Boolean(body.isEncrypted),
-                },
-              ],
-            };
-          }
-
-          if (!body.locked && body.isEncrypted && endpointInfo.keyFragment && isValidE2eeEnvelope(body.encryptedMeta)) {
-            const decrypted = await decryptJsonWithKey<{
+      const endpointInfo = extractSparkQrReaderEndpoint(nextPayload);
+      if (endpointInfo) {
+        try {
+          const apiUrl =
+            endpointInfo.kind === 'media'
+              ? `/api/reader/media/${encodeURIComponent(endpointInfo.id)}`
+              : `/api/reader/dynamic/${encodeURIComponent(endpointInfo.id)}`;
+          const res = await fetch(apiUrl);
+          if (res.ok) {
+            const body = (await res.json()) as {
+              config?: Partial<QrConfig>;
+              cardTheme?: Partial<QrConfig>;
               source?: Partial<QrSourceState>;
               experience?: Partial<PostScanExperience>;
+              mediaType?: string;
               title?: string;
-            }>(body.encryptedMeta, endpointInfo.keyFragment);
+              isEncrypted?: boolean;
+              encryptedMeta?: unknown;
+              locked?: boolean;
+            };
 
             if (seq !== importSeqRef.current) return;
 
-            if (decrypted.source) {
+            if (body.config && !decodedResult.sparkQrMetadata?.config) {
+              nextConfig = normalizeConfigWithDefaults(body.config, DEFAULT_CONFIG);
+            } else if (body.cardTheme && !decodedResult.sparkQrMetadata?.config) {
+              nextConfig = normalizeConfigWithDefaults(body.cardTheme, DEFAULT_CONFIG);
+            }
+
+            if (body.source) {
               nextSource = {
+                ...DEFAULT_SOURCE,
+                ...body.source,
                 ...nextSource,
-                ...decrypted.source,
                 imageName: '',
                 videoName: '',
-                e2eeEnabled: true,
-                e2eeKeyFragment: endpointInfo.keyFragment,
-              };
-            } else {
-              nextSource = {
-                ...nextSource,
-                e2eeEnabled: true,
-                e2eeKeyFragment: endpointInfo.keyFragment,
+                documentName: '',
+                audioName: '',
               };
             }
-            if (decrypted.experience) {
-              nextExperience = { ...nextExperience, ...decrypted.experience };
+
+            if (body.experience) {
+              nextExperience = { ...DEFAULT_EXPERIENCE, ...body.experience, ...nextExperience };
             }
-            if (decrypted.title && decrypted.title !== 'Contenu chiffré') {
-              nextName = decrypted.title;
+
+            if (
+              (body.mediaType === 'document' || body.mediaType === 'audio') &&
+              nextExperience.galleryItems.every(
+                (g) => !g.url.includes(`/api/media/${endpointInfo.id}/file`)
+              )
+            ) {
+              nextExperience = {
+                ...nextExperience,
+                template: 'media-gallery',
+                galleryItems: [
+                  {
+                    id: `media-${endpointInfo.id}`,
+                    type: body.mediaType,
+                    url: `/api/media/${endpointInfo.id}/file`,
+                    caption: '',
+                    isEncrypted: Boolean(body.isEncrypted),
+                  },
+                ],
+              };
             }
-          } else if (body.title && body.title !== 'Contenu chiffré') {
-            nextName = body.title;
-          } else if (nextConfig.titleText && nextConfig.titleText !== 'Mon Code QR') {
-            nextName = nextConfig.titleText;
+
+            if (!body.locked && body.isEncrypted && endpointInfo.keyFragment && isValidE2eeEnvelope(body.encryptedMeta)) {
+              const decrypted = await decryptJsonWithKey<{
+                source?: Partial<QrSourceState>;
+                experience?: Partial<PostScanExperience>;
+                title?: string;
+              }>(body.encryptedMeta, endpointInfo.keyFragment);
+
+              if (seq !== importSeqRef.current) return;
+
+              if (decrypted.source) {
+                nextSource = {
+                  ...nextSource,
+                  ...decrypted.source,
+                  imageName: '',
+                  videoName: '',
+                  documentName: '',
+                  audioName: '',
+                  e2eeEnabled: true,
+                  e2eeKeyFragment: endpointInfo.keyFragment,
+                };
+              } else {
+                nextSource = {
+                  ...nextSource,
+                  e2eeEnabled: true,
+                  e2eeKeyFragment: endpointInfo.keyFragment,
+                };
+              }
+              if (decrypted.experience) {
+                nextExperience = { ...nextExperience, ...decrypted.experience };
+              }
+              if (decrypted.title && decrypted.title !== 'Contenu chiffré') {
+                nextName = decrypted.title;
+              }
+            } else if (body.title && body.title !== 'Contenu chiffré' && !nextName) {
+              nextName = body.title;
+            }
           }
-        }
-      } catch {
-        // Keep parsed QR fallback gracefully if offline or external origin
-      } finally {
-        if (seq === importSeqRef.current) {
-          setImportBusy(false);
+        } catch {
+          // Keep signed SparkQR image bundle intact even if offline
         }
       }
-    }
 
-    if (seq !== importSeqRef.current) return;
+      if (seq !== importSeqRef.current) return;
 
-    const strategyWasStyled =
-      opts?.decodedResult?.strategy === 'adaptive-laser' ||
-      opts?.decodedResult?.strategy === 'color-distance' ||
-      opts?.decodedResult?.strategy === 'dark-backdrop' ||
-      opts?.decodedResult?.strategy === 'card-crop';
-    if (strategyWasStyled && recognitionKind !== 'sparkqr-custom') {
-      // Custom stylized QR decoded via adaptive/color-distance/card passes -> classify clearly if SparkQR styled
-      if (nextPayload.includes('/m/') || nextPayload.includes('/d/')) {
-        recognitionKind = 'sparkqr-custom';
-      }
-    }
-
-    setImportParsed({
-      name: nextName,
-      payload: nextPayload,
-      source: nextSource,
-      config: nextConfig,
-      experience: nextExperience,
-      category: nextCategory,
-      laserEnabled: nextConfig.laserEnabled !== false,
-      recognitionKind,
-      formatLabel: describeQrPayloadFormat(nextPayload),
-    });
-  };
-
-  const handleImportFileChange = async (file: File) => {
-    setImportBusy(true);
-    setImportError(null);
-    try {
-      const lower = file.name.toLowerCase();
-      if (lower.endsWith('.json') || file.type === 'application/json') {
-        const text = await file.text();
-        await applyParsedInput(text, { fromDecodedImage: false });
-      } else {
-        const decodedResult = await decodeQrImageFile(file);
-        await applyParsedInput(decodedResult.payload, {
-          fromDecodedImage: true,
-          decodedResult,
-        });
-      }
+      setImportParsed({
+        name: nextName,
+        payload: nextPayload,
+        source: nextSource,
+        config: nextConfig,
+        experience: nextExperience,
+        category: 'Importé',
+        laserEnabled: nextConfig.laserEnabled !== false,
+        energyWaveEnabled: Boolean(nextConfig.energyWaveEnabled),
+        formatLabel: describeQrPayloadFormat(nextPayload),
+        fingerprint: decodedResult.sparkQrFingerprint,
+      });
     } catch (err) {
+      if (seq !== importSeqRef.current) return;
       setImportParsed(null);
       setImportError(
-        err instanceof Error ? err.message : 'Erreur lors de la lecture du fichier QR.'
+        err instanceof Error ? err.message : 'Erreur lors de l’analyse de l’image QR.'
       );
     } finally {
-      setImportBusy(false);
+      if (seq === importSeqRef.current) {
+        setImportBusy(false);
+      }
     }
   };
 
@@ -457,13 +439,14 @@ export const HistoryGallery: React.FC<HistoryGalleryProps> = ({
     const nextItem: SavedQrItem = {
       id: `imp-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
       workspaceId: workspace?.id,
-      name: importParsed.name.trim() || 'QR reçu',
-      category: importParsed.category,
+      name: importParsed.name.trim() || 'QR SparkQR importé',
+      category: 'Importé',
       createdAt: nowIso,
       source: importParsed.source,
       config: {
         ...importParsed.config,
         laserEnabled: importParsed.laserEnabled,
+        energyWaveEnabled: importParsed.energyWaveEnabled,
       },
       experience: importParsed.experience ?? DEFAULT_EXPERIENCE,
       dynamicSlug: null,
@@ -480,13 +463,14 @@ export const HistoryGallery: React.FC<HistoryGalleryProps> = ({
     if (!importParsed) return null;
     return {
       id: 'import-preview',
-      name: importParsed.name.trim() || 'QR reçu',
-      category: importParsed.category,
+      name: importParsed.name.trim() || 'QR SparkQR importé',
+      category: 'Importé',
       createdAt: new Date().toISOString(),
       source: importParsed.source,
       config: {
         ...importParsed.config,
         laserEnabled: importParsed.laserEnabled,
+        energyWaveEnabled: importParsed.energyWaveEnabled,
       },
       experience: importParsed.experience ?? DEFAULT_EXPERIENCE,
       dynamicSlug: null,
@@ -521,7 +505,7 @@ export const HistoryGallery: React.FC<HistoryGalleryProps> = ({
                   {viewerItem.name || viewerItem.config.titleText || 'Code QR SparkQR'}
                 </h3>
               </div>
-              <div className="flex items-center gap-1.5 shrink-0">
+              <div className="flex flex-wrap items-center gap-1.5 shrink-0">
                 <button
                   type="button"
                   data-testid="viewer-laser-toggle"
@@ -535,6 +519,20 @@ export const HistoryGallery: React.FC<HistoryGalleryProps> = ({
                 >
                   <ScanLine className="w-3.5 h-3.5" aria-hidden="true" />
                   <span>Laser</span>
+                </button>
+                <button
+                  type="button"
+                  data-testid="viewer-energy-wave-toggle"
+                  aria-pressed={viewerEnergyWaveActive}
+                  onClick={() => setViewerEnergyWaveActive((v) => !v)}
+                  className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 min-h-[36px] text-xs font-semibold rounded-xl border transition-colors cursor-pointer whitespace-nowrap shrink-0 ${
+                    viewerEnergyWaveActive
+                      ? 'border-[#2563EB]/30 dark:border-[#60A5FA]/40 bg-[#EFF4FF] dark:bg-[#1E293B] text-[#1D4ED8] dark:text-[#93C5FD]'
+                      : 'border-[#E2E6F0] dark:border-[#2A3347] bg-[#F8FAFC] dark:bg-[#0F172A] text-[#5C5E66] dark:text-[#94A3B8]'
+                  }`}
+                >
+                  <Radio className="w-3.5 h-3.5" aria-hidden="true" />
+                  <span>Ondes</span>
                 </button>
                 <button
                   type="button"
@@ -560,23 +558,30 @@ export const HistoryGallery: React.FC<HistoryGalleryProps> = ({
                   }`}
                 >
                   <div className="relative w-full max-w-[300px] animate-qr-reveal">
+                    {viewerEnergyWaveActive && (
+                      <LegendEnergyWaveOverlay
+                        testId="viewer-energy-wave-overlay"
+                        accentColor={beamColor}
+                      />
+                    )}
+
                     {/* 4 Optical Reticles */}
                     <div aria-hidden="true" className="pointer-events-none absolute -inset-3 z-10">
                       <span
                         className="absolute top-0 left-0 w-5 h-5 border-t-2 border-l-2 rounded-tl-md"
-                        style={{ borderColor: viewerLaserActive ? beamColor : '#94A3B8' }}
+                        style={{ borderColor: viewerLaserActive || viewerEnergyWaveActive ? beamColor : '#94A3B8' }}
                       />
                       <span
                         className="absolute top-0 right-0 w-5 h-5 border-t-2 border-r-2 rounded-tr-md"
-                        style={{ borderColor: viewerLaserActive ? beamColor : '#94A3B8' }}
+                        style={{ borderColor: viewerLaserActive || viewerEnergyWaveActive ? beamColor : '#94A3B8' }}
                       />
                       <span
                         className="absolute bottom-0 left-0 w-5 h-5 border-b-2 border-l-2 rounded-bl-md"
-                        style={{ borderColor: viewerLaserActive ? beamColor : '#94A3B8' }}
+                        style={{ borderColor: viewerLaserActive || viewerEnergyWaveActive ? beamColor : '#94A3B8' }}
                       />
                       <span
                         className="absolute bottom-0 right-0 w-5 h-5 border-b-2 border-r-2 rounded-br-md"
-                        style={{ borderColor: viewerLaserActive ? beamColor : '#94A3B8' }}
+                        style={{ borderColor: viewerLaserActive || viewerEnergyWaveActive ? beamColor : '#94A3B8' }}
                       />
                     </div>
 
@@ -630,7 +635,11 @@ export const HistoryGallery: React.FC<HistoryGalleryProps> = ({
                   onClick={() => {
                     const target = {
                       ...viewerItem,
-                      config: { ...viewerItem.config, laserEnabled: viewerLaserActive },
+                      config: {
+                        ...viewerItem.config,
+                        laserEnabled: viewerLaserActive,
+                        energyWaveEnabled: viewerEnergyWaveActive,
+                      },
                     };
                     setViewerItem(null);
                     onOpenTargetPreview(target);
@@ -645,12 +654,17 @@ export const HistoryGallery: React.FC<HistoryGalleryProps> = ({
               <button
                 type="button"
                 onClick={async () => {
+                  const updatedCfg = {
+                    ...viewerItem.config,
+                    laserEnabled: viewerLaserActive,
+                    energyWaveEnabled: viewerEnergyWaveActive,
+                  };
                   try {
                     const shareCode = encodeSparkQrSharePackage({
                       name: viewerItem.name,
                       payload: viewerItem.payload,
                       source: viewerItem.source,
-                      config: { ...viewerItem.config, laserEnabled: viewerLaserActive },
+                      config: updatedCfg,
                       experience: viewerItem.experience,
                     });
                     await navigator.clipboard.writeText(shareCode);
@@ -662,7 +676,7 @@ export const HistoryGallery: React.FC<HistoryGalleryProps> = ({
                       name: viewerItem.name,
                       payload: viewerItem.payload,
                       source: viewerItem.source,
-                      config: { ...viewerItem.config, laserEnabled: viewerLaserActive },
+                      config: updatedCfg,
                       experience: viewerItem.experience,
                     });
                     const blob = new Blob([json], { type: 'application/json' });
@@ -723,13 +737,13 @@ export const HistoryGallery: React.FC<HistoryGalleryProps> = ({
             <div className="flex items-start justify-between gap-3">
               <div>
                 <span className="block text-[11px] font-semibold uppercase tracking-[0.12em] text-[#2563EB] dark:text-[#60A5FA]">
-                  Importation intelligente
+                  Importateur SparkQR authentifié
                 </span>
                 <h3 className="font-display text-lg font-bold text-[#111214] dark:text-[#F1F5F9] mt-0.5">
-                  Importer un QR code
+                  Importer un QR SparkQR
                 </h3>
                 <p className="text-xs text-[#5C5E66] dark:text-[#94A3B8] mt-0.5 leading-relaxed">
-                  Reconnaît les QR personnalisés SparkQR (effets laser, couleurs, dégradés, logos ou décorations) et récupère le contenu des QR codes classiques.
+                  Importez uniquement une image de QR code générée sur SparkQR. Tous ses attributs (modèle, polices, couleurs, laser, ondes d’énergie et contenu) sont analysés et classés dans « Importé ».
                 </p>
               </div>
               <button
@@ -743,7 +757,7 @@ export const HistoryGallery: React.FC<HistoryGalleryProps> = ({
             </div>
 
             <div className="space-y-3">
-              {/* Drag & Drop Smart QR Image Zone */}
+              {/* Drag & Drop SparkQR-only QR Image Zone */}
               <div
                 onDragOver={(e) => {
                   e.preventDefault();
@@ -765,9 +779,9 @@ export const HistoryGallery: React.FC<HistoryGalleryProps> = ({
                 <input
                   ref={importFileInputRef}
                   type="file"
-                  accept="image/*,.json,application/json"
+                  accept="image/png,image/jpeg,image/webp,image/svg+xml,.png,.jpg,.jpeg,.webp,.svg"
                   data-testid="import-qr-file-input"
-                  aria-label="Importer une image contenant un QR code"
+                  aria-label="Importer une image de QR code générée par SparkQR"
                   className="sr-only"
                   onChange={(e) => {
                     const file = e.target.files?.[0];
@@ -782,10 +796,10 @@ export const HistoryGallery: React.FC<HistoryGalleryProps> = ({
                     </div>
                     <div className="min-w-0">
                       <p className="text-xs font-semibold text-[#111214] dark:text-[#F1F5F9]">
-                        Déposez une image ou capture de QR code
+                        Déposez une image de QR code SparkQR
                       </p>
                       <p className="text-[11px] text-[#5C5E66] dark:text-[#94A3B8]">
-                        PNG, JPG, WEBP ou SVG · SparkQR stylisés &amp; QR classiques
+                        PNG, SVG, JPG ou WEBP créés sur SparkQR uniquement
                       </p>
                     </div>
                   </div>
@@ -799,21 +813,6 @@ export const HistoryGallery: React.FC<HistoryGalleryProps> = ({
                     <span>{importBusy ? 'Analyse…' : 'Choisir une image'}</span>
                   </button>
                 </div>
-              </div>
-
-              <div className="space-y-1.5">
-                <label htmlFor="import-qr-textarea" className="block text-xs font-semibold text-[#111214] dark:text-[#F1F5F9]">
-                  Ou collez un lien QR directement
-                </label>
-                <textarea
-                  id="import-qr-textarea"
-                  data-testid="import-qr-text-input"
-                  rows={2}
-                  value={importRawInput}
-                  onChange={(e) => void applyParsedInput(e.target.value, { fromDecodedImage: false })}
-                  placeholder="Collez un lien (https://…), un accès Wi-Fi ou un lien partagé…"
-                  className="w-full px-3.5 py-2.5 text-xs bg-[#F8FAFC] dark:bg-[#0F172A] border border-[#DCE2EE] dark:border-[#2A3347] text-[#111214] dark:text-[#F1F5F9] placeholder:text-[#94A3B8] dark:placeholder:text-[#64748B] rounded-xl focus:outline-none focus:border-[#2563EB]"
-                />
               </div>
 
               {importError && (
@@ -832,9 +831,7 @@ export const HistoryGallery: React.FC<HistoryGalleryProps> = ({
                 >
                   <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] font-semibold">
                     <span className="text-[#1D4ED8] dark:text-[#60A5FA]">
-                      {importParsed.recognitionKind === 'sparkqr-custom'
-                        ? 'QR personnalisé SparkQR reconnu'
-                        : 'QR code classique reconnu'}
+                      Signature SparkQR authentifiée
                     </span>
                     <span className="text-[#5C5E66] dark:text-[#94A3B8]">
                       Format · {importParsed.formatLabel}
@@ -866,30 +863,15 @@ export const HistoryGallery: React.FC<HistoryGalleryProps> = ({
                     />
                   </div>
                   <div>
-                    <label
-                      htmlFor="import-qr-cat"
-                      className="block text-[11px] font-medium text-[#4B4D54] dark:text-[#CBD5E1] mb-1"
-                    >
+                    <span className="block text-[11px] font-medium text-[#4B4D54] dark:text-[#CBD5E1] mb-1">
                       Catégorie
-                    </label>
-                    <select
-                      id="import-qr-cat"
-                      value={importParsed.category}
-                      onChange={(e) =>
-                        setImportParsed((prev) =>
-                          prev
-                            ? { ...prev, category: e.target.value as ProjectCategory }
-                            : prev
-                        )
-                      }
-                      className="w-full px-3 py-2 text-xs bg-[#F8FAFC] dark:bg-[#0F172A] border border-[#DCE2EE] dark:border-[#2A3347] text-[#111214] dark:text-[#F1F5F9] rounded-xl"
+                    </span>
+                    <div
+                      data-testid="import-qr-category-badge"
+                      className="w-full px-3 py-2 text-xs font-semibold bg-[#EFF4FF] dark:bg-[#1E293B] border border-[#BFDBFE] dark:border-[#334155] text-[#1D4ED8] dark:text-[#93C5FD] rounded-xl text-center"
                     >
-                      {PROJECT_CATEGORIES.map((c) => (
-                        <option key={c} value={c}>
-                          {c}
-                        </option>
-                      ))}
-                    </select>
+                      Importé
+                    </div>
                   </div>
                 </div>
 
@@ -900,14 +882,20 @@ export const HistoryGallery: React.FC<HistoryGalleryProps> = ({
                   return (
                     <div
                       data-testid="import-qr-preview"
-                      className={`rounded-2xl border p-5 flex flex-col items-center justify-center relative ${
+                      className={`rounded-2xl border p-6 flex flex-col items-center justify-center relative ${
                         isDarkPreview
                           ? 'studio-grid-dark border-[#1F2433]'
                           : 'studio-grid-mat border-[#E4E1D7] dark:border-[#242C3D]'
                       }`}
                     >
                       <div className="relative w-full max-w-[220px]">
-                        <div className="relative rounded-2xl overflow-hidden shadow-lg">
+                        {importParsed.energyWaveEnabled && (
+                          <LegendEnergyWaveOverlay
+                            testId="import-energy-wave-overlay"
+                            accentColor={beamColor}
+                          />
+                        )}
+                        <div className="relative rounded-2xl overflow-hidden shadow-lg z-10">
                           <QrCanvasRenderer
                             payload={importParsed.payload}
                             config={importParsed.config}
@@ -942,19 +930,34 @@ export const HistoryGallery: React.FC<HistoryGalleryProps> = ({
                   );
                 })()}
 
-                <label className="flex items-center justify-between gap-2 px-3 py-2.5 rounded-xl bg-[#F8FAFC] dark:bg-[#161D2B] border border-[#E2E6F0] dark:border-[#242C3D] cursor-pointer text-xs font-medium text-[#111214] dark:text-[#F1F5F9]">
-                  <span>Animation laser lumineuse sur l’aperçu</span>
-                  <input
-                    type="checkbox"
-                    checked={importParsed.laserEnabled}
-                    onChange={(e) =>
-                      setImportParsed((prev) =>
-                        prev ? { ...prev, laserEnabled: e.target.checked } : prev
-                      )
-                    }
-                    className="w-4 h-4 accent-[#2563EB]"
-                  />
-                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <label className="flex items-center justify-between gap-2 px-3 py-2.5 rounded-xl bg-[#F8FAFC] dark:bg-[#161D2B] border border-[#E2E6F0] dark:border-[#242C3D] cursor-pointer text-xs font-medium text-[#111214] dark:text-[#F1F5F9]">
+                    <span>Balayage laser</span>
+                    <input
+                      type="checkbox"
+                      checked={importParsed.laserEnabled}
+                      onChange={(e) =>
+                        setImportParsed((prev) =>
+                          prev ? { ...prev, laserEnabled: e.target.checked } : prev
+                        )
+                      }
+                      className="w-4 h-4 accent-[#2563EB]"
+                    />
+                  </label>
+                  <label className="flex items-center justify-between gap-2 px-3 py-2.5 rounded-xl bg-[#F8FAFC] dark:bg-[#161D2B] border border-[#E2E6F0] dark:border-[#242C3D] cursor-pointer text-xs font-medium text-[#111214] dark:text-[#F1F5F9]">
+                    <span>Ondes d’énergie</span>
+                    <input
+                      type="checkbox"
+                      checked={importParsed.energyWaveEnabled}
+                      onChange={(e) =>
+                        setImportParsed((prev) =>
+                          prev ? { ...prev, energyWaveEnabled: e.target.checked } : prev
+                        )
+                      }
+                      className="w-4 h-4 accent-[#2563EB]"
+                    />
+                  </label>
+                </div>
 
                 <div className="flex flex-wrap items-center justify-end gap-2 pt-1">
                   <button
@@ -994,7 +997,7 @@ export const HistoryGallery: React.FC<HistoryGalleryProps> = ({
                       className="inline-flex items-center gap-1.5 px-4 py-2.5 min-h-[40px] text-xs font-semibold text-white bg-[#2563EB] hover:bg-[#1D4ED8] rounded-xl cursor-pointer whitespace-nowrap shrink-0"
                     >
                       <Plus className="w-3.5 h-3.5" aria-hidden="true" />
-                      <span>Enregistrer dans Mes QR</span>
+                      <span>Enregistrer dans Importé</span>
                     </button>
                   )}
                 </div>
@@ -1166,7 +1169,7 @@ export const HistoryGallery: React.FC<HistoryGalleryProps> = ({
               Votre espace Mes QR codes est prêt
             </h2>
             <p className="text-sm text-[#5C5E66] dark:text-[#94A3B8] max-w-md mx-auto leading-relaxed">
-              Chaque QR code généré dans le studio apparaît automatiquement ici avec sa durée d’accessibilité, ses réglages et vos médias associés.
+              Générez un QR code dans le studio puis cliquez sur « Terminer &amp; enregistrer » pour le conserver ici avec sa durée d’accessibilité et ses réglages.
             </p>
             <div className="pt-2 flex flex-wrap items-center justify-center gap-3">
               <button
@@ -1389,16 +1392,7 @@ export const HistoryGallery: React.FC<HistoryGalleryProps> = ({
       {/* Saved Projects Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
         {filteredItems.map((item) => {
-          const sourceLabel =
-            item.source.type === 'image'
-              ? 'Image'
-              : item.source.type === 'video'
-              ? 'Vidéo'
-              : item.source.textMode === 'wifi'
-              ? 'Wi-Fi'
-              : item.source.textMode === 'url'
-              ? 'Lien web'
-              : 'Texte';
+          const sourceLabel = getSourceDisplayLabel(item.source);
           const formattedDate = new Date(item.createdAt).toLocaleDateString('fr-FR', {
             day: 'numeric',
             month: 'short',

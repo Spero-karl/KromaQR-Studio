@@ -30,6 +30,7 @@ import {
   FILTER_CATALOG,
   FONT_CATALOG,
   FRAME_CATALOG,
+  LEGENDARY_THEME_PRESETS,
   MASTER_THEME_PRESETS,
   PREMIUM_THEME_PRESETS,
   STUDIO_THEME_PRESETS,
@@ -321,7 +322,7 @@ export const CustomizePanel: React.FC<CustomizePanelProps> = ({
     config.centerEmoji && !config.logoId && !config.customLogoDataUrl ? 'emoji' : 'vector'
   );
   const [stickerCategory, setStickerCategory] = useState<StickerFilterCategory>('all');
-  const [collectionTab, setCollectionTab] = useState<'all' | 'studio' | 'premium' | 'master'>('all');
+  const [collectionTab, setCollectionTab] = useState<'all' | 'studio' | 'premium' | 'master' | 'legendary'>('all');
   const [confirmResetOpen, setConfirmResetOpen] = useState(false);
   const [resetNotice, setResetNotice] = useState(false);
   const customLogoInputRef = useRef<HTMLInputElement>(null);
@@ -545,7 +546,8 @@ export const CustomizePanel: React.FC<CustomizePanelProps> = ({
                     { id: 'all', label: `Toutes · ${THEME_PRESETS.length}` },
                     { id: 'studio', label: `Studio · ${STUDIO_THEME_PRESETS.length}` },
                     { id: 'premium', label: `Ultra Premium · ${PREMIUM_THEME_PRESETS.length}` },
-                    { id: 'master', label: `Master Collection · ${MASTER_THEME_PRESETS.length}` },
+                    { id: 'master', label: `Master · ${MASTER_THEME_PRESETS.length}` },
+                    { id: 'legendary', label: `Légendaire · ${LEGENDARY_THEME_PRESETS.length}` },
                   ] as const
                 ).map((tab) => (
                   <button
@@ -574,6 +576,7 @@ export const CustomizePanel: React.FC<CustomizePanelProps> = ({
                 const isSelected = config.themeId === theme.id;
                 const [bgSwatch, fgSwatch, accentSwatch] = theme.swatches;
                 const isMaster = theme.collection === 'master';
+                const isLegendary = theme.collection === 'legendary';
                 const isPremium = theme.collection === 'premium';
                 const hasGradient = theme.patch.gradientType && theme.patch.gradientType !== 'solid';
                 const eyeFill = theme.patch.eyeColor || accentSwatch || fgSwatch;
@@ -599,6 +602,8 @@ export const CustomizePanel: React.FC<CustomizePanelProps> = ({
                     className={`flex items-center gap-3 p-3 rounded-xl border transition-all duration-150 hover:-translate-y-0.5 text-left cursor-pointer ${
                       isSelected
                         ? 'border-[#2563EB] dark:border-[#60A5FA] bg-[#F4F8FF] dark:bg-[#1E293B] shadow-[0_4px_14px_rgba(37,99,235,0.12)]'
+                        : isLegendary
+                        ? 'border-[#A855F7]/50 dark:border-[#C084FC]/45 bg-[#FCF8FF] dark:bg-[#191126] hover:border-[#9333EA] dark:hover:border-[#E879F9]'
                         : isMaster
                         ? 'border-[#D4AF37]/60 dark:border-[#D4AF37]/45 bg-[#FFFDF8] dark:bg-[#191610] hover:border-[#B45309] dark:hover:border-[#FBBF24]'
                         : isPremium
@@ -662,11 +667,21 @@ export const CustomizePanel: React.FC<CustomizePanelProps> = ({
                         <span className="font-display text-xs font-bold text-[#111214] dark:text-[#F1F5F9] truncate">
                           {theme.name}
                         </span>
-                        {isMaster && (
+                        {theme.editionBadge ? (
+                          <span
+                            className={`text-[10px] font-semibold uppercase tracking-wider shrink-0 ${
+                              isLegendary
+                                ? 'text-[#9333EA] dark:text-[#E879F9]'
+                                : 'text-[#B45309] dark:text-[#FBBF24]'
+                            }`}
+                          >
+                            {theme.editionBadge}
+                          </span>
+                        ) : isMaster ? (
                           <span className="text-[10px] font-semibold uppercase tracking-wider text-[#B45309] dark:text-[#FBBF24] shrink-0">
                             Master
                           </span>
-                        )}
+                        ) : null}
                       </div>
                       <span className="block text-[11px] text-[#6E7078] dark:text-[#94A3B8] line-clamp-2 leading-snug mt-0.5">
                         {theme.tagline}
@@ -2002,6 +2017,24 @@ export const CustomizePanel: React.FC<CustomizePanelProps> = ({
                   checked={config.laserEnabled !== false}
                   onChange={(e) => update({ laserEnabled: e.target.checked })}
                   className="w-4 h-4 rounded accent-[#4F46E5] shrink-0"
+                />
+              </label>
+
+              <label className="mt-2.5 flex items-center justify-between gap-3 p-3 rounded-xl bg-[#FAFBFD] dark:bg-[#161D2B] border border-[#E2E6F0] dark:border-[#242C3D] cursor-pointer">
+                <div className="min-w-0">
+                  <span className="block text-xs font-semibold text-[#111214] dark:text-[#F1F5F9]">
+                    Radiation d’ondes d’énergie (halo radial)
+                  </span>
+                  <span className="block text-[11px] text-[#6E7078] dark:text-[#94A3B8]">
+                    Diffuse des vagues d’énergie concentriques autour du QR code à la couleur du modèle.
+                  </span>
+                </div>
+                <input
+                  type="checkbox"
+                  data-testid="config-energy-wave-toggle"
+                  checked={Boolean(config.energyWaveEnabled)}
+                  onChange={(e) => update({ energyWaveEnabled: e.target.checked })}
+                  className="w-4 h-4 rounded accent-[#2563EB] shrink-0"
                 />
               </label>
             </div>

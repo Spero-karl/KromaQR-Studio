@@ -18,6 +18,19 @@ export type ReaderContentCategory =
   | 'mixed-collection'
   | 'url'
   | 'wifi'
+  | 'vcard'
+  | 'event'
+  | 'email'
+  | 'phone'
+  | 'sms'
+  | 'whatsapp'
+  | 'tiktok'
+  | 'instagram'
+  | 'facebook'
+  | 'telegram'
+  | 'twitter'
+  | 'geo'
+  | 'payment'
   | 'postcard'
   | 'event-invite'
   | 'business-card'
@@ -103,6 +116,23 @@ export function resolveReaderCategory(
   if (hasDocOrAudio) return 'mixed-collection';
   if (source.textMode === 'wifi') return 'wifi';
   if (source.textMode === 'url') return 'url';
+  if (
+    source.textMode === 'vcard' ||
+    source.textMode === 'event' ||
+    source.textMode === 'email' ||
+    source.textMode === 'phone' ||
+    source.textMode === 'sms' ||
+    source.textMode === 'whatsapp' ||
+    source.textMode === 'tiktok' ||
+    source.textMode === 'instagram' ||
+    source.textMode === 'facebook' ||
+    source.textMode === 'telegram' ||
+    source.textMode === 'twitter' ||
+    source.textMode === 'geo' ||
+    source.textMode === 'payment'
+  ) {
+    return source.textMode;
+  }
   return 'text-free';
 }
 
@@ -150,7 +180,7 @@ const INTERNAL_PLACEHOLDER_CAPTIONS = new Set([
   'vidéo principale',
   'contenu chiffré',
   'contenu protégé de bout en bout',
-  'partagé via sparkqr — lecteur sécurisé',
+  'partagé via sparkqr — lecteur chiffré',
   'collection sparkqr',
   'document sparkqr',
   'audio sparkqr',
@@ -208,6 +238,32 @@ export function resolveGenericCategoryTitle(
       return 'Réseau Wi-Fi';
     case 'url':
       return 'Lien web';
+    case 'vcard':
+      return 'Fiche contact';
+    case 'event':
+      return 'Événement';
+    case 'email':
+      return 'E-mail';
+    case 'phone':
+      return 'Téléphone';
+    case 'sms':
+      return 'SMS';
+    case 'whatsapp':
+      return 'WhatsApp';
+    case 'tiktok':
+      return 'TikTok';
+    case 'instagram':
+      return 'Instagram';
+    case 'facebook':
+      return 'Facebook';
+    case 'telegram':
+      return 'Telegram';
+    case 'twitter':
+      return 'Twitter (X)';
+    case 'geo':
+      return 'Localisation GPS';
+    case 'payment':
+      return 'Paiement';
     case 'postcard':
       return 'Carte postale';
     case 'event-invite':
@@ -294,6 +350,30 @@ export function buildReaderMediaBuckets(
       mimeType: source.videoMimeType,
       isEncrypted: source.videoEncrypted,
       originalSize: source.videoSize,
+    });
+  }
+
+  if (source.type === 'document' && source.documentUrl?.trim()) {
+    documents.push({
+      id: 'source-primary-document',
+      type: 'document',
+      url: normalizeMediaAssetUrl(source.documentUrl),
+      caption: safeHeadline,
+      mimeType: source.documentMimeType,
+      isEncrypted: source.documentEncrypted,
+      originalSize: source.documentSize,
+    });
+  }
+
+  if (source.type === 'audio' && source.audioUrl?.trim()) {
+    audios.push({
+      id: 'source-primary-audio',
+      type: 'audio',
+      url: normalizeMediaAssetUrl(source.audioUrl),
+      caption: safeHeadline,
+      mimeType: source.audioMimeType,
+      isEncrypted: source.audioEncrypted,
+      originalSize: source.audioSize,
     });
   }
 
@@ -586,7 +666,12 @@ export function needsHostedMediaCollection(
   ) {
     return true;
   }
-  if (source.type === 'image' || source.type === 'video') {
+  if (
+    source.type === 'image' ||
+    source.type === 'video' ||
+    source.type === 'document' ||
+    source.type === 'audio'
+  ) {
     return true;
   }
   if (source.type === 'text' && source.textMode === 'text') {
