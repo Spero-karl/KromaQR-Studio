@@ -17,7 +17,6 @@ import {
   Phone,
   QrCode,
   ShieldCheck,
-  Sparkles,
   Type,
   Upload,
   UserPlus,
@@ -26,7 +25,6 @@ import {
 } from 'lucide-react';
 import {
   DEMO_IMAGE_PATH,
-  DEMO_SOURCE_SAMPLES,
   DEMO_VIDEO_PATH,
   FONT_CATALOG,
 } from '../data/presets';
@@ -388,8 +386,6 @@ export const SourcePanel: React.FC<SourcePanelProps> = ({
   >(null);
   const [localPreviews, setLocalPreviews] = useState<Record<string, string>>({});
   const localPreviewsRef = useRef<Record<string, string>>({});
-  const [exampleLoadingIntent, setExampleLoadingIntent] = useState<QrIntent | null>(null);
-  const [exampleNotice, setExampleNotice] = useState<string | null>(null);
 
   useEffect(() => {
     const refMap = localPreviewsRef.current;
@@ -652,167 +648,6 @@ export const SourcePanel: React.FC<SourcePanelProps> = ({
     }
   };
 
-  const applyLocalFallbackSample = (intent: QrIntent) => {
-    switch (intent) {
-      case 'url':
-        onChange({ ...source, type: 'text', textMode: 'url', urlValue: DEMO_SOURCE_SAMPLES.url });
-        return;
-      case 'text':
-        onChange({ ...source, type: 'text', textMode: 'text', textValue: DEMO_SOURCE_SAMPLES.text });
-        return;
-      case 'wifi':
-        onChange({
-          ...source,
-          type: 'text',
-          textMode: 'wifi',
-          wifiSsid: DEMO_SOURCE_SAMPLES.wifiSsid,
-          wifiPassword: DEMO_SOURCE_SAMPLES.wifiPassword,
-          wifiSecurity: 'WPA',
-        });
-        return;
-      case 'vcard':
-        onChange({
-          ...source,
-          type: 'text',
-          textMode: 'vcard',
-          vcardFirstName: DEMO_SOURCE_SAMPLES.vcard.firstName,
-          vcardLastName: DEMO_SOURCE_SAMPLES.vcard.lastName,
-          vcardOrg: DEMO_SOURCE_SAMPLES.vcard.org,
-          vcardTitle: DEMO_SOURCE_SAMPLES.vcard.title,
-          vcardPhone: DEMO_SOURCE_SAMPLES.vcard.phone,
-          vcardEmail: DEMO_SOURCE_SAMPLES.vcard.email,
-          vcardWebsite: DEMO_SOURCE_SAMPLES.vcard.website,
-          vcardAddress: DEMO_SOURCE_SAMPLES.vcard.address,
-        });
-        return;
-      case 'event':
-        onChange({
-          ...source,
-          type: 'text',
-          textMode: 'event',
-          eventTitle: DEMO_SOURCE_SAMPLES.event.title,
-          eventStart: DEMO_SOURCE_SAMPLES.event.start,
-          eventEnd: DEMO_SOURCE_SAMPLES.event.end,
-          eventLocation: DEMO_SOURCE_SAMPLES.event.location,
-          eventDescription: DEMO_SOURCE_SAMPLES.event.description,
-        });
-        return;
-      case 'email':
-        onChange({
-          ...source,
-          type: 'text',
-          textMode: 'email',
-          emailAddress: DEMO_SOURCE_SAMPLES.email.address,
-          emailSubject: DEMO_SOURCE_SAMPLES.email.subject,
-          emailBody: DEMO_SOURCE_SAMPLES.email.body,
-        });
-        return;
-      case 'phone':
-        onChange({ ...source, type: 'text', textMode: 'phone', phoneNumber: DEMO_SOURCE_SAMPLES.phone });
-        return;
-      case 'sms':
-        onChange({
-          ...source,
-          type: 'text',
-          textMode: 'sms',
-          smsPhone: DEMO_SOURCE_SAMPLES.sms.phone,
-          smsMessage: DEMO_SOURCE_SAMPLES.sms.message,
-        });
-        return;
-      case 'whatsapp':
-        onChange({
-          ...source,
-          type: 'text',
-          textMode: 'whatsapp',
-          whatsappPhone: DEMO_SOURCE_SAMPLES.whatsapp.phone,
-          whatsappMessage: DEMO_SOURCE_SAMPLES.whatsapp.message,
-        });
-        return;
-      case 'tiktok':
-        onChange({ ...source, type: 'text', textMode: 'tiktok', tiktokHandle: DEMO_SOURCE_SAMPLES.tiktok });
-        return;
-      case 'instagram':
-        onChange({ ...source, type: 'text', textMode: 'instagram', instagramHandle: DEMO_SOURCE_SAMPLES.instagram });
-        return;
-      case 'facebook':
-        onChange({ ...source, type: 'text', textMode: 'facebook', facebookHandle: DEMO_SOURCE_SAMPLES.facebook });
-        return;
-      case 'telegram':
-        onChange({ ...source, type: 'text', textMode: 'telegram', telegramHandle: DEMO_SOURCE_SAMPLES.telegram });
-        return;
-      case 'twitter':
-        onChange({ ...source, type: 'text', textMode: 'twitter', twitterHandle: DEMO_SOURCE_SAMPLES.twitter });
-        return;
-      case 'geo':
-        onChange({
-          ...source,
-          type: 'text',
-          textMode: 'geo',
-          geoLat: DEMO_SOURCE_SAMPLES.geo.lat,
-          geoLng: DEMO_SOURCE_SAMPLES.geo.lng,
-          geoLabel: DEMO_SOURCE_SAMPLES.geo.label,
-        });
-        return;
-      case 'payment':
-        onChange({
-          ...source,
-          type: 'text',
-          textMode: 'payment',
-          paymentMode: 'sepa',
-          paymentName: DEMO_SOURCE_SAMPLES.payment.name,
-          paymentIban: DEMO_SOURCE_SAMPLES.payment.iban,
-          paymentBic: DEMO_SOURCE_SAMPLES.payment.bic,
-          paymentAmount: DEMO_SOURCE_SAMPLES.payment.amount,
-          paymentReference: DEMO_SOURCE_SAMPLES.payment.reference,
-          paymentUrl: DEMO_SOURCE_SAMPLES.payment.url,
-        });
-        return;
-      default:
-        break;
-    }
-  };
-
-  const handleSmartExample = async (intent: QrIntent) => {
-    setExampleNotice(null);
-    setExampleLoadingIntent(intent);
-    try {
-      const res = await fetch('/api/examples/generate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ intent }),
-      });
-      if (!res.ok) {
-        applyLocalFallbackSample(intent);
-        return;
-      }
-      const data = (await res.json()) as {
-        sample?: Partial<QrSourceState>;
-        limitReached?: boolean;
-      };
-      if (data.limitReached) {
-        setExampleNotice('Limite quotidienne atteinte (10/10) — exemple local chargé.');
-      }
-      if (data.sample && typeof data.sample === 'object') {
-        const textIntent =
-          intent === 'image' || intent === 'video' || intent === 'document' || intent === 'audio'
-            ? source.textMode
-            : intent;
-        onChange({
-          ...source,
-          type: 'text',
-          textMode: textIntent,
-          ...data.sample,
-        });
-        return;
-      }
-      applyLocalFallbackSample(intent);
-    } catch {
-      applyLocalFallbackSample(intent);
-    } finally {
-      setExampleLoadingIntent(null);
-    }
-  };
-
   const liveTextStyle = resolveEncodedTextStyle(config, '#111214');
   const activeFontLabel = FONT_CATALOG[liveTextStyle.fontId]?.label || 'Bricolage';
   const visibleIntents = INTENT_OPTIONS.filter((opt) => opt.group === activeGroup);
@@ -916,21 +751,9 @@ export const SourcePanel: React.FC<SourcePanelProps> = ({
       {/* 1. URL INPUT */}
       {selectedIntent === 'url' && (
         <div className="pt-5 space-y-2.5 animate-[fadeIn_160ms_ease-out]">
-          <div className="flex items-center justify-between gap-2">
-            <label htmlFor="qr-url-input" className="text-xs font-semibold text-[#111214] dark:text-[#F1F5F9]">
-              Adresse web de destination
-            </label>
-            <button
-              type="button"
-              data-testid="example-btn-url"
-              disabled={exampleLoadingIntent === 'url'}
-              onClick={() => void handleSmartExample('url')}
-              className="inline-flex items-center gap-1 text-xs font-medium text-[#1D4ED8] dark:text-[#60A5FA] hover:underline cursor-pointer whitespace-nowrap disabled:opacity-50"
-            >
-              <Sparkles className="w-3.5 h-3.5" aria-hidden="true" />
-              <span>{exampleLoadingIntent === 'url' ? 'Génération…' : 'Exemple'}</span>
-            </button>
-          </div>
+          <label htmlFor="qr-url-input" className="block text-xs font-semibold text-[#111214] dark:text-[#F1F5F9]">
+            Adresse web de destination
+          </label>
           <input
             id="qr-url-input"
             type="text"
@@ -956,21 +779,9 @@ export const SourcePanel: React.FC<SourcePanelProps> = ({
             <label htmlFor="qr-text-input" className="text-xs font-semibold text-[#111214] dark:text-[#F1F5F9]">
               Message typographique
             </label>
-            <div className="flex items-center gap-3">
-              <button
-                type="button"
-                data-testid="example-btn-text"
-                disabled={exampleLoadingIntent === 'text'}
-                onClick={() => void handleSmartExample('text')}
-                className="inline-flex items-center gap-1 text-xs font-medium text-[#1D4ED8] dark:text-[#60A5FA] hover:underline cursor-pointer whitespace-nowrap disabled:opacity-50"
-              >
-                <Sparkles className="w-3.5 h-3.5" aria-hidden="true" />
-                <span>{exampleLoadingIntent === 'text' ? 'Génération…' : 'Exemple'}</span>
-              </button>
-              <span className="text-xs text-[#6E7078] dark:text-[#94A3B8] tabular-nums">
-                {source.textValue.length} car.
-              </span>
-            </div>
+            <span className="text-xs text-[#6E7078] dark:text-[#94A3B8] tabular-nums">
+              {source.textValue.length} car.
+            </span>
           </div>
 
           <textarea
@@ -1020,21 +831,9 @@ export const SourcePanel: React.FC<SourcePanelProps> = ({
       {/* 3. WI-FI INPUT */}
       {selectedIntent === 'wifi' && (
         <div className="pt-5 space-y-3 animate-[fadeIn_160ms_ease-out]">
-          <div className="flex items-center justify-between gap-2">
-            <span className="text-xs font-semibold text-[#111214] dark:text-[#F1F5F9]">
-              Paramètres du réseau Wi-Fi
-            </span>
-            <button
-              type="button"
-              data-testid="example-btn-wifi"
-              disabled={exampleLoadingIntent === 'wifi'}
-              onClick={() => void handleSmartExample('wifi')}
-              className="inline-flex items-center gap-1 text-xs font-medium text-[#1D4ED8] dark:text-[#60A5FA] hover:underline cursor-pointer whitespace-nowrap disabled:opacity-50"
-            >
-              <Sparkles className="w-3.5 h-3.5" aria-hidden="true" />
-              <span>{exampleLoadingIntent === 'wifi' ? 'Génération…' : 'Exemple'}</span>
-            </button>
-          </div>
+          <span className="block text-xs font-semibold text-[#111214] dark:text-[#F1F5F9]">
+            Paramètres du réseau Wi-Fi
+          </span>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div>
               <label
@@ -1642,21 +1441,9 @@ export const SourcePanel: React.FC<SourcePanelProps> = ({
       {/* 6. VCARD CONTACT INPUT */}
       {selectedIntent === 'vcard' && (
         <div className="pt-5 space-y-3 animate-[fadeIn_160ms_ease-out]">
-          <div className="flex items-center justify-between gap-2">
-            <span className="text-xs font-semibold text-[#111214] dark:text-[#F1F5F9]">
-              Fiche contact professionnelle (vCard 3.0)
-            </span>
-            <button
-              type="button"
-              data-testid="example-btn-vcard"
-              disabled={exampleLoadingIntent === 'vcard'}
-              onClick={() => void handleSmartExample('vcard')}
-              className="inline-flex items-center gap-1 text-xs font-medium text-[#1D4ED8] dark:text-[#60A5FA] hover:underline cursor-pointer whitespace-nowrap disabled:opacity-50"
-            >
-              <Sparkles className="w-3.5 h-3.5" aria-hidden="true" />
-              <span>{exampleLoadingIntent === 'vcard' ? 'Génération…' : 'Exemple'}</span>
-            </button>
-          </div>
+          <span className="block text-xs font-semibold text-[#111214] dark:text-[#F1F5F9]">
+            Fiche contact professionnelle (vCard 3.0)
+          </span>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <input
               type="text"
@@ -1745,21 +1532,9 @@ export const SourcePanel: React.FC<SourcePanelProps> = ({
       {/* 7. CALENDAR EVENT INPUT */}
       {selectedIntent === 'event' && (
         <div className="pt-5 space-y-3 animate-[fadeIn_160ms_ease-out]">
-          <div className="flex items-center justify-between gap-2">
-            <span className="text-xs font-semibold text-[#111214] dark:text-[#F1F5F9]">
-              Événement d’agenda (iCalendar)
-            </span>
-            <button
-              type="button"
-              data-testid="example-btn-event"
-              disabled={exampleLoadingIntent === 'event'}
-              onClick={() => void handleSmartExample('event')}
-              className="inline-flex items-center gap-1 text-xs font-medium text-[#1D4ED8] dark:text-[#60A5FA] hover:underline cursor-pointer whitespace-nowrap disabled:opacity-50"
-            >
-              <Sparkles className="w-3.5 h-3.5" aria-hidden="true" />
-              <span>{exampleLoadingIntent === 'event' ? 'Génération…' : 'Exemple'}</span>
-            </button>
-          </div>
+          <span className="block text-xs font-semibold text-[#111214] dark:text-[#F1F5F9]">
+            Événement d’agenda (iCalendar)
+          </span>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <input
               type="text"
@@ -1829,21 +1604,9 @@ export const SourcePanel: React.FC<SourcePanelProps> = ({
       {/* 8. EMAIL INPUT */}
       {selectedIntent === 'email' && (
         <div className="pt-5 space-y-3 animate-[fadeIn_160ms_ease-out]">
-          <div className="flex items-center justify-between gap-2">
-            <span className="text-xs font-semibold text-[#111214] dark:text-[#F1F5F9]">
-              Envoi d’e-mail instantané
-            </span>
-            <button
-              type="button"
-              data-testid="example-btn-email"
-              disabled={exampleLoadingIntent === 'email'}
-              onClick={() => void handleSmartExample('email')}
-              className="inline-flex items-center gap-1 text-xs font-medium text-[#1D4ED8] dark:text-[#60A5FA] hover:underline cursor-pointer whitespace-nowrap disabled:opacity-50"
-            >
-              <Sparkles className="w-3.5 h-3.5" aria-hidden="true" />
-              <span>{exampleLoadingIntent === 'email' ? 'Génération…' : 'Exemple'}</span>
-            </button>
-          </div>
+          <span className="block text-xs font-semibold text-[#111214] dark:text-[#F1F5F9]">
+            Envoi d’e-mail instantané
+          </span>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <input
               type="email"
@@ -1882,21 +1645,9 @@ export const SourcePanel: React.FC<SourcePanelProps> = ({
       {/* 9. PHONE INPUT */}
       {selectedIntent === 'phone' && (
         <div className="pt-5 space-y-2.5 animate-[fadeIn_160ms_ease-out]">
-          <div className="flex items-center justify-between gap-2">
-            <label htmlFor="qr-phone-input" className="text-xs font-semibold text-[#111214] dark:text-[#F1F5F9]">
-              Numéro de téléphone
-            </label>
-            <button
-              type="button"
-              data-testid="example-btn-phone"
-              disabled={exampleLoadingIntent === 'phone'}
-              onClick={() => void handleSmartExample('phone')}
-              className="inline-flex items-center gap-1 text-xs font-medium text-[#1D4ED8] dark:text-[#60A5FA] hover:underline cursor-pointer whitespace-nowrap disabled:opacity-50"
-            >
-              <Sparkles className="w-3.5 h-3.5" aria-hidden="true" />
-              <span>{exampleLoadingIntent === 'phone' ? 'Génération…' : 'Exemple'}</span>
-            </button>
-          </div>
+          <label htmlFor="qr-phone-input" className="block text-xs font-semibold text-[#111214] dark:text-[#F1F5F9]">
+            Numéro de téléphone
+          </label>
           <input
             id="qr-phone-input"
             type="tel"
@@ -1913,21 +1664,9 @@ export const SourcePanel: React.FC<SourcePanelProps> = ({
       {/* 10. SMS INPUT */}
       {selectedIntent === 'sms' && (
         <div className="pt-5 space-y-3 animate-[fadeIn_160ms_ease-out]">
-          <div className="flex items-center justify-between gap-2">
-            <span className="text-xs font-semibold text-[#111214] dark:text-[#F1F5F9]">
-              SMS pré-composé
-            </span>
-            <button
-              type="button"
-              data-testid="example-btn-sms"
-              disabled={exampleLoadingIntent === 'sms'}
-              onClick={() => void handleSmartExample('sms')}
-              className="inline-flex items-center gap-1 text-xs font-medium text-[#1D4ED8] dark:text-[#60A5FA] hover:underline cursor-pointer whitespace-nowrap disabled:opacity-50"
-            >
-              <Sparkles className="w-3.5 h-3.5" aria-hidden="true" />
-              <span>{exampleLoadingIntent === 'sms' ? 'Génération…' : 'Exemple'}</span>
-            </button>
-          </div>
+          <span className="block text-xs font-semibold text-[#111214] dark:text-[#F1F5F9]">
+            SMS pré-composé
+          </span>
           <input
             type="tel"
             aria-label="Numéro SMS"
@@ -1954,21 +1693,9 @@ export const SourcePanel: React.FC<SourcePanelProps> = ({
       {/* 11. WHATSAPP INPUT */}
       {selectedIntent === 'whatsapp' && (
         <div className="pt-5 space-y-3 animate-[fadeIn_160ms_ease-out]">
-          <div className="flex items-center justify-between gap-2">
-            <span className="text-xs font-semibold text-[#111214] dark:text-[#F1F5F9]">
-              Lien direct WhatsApp
-            </span>
-            <button
-              type="button"
-              data-testid="example-btn-whatsapp"
-              disabled={exampleLoadingIntent === 'whatsapp'}
-              onClick={() => void handleSmartExample('whatsapp')}
-              className="inline-flex items-center gap-1 text-xs font-medium text-[#1D4ED8] dark:text-[#60A5FA] hover:underline cursor-pointer whitespace-nowrap disabled:opacity-50"
-            >
-              <Sparkles className="w-3.5 h-3.5" aria-hidden="true" />
-              <span>{exampleLoadingIntent === 'whatsapp' ? 'Génération…' : 'Exemple'}</span>
-            </button>
-          </div>
+          <span className="block text-xs font-semibold text-[#111214] dark:text-[#F1F5F9]">
+            Lien direct WhatsApp
+          </span>
           <input
             type="tel"
             aria-label="Numéro WhatsApp international"
@@ -2005,21 +1732,9 @@ export const SourcePanel: React.FC<SourcePanelProps> = ({
       {/* 12. GEOLOCATION GPS INPUT */}
       {selectedIntent === 'geo' && (
         <div className="pt-5 space-y-3 animate-[fadeIn_160ms_ease-out]">
-          <div className="flex items-center justify-between gap-2">
-            <span className="text-xs font-semibold text-[#111214] dark:text-[#F1F5F9]">
-              Coordonnées GPS &amp; itinéraire
-            </span>
-            <button
-              type="button"
-              data-testid="example-btn-geo"
-              disabled={exampleLoadingIntent === 'geo'}
-              onClick={() => void handleSmartExample('geo')}
-              className="inline-flex items-center gap-1 text-xs font-medium text-[#1D4ED8] dark:text-[#60A5FA] hover:underline cursor-pointer whitespace-nowrap disabled:opacity-50"
-            >
-              <Sparkles className="w-3.5 h-3.5" aria-hidden="true" />
-              <span>{exampleLoadingIntent === 'geo' ? 'Génération…' : 'Exemple'}</span>
-            </button>
-          </div>
+          <span className="block text-xs font-semibold text-[#111214] dark:text-[#F1F5F9]">
+            Coordonnées GPS &amp; itinéraire
+          </span>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <input
               type="text"
@@ -2087,16 +1802,6 @@ export const SourcePanel: React.FC<SourcePanelProps> = ({
                 Lien Stripe / PayPal
               </button>
             </div>
-            <button
-              type="button"
-              data-testid="example-btn-payment"
-              disabled={exampleLoadingIntent === 'payment'}
-              onClick={() => void handleSmartExample('payment')}
-              className="inline-flex items-center gap-1 text-xs font-medium text-[#1D4ED8] dark:text-[#60A5FA] hover:underline cursor-pointer whitespace-nowrap disabled:opacity-50"
-            >
-              <Sparkles className="w-3.5 h-3.5" aria-hidden="true" />
-              <span>{exampleLoadingIntent === 'payment' ? 'Génération…' : 'Exemple'}</span>
-            </button>
           </div>
 
           {source.paymentMode === 'link' ? (
@@ -2531,24 +2236,12 @@ export const SourcePanel: React.FC<SourcePanelProps> = ({
         const check = rawVal.trim() ? buildSocialPayload(rawVal, net) : null;
         return (
           <div className="pt-5 space-y-2.5 animate-[fadeIn_160ms_ease-out]">
-            <div className="flex items-center justify-between gap-2">
-              <label
-                htmlFor={`qr-social-${net}`}
-                className="text-xs font-semibold text-[#111214] dark:text-[#F1F5F9]"
-              >
-                {labelByNet[net]}
-              </label>
-              <button
-                type="button"
-                data-testid={`example-btn-${net}`}
-                disabled={exampleLoadingIntent === net}
-                onClick={() => void handleSmartExample(net)}
-                className="inline-flex items-center gap-1 text-xs font-medium text-[#1D4ED8] dark:text-[#60A5FA] hover:underline cursor-pointer whitespace-nowrap disabled:opacity-50"
-              >
-                <Sparkles className="w-3.5 h-3.5" aria-hidden="true" />
-                <span>{exampleLoadingIntent === net ? 'Génération…' : 'Exemple'}</span>
-              </button>
-            </div>
+            <label
+              htmlFor={`qr-social-${net}`}
+              className="block text-xs font-semibold text-[#111214] dark:text-[#F1F5F9]"
+            >
+              {labelByNet[net]}
+            </label>
             <input
               id={`qr-social-${net}`}
               data-testid={`social-input-${net}`}
@@ -2577,15 +2270,6 @@ export const SourcePanel: React.FC<SourcePanelProps> = ({
           </div>
         );
       })()}
-
-      {exampleNotice && (
-        <div
-          data-testid="example-quota-notice"
-          className="mt-3 text-[11px] font-medium text-[#B45309] dark:text-[#FBBF24] bg-[#FFFBEB] dark:bg-[#291F09] border border-[#FDE68A] dark:border-[#78350F] rounded-xl px-3.5 py-2"
-        >
-          {exampleNotice}
-        </div>
-      )}
 
       {(uploadError || validationError) && (
         <div

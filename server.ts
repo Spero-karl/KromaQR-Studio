@@ -79,11 +79,6 @@ import {
   SlidingWindowRateLimiter,
   SparkQrMarkRegistry,
 } from './src/server/securityGuard.ts';
-import {
-  ALLOWED_EXAMPLE_INTENTS,
-  RadoxExamplesService,
-} from './src/server/radoxExamples.ts';
-import type { QrIntent } from './src/types/qr.ts';
 
 interface MediaRecord extends MediaRecordLike {
   type: 'image' | 'video' | 'document' | 'audio' | 'collection';
@@ -574,10 +569,6 @@ export async function createSparkQrApp(options: CreateSparkQrAppOptions = {}): P
     HMAC_SECRET,
     backupEnabled ? stateBackup : undefined
   );
-  const radoxExamples = new RadoxExamplesService(
-    DATA_DIR,
-    backupEnabled ? stateBackup : undefined
-  );
   const rateLimiter = new SlidingWindowRateLimiter();
 
   const uploadLimiter = createRateLimitMiddleware(rateLimiter, {
@@ -605,12 +596,6 @@ export async function createSparkQrApp(options: CreateSparkQrAppOptions = {}): P
     bucket: 'sparkqr-sign',
     maxRequests: 180,
     windowMs: 5 * 60 * 1000,
-  });
-  const exampleLimiter = createRateLimitMiddleware(rateLimiter, {
-    bucket: 'examples-generate',
-    maxRequests: 30,
-    windowMs: 10 * 60 * 1000,
-    message: 'Trop de demandes d’exemple en peu de temps. Réessayez dans un instant.',
   });
 
   const readJsonStore = <T>(filePath: string, fallback: T): T =>
@@ -872,18 +857,6 @@ export async function createSparkQrApp(options: CreateSparkQrAppOptions = {}): P
       bundle: body.bundle ?? null,
       fingerprint: body.fingerprint,
     });
-    res.json(result);
-  });
-
-  // Server-only Step-1 example generator (strict daily quota, zero key or provider leakage)
-  app.post('/api/examples/generate', exampleLimiter, async (req, res) => {
-    res.setHeader('Cache-Control', 'no-store');
-    const rawIntent = typeof req.body?.intent === 'string' ? req.body.intent.trim() : '';
-    if (!ALLOWED_EXAMPLE_INTENTS.includes(rawIntent as QrIntent)) {
-      res.status(400).json({ error: 'Format d’exemple non pris en charge.' });
-      return;
-    }
-    const result = await radoxExamples.generateExample(rawIntent as QrIntent);
     res.json(result);
   });
 

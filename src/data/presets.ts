@@ -19,63 +19,6 @@ export const DEMO_IMAGE_PATH_ALT = '/demo-atelier-2.jpg';
 export const DEMO_VIDEO_PATH = '/demo-atelier.mp4';
 export const DEMO_VIDEO_PATH_ALT = '/demo-atelier-2.mp4';
 
-export const DEMO_SOURCE_SAMPLES = {
-  url: 'https://galerie-travers.fr/formes-geometriques',
-  text: 'Invitation privée — Exposition Formes Géométriques, Paris 2026.',
-  wifiSsid: 'Galerie_Travers_5G',
-  wifiPassword: 'sculpture2026',
-  vcard: {
-    firstName: 'Camille',
-    lastName: 'Laurent',
-    org: 'Atelier Travers Studio',
-    title: 'Directrice Artistique',
-    phone: '+33 1 42 68 55 10',
-    email: 'bonjour@atelier-travers.fr',
-    website: 'https://atelier-travers.fr',
-    address: '14 Rue de Turenne, 75004 Paris',
-  },
-  event: {
-    title: 'Vernissage Exposition Lumière',
-    start: '2026-06-18T19:30',
-    end: '2026-06-18T22:30',
-    location: 'Palais de Tokyo — Salle 4, Paris',
-    description: 'Présentation privée et cocktail d’ouverture.',
-  },
-  email: {
-    address: 'contact@atelier-travers.fr',
-    subject: 'Demande d’informations',
-    body: 'Bonjour, je souhaite en savoir plus suite au scan de votre QR code.',
-  },
-  phone: '+33 1 42 68 55 10',
-  sms: {
-    phone: '+33 6 12 34 56 78',
-    message: 'Bonjour, je confirme ma venue !',
-  },
-  whatsapp: {
-    phone: '+33 6 12 34 56 78',
-    message: 'Bonjour ! Je vous contacte depuis votre QR SparkQR.',
-  },
-  geo: {
-    lat: '48.864716',
-    lng: '2.297461',
-    label: 'Palais de Tokyo, Paris',
-  },
-  payment: {
-    mode: 'sepa' as const,
-    name: 'Atelier Travers SAS',
-    iban: 'FR7630006000011234567890189',
-    bic: 'AGRIFRPPXXX',
-    amount: '45.00',
-    reference: 'FACTURE-2026-042',
-    url: 'https://paiement.atelier-travers.fr/reglement',
-  },
-  tiktok: '@atelier.travers',
-  instagram: '@atelier.travers',
-  facebook: 'atelier.travers.paris',
-  telegram: '@atelier_travers',
-  twitter: '@ateliertravers',
-};
-
 export const DEFAULT_SOURCE: QrSourceState = {
   type: 'text',
   textMode: 'url',
