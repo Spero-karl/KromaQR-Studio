@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertCircle,
+  AlignLeft,
   ArrowLeft,
   ArrowRight,
   Building2,
@@ -13,6 +14,8 @@ import {
   FileText,
   Film,
   Globe,
+  Image as ImageIcon,
+  Link2,
   Loader2,
   Lock,
   Mail,
@@ -438,31 +441,26 @@ export const SparkMediaReader: React.FC<SparkMediaReaderProps> = ({
     [config, tokens.textPrimary]
   );
 
-  const titleFontCss =
-    FONT_CATALOG[config.fontId]?.cssFamily || FONT_CATALOG.bricolage.cssFamily;
-  const subtitleFontCss =
-    FONT_CATALOG[config.subtitleFontId]?.cssFamily || titleFontCss;
-
-  // Preload exact Google Fonts so cursive/display fonts render crisply upon opening
+  // Preload custom fonts ONLY for user-authored message content (never for reader UI chrome)
   useEffect(() => {
     if (typeof document === 'undefined' || !('fonts' in document)) return;
     const families = new Set<string>();
-    for (const css of [exactTextStyle.fontFamily, titleFontCss, subtitleFontCss]) {
-      const primary = extractPrimaryFontName(css);
-      if (primary) families.add(primary);
+    const encodedPrimary = extractPrimaryFontName(exactTextStyle.fontFamily);
+    if (encodedPrimary) families.add(encodedPrimary);
+    if (category === 'postcard') {
+      const postcardPrimary = extractPrimaryFontName(FONT_CATALOG.dancing.cssFamily);
+      if (postcardPrimary) families.add(postcardPrimary);
     }
     for (const family of families) {
       const descriptor = `${exactTextStyle.fontStyle === 'italic' ? 'italic ' : ''}${exactTextStyle.fontWeight} ${exactTextStyle.fontSizePx}px "${family}"`;
       void document.fonts.load(descriptor).catch(() => {});
-      void document.fonts.load(`700 22px "${family}"`).catch(() => {});
     }
   }, [
+    category,
     exactTextStyle.fontFamily,
     exactTextStyle.fontStyle,
     exactTextStyle.fontWeight,
     exactTextStyle.fontSizePx,
-    titleFontCss,
-    subtitleFontCss,
   ]);
 
   const safeImageIdx = Math.min(activeImageIdx, Math.max(0, buckets.images.length - 1));
@@ -632,7 +630,16 @@ export const SparkMediaReader: React.FC<SparkMediaReaderProps> = ({
     return resolveMediaDownloadUrl(url);
   };
 
-  const hasDedicatedPageAction = isWebLink && !standalone;
+  const hasOwnPrimaryLinkCard =
+    category === 'url' ||
+    category === 'tiktok' ||
+    category === 'instagram' ||
+    category === 'facebook' ||
+    category === 'telegram' ||
+    category === 'twitter' ||
+    category === 'payment';
+
+  const hasDedicatedPageAction = isWebLink && !standalone && !hasOwnPrimaryLinkCard;
   const showCopyInFooter =
     category === 'text-free' ||
     category === 'url' ||
@@ -658,15 +665,60 @@ export const SparkMediaReader: React.FC<SparkMediaReaderProps> = ({
   const standaloneMaxWidth =
     category === 'text-free' || showDocumentSection || category === 'mixed-collection'
       ? 'max-w-4xl'
-      : 'max-w-3xl';
+      : 'max-w-2xl';
 
   const isGlassTheme =
     config.frameStyle === 'glass' || config.frameStyle === 'smoked-glass';
-  const articleRadiusPx = Math.max(16, Math.min(28, config.cornerRadius || 20));
-  const articleAccentBorder =
-    config.borderWidth && config.borderWidth > 0 && config.borderColor
-      ? config.borderColor
-      : tokens.borderColor;
+
+  const categoryBadgeIcon = (() => {
+    switch (category) {
+      case 'wifi':
+        return <Wifi className="w-5 h-5" aria-hidden="true" />;
+      case 'url':
+        return <Link2 className="w-5 h-5" aria-hidden="true" />;
+      case 'tiktok':
+      case 'instagram':
+      case 'facebook':
+      case 'telegram':
+      case 'twitter':
+        return <Globe className="w-5 h-5" aria-hidden="true" />;
+      case 'vcard':
+      case 'business-card':
+        return <UserPlus className="w-5 h-5" aria-hidden="true" />;
+      case 'event':
+      case 'event-invite':
+        return <Calendar className="w-5 h-5" aria-hidden="true" />;
+      case 'email':
+        return <Mail className="w-5 h-5" aria-hidden="true" />;
+      case 'phone':
+        return <Phone className="w-5 h-5" aria-hidden="true" />;
+      case 'sms':
+      case 'whatsapp':
+        return <MessageSquare className="w-5 h-5" aria-hidden="true" />;
+      case 'geo':
+        return <MapPin className="w-5 h-5" aria-hidden="true" />;
+      case 'payment':
+        return <CreditCard className="w-5 h-5" aria-hidden="true" />;
+      case 'image-single':
+      case 'image-gallery':
+      case 'postcard':
+        return <ImageIcon className="w-5 h-5" aria-hidden="true" />;
+      case 'video-single':
+      case 'video-gallery':
+        return <Film className="w-5 h-5" aria-hidden="true" />;
+      case 'audio-single':
+        return <Music className="w-5 h-5" aria-hidden="true" />;
+      case 'document-single':
+        return <FileText className="w-5 h-5" aria-hidden="true" />;
+      case 'private-page':
+        return <Lock className="w-5 h-5" aria-hidden="true" />;
+      default:
+        return <AlignLeft className="w-5 h-5" aria-hidden="true" />;
+    }
+  })();
+
+  const isHiddenSrTitle =
+    category === 'text-free' && !customTitle && !customDescription;
 
   return (
     <div
@@ -675,30 +727,39 @@ export const SparkMediaReader: React.FC<SparkMediaReaderProps> = ({
       data-reader-category={category}
       className={
         standalone
-          ? 'min-h-[100dvh] w-full flex flex-col px-3.5 py-5 pb-safe pt-safe sm:px-6 sm:py-8 transition-colors duration-200'
-          : 'relative w-full transition-colors duration-200 rounded-2xl'
+          ? 'min-h-[100dvh] w-full flex flex-col px-4 py-6 pb-safe pt-safe sm:px-8 sm:py-10 transition-colors duration-200 font-sans'
+          : 'relative w-full transition-colors duration-200 rounded-2xl sm:rounded-3xl font-sans'
       }
       style={{
         background: tokens.outerBackground,
         color: tokens.textPrimary,
+        fontFamily: 'var(--font-sans)',
       }}
     >
       <div
         className={
           standalone
-            ? `${standaloneMaxWidth} w-full mx-auto sm:my-auto space-y-3.5`
-            : 'w-full p-3 sm:p-5 space-y-3.5'
+            ? `${standaloneMaxWidth} w-full mx-auto flex-1 flex flex-col justify-center gap-6 sm:gap-8`
+            : 'w-full p-4 sm:p-7 flex flex-col gap-6 sm:gap-7'
         }
       >
-        {/* Top Brand + Theme Toggle Bar */}
+        {/* Top Brand + Theme Toggle Bar (Typography locked to SparkQR system UI) */}
         <header
-          className="flex items-center justify-between gap-2 px-1"
+          className="flex items-center justify-between gap-3 px-3.5 py-2.5 sm:px-4 sm:py-3 rounded-2xl border transition-colors"
+          style={{
+            backgroundColor: tokens.surfaceBackground,
+            borderColor: tokens.borderColor,
+            boxShadow:
+              colorMode === 'dark'
+                ? '0 8px 24px rgba(0, 0, 0, 0.28)'
+                : '0 6px 20px rgba(15, 23, 42, 0.05)',
+          }}
         >
-          <div className="flex items-center gap-2.5 min-w-0">
+          <div className="flex items-center gap-3 min-w-0">
             <div
-              className="w-8 h-8 rounded-xl flex items-center justify-center border shrink-0"
+              className="w-9 h-9 rounded-xl flex items-center justify-center border shrink-0"
               style={{
-                backgroundColor: tokens.surfaceBackground,
+                backgroundColor: tokens.surfaceElevated,
                 borderColor: tokens.borderColor,
               }}
             >
@@ -742,8 +803,11 @@ export const SparkMediaReader: React.FC<SparkMediaReaderProps> = ({
                 <rect x="19" y="19" width="3.5" height="3.5" rx="1" fill="currentColor" />
               </svg>
             </div>
-            <div className="flex items-center gap-1.5 text-xs tracking-tight min-w-0">
-              <span className="font-display font-bold truncate" style={{ fontFamily: titleFontCss }}>
+            <div className="flex items-center gap-2 text-sm tracking-tight min-w-0">
+              <span
+                className="font-display font-bold truncate"
+                style={{ fontFamily: 'var(--font-display)', color: tokens.textPrimary }}
+              >
                 SparkQR
               </span>
               {(isEncrypted || Boolean(resolvedE2eeKey)) && (
@@ -752,7 +816,7 @@ export const SparkMediaReader: React.FC<SparkMediaReaderProps> = ({
                     ·
                   </span>
                   <span
-                    className="inline-flex items-center gap-1 text-[11px] font-medium whitespace-nowrap"
+                    className="inline-flex items-center gap-1 text-xs font-medium whitespace-nowrap"
                     style={{ color: tokens.accentColor }}
                   >
                     <ShieldCheck className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
@@ -763,7 +827,7 @@ export const SparkMediaReader: React.FC<SparkMediaReaderProps> = ({
             </div>
           </div>
 
-          <div className="flex items-center gap-1.5 shrink-0">
+          <div className="flex items-center gap-2 shrink-0">
             <button
               type="button"
               data-testid="reader-theme-toggle"
@@ -771,9 +835,9 @@ export const SparkMediaReader: React.FC<SparkMediaReaderProps> = ({
               aria-label={
                 colorMode === 'dark' ? 'Passer en mode clair' : 'Passer en mode sombre'
               }
-              className="inline-flex items-center gap-1.5 px-3 min-h-[38px] rounded-xl border text-xs font-semibold transition-colors whitespace-nowrap cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-3.5 min-h-[40px] rounded-xl border text-xs font-semibold transition-opacity hover:opacity-85 whitespace-nowrap cursor-pointer"
               style={{
-                backgroundColor: tokens.surfaceBackground,
+                backgroundColor: tokens.surfaceElevated,
                 borderColor: tokens.borderColor,
                 color: tokens.textPrimary,
               }}
@@ -796,9 +860,9 @@ export const SparkMediaReader: React.FC<SparkMediaReaderProps> = ({
                 type="button"
                 onClick={onClose}
                 aria-label="Fermer le lecteur"
-                className="w-[38px] h-[38px] inline-flex items-center justify-center rounded-xl border transition-colors cursor-pointer"
+                className="w-10 h-10 inline-flex items-center justify-center rounded-xl border transition-opacity hover:opacity-85 cursor-pointer"
                 style={{
-                  backgroundColor: tokens.surfaceBackground,
+                  backgroundColor: tokens.surfaceElevated,
                   borderColor: tokens.borderColor,
                   color: tokens.textPrimary,
                 }}
@@ -809,185 +873,221 @@ export const SparkMediaReader: React.FC<SparkMediaReaderProps> = ({
           </div>
         </header>
 
-        {/* Unified Content Surface Inheriting QR Model Theme */}
+        {/* Unified Content Surface Inheriting Theme Colors Only (UI Typography Stays Stable) */}
         <article
-          className={`border shadow-[0_18px_50px_rgba(15,23,42,0.10)] p-4 sm:p-6 space-y-4 animate-spark-enter relative overflow-hidden ${
+          className={`rounded-2xl sm:rounded-3xl border animate-spark-enter relative overflow-hidden ${
             isGlassTheme ? 'backdrop-blur-md' : ''
           }`}
           style={{
             backgroundColor: tokens.surfaceBackground,
-            borderColor: articleAccentBorder,
-            borderRadius: `${articleRadiusPx}px`,
-            fontFamily: subtitleFontCss,
+            borderColor: tokens.borderColor,
+            fontFamily: 'var(--font-sans)',
+            boxShadow:
+              colorMode === 'dark'
+                ? '0 24px 64px rgba(0, 0, 0, 0.45)'
+                : '0 20px 56px rgba(15, 23, 42, 0.08)',
           }}
         >
-          {/* Editorial Heading & Optional Custom Subtitle */}
-          {category === 'text-free' && !customTitle && !customDescription ? (
-            <h1 id="target-preview-title" className="sr-only">
-              {displayTitle}
-            </h1>
-          ) : (
-            <div className="flex flex-wrap items-baseline justify-between gap-2">
-              <div className="space-y-0.5 min-w-0">
-                <h1
-                  id="target-preview-title"
-                  className="tracking-tight leading-snug break-words"
-                  style={{
-                    fontFamily: titleFontCss,
-                    fontSize: customTitle
-                      ? `${Math.max(20, Math.min(28, (config.titleSize || 20) + 2))}px`
-                      : '18px',
-                    fontWeight: customTitle ? config.titleWeight || 700 : 700,
-                    fontStyle: customTitle && config.titleItalic ? 'italic' : 'normal',
-                    color: tokens.textPrimary,
-                  }}
+          <div className="p-5 sm:p-8 space-y-6">
+            {/* Editorial Heading & Optional Custom Subtitle */}
+            {isHiddenSrTitle ? (
+              <h1 id="target-preview-title" className="sr-only">
+                {displayTitle}
+              </h1>
+            ) : (
+              <div
+                className="flex flex-wrap items-center justify-between gap-4 pb-5 border-b"
+                style={{ borderColor: tokens.borderColor }}
+              >
+                <div
+                  className={`flex gap-3.5 min-w-0 flex-1 ${
+                    customTitle || customDescription ? 'items-start' : 'items-center'
+                  }`}
                 >
-                  {displayTitle}
-                </h1>
-                {customDescription && (
-                  <p
-                    className="leading-relaxed"
+                  <div
+                    className={`w-11 h-11 rounded-2xl border flex items-center justify-center shrink-0 ${
+                      customTitle || customDescription ? 'mt-0.5' : ''
+                    }`}
                     style={{
-                      fontFamily: subtitleFontCss,
-                      fontSize: `${Math.max(13, config.subtitleSize || 13)}px`,
-                      color: tokens.textMuted,
-                    }}
-                  >
-                    {customDescription}
-                  </p>
-                )}
-              </div>
-
-              <div className="flex items-center gap-2 shrink-0">
-                {showImageSection && buckets.images.length > 1 && (
-                  <span
-                    className="text-xs font-mono tabular-nums shrink-0"
-                    style={{ color: tokens.textMuted }}
-                  >
-                    {safeImageIdx + 1} / {buckets.images.length}
-                  </span>
-                )}
-                {showVideoSection && buckets.videos.length > 1 && !showImageSection && (
-                  <span
-                    className="text-xs font-mono tabular-nums shrink-0"
-                    style={{ color: tokens.textMuted }}
-                  >
-                    {safeVideoIdx + 1} / {buckets.videos.length}
-                  </span>
-                )}
-                {currentVideo && showVideoSection && !showImageSection && !showDocumentSection && !showAudioSection && (
-                  <a
-                    href={resolveSafeDownloadHref(currentVideo.url)}
-                    download="video-sparkqr"
-                    className="inline-flex items-center gap-1.5 px-3 min-h-[34px] text-xs font-semibold rounded-lg border transition-colors whitespace-nowrap shrink-0"
-                    style={{
-                      color: tokens.textPrimary,
                       backgroundColor: tokens.surfaceElevated,
                       borderColor: tokens.borderColor,
+                      color: tokens.accentColor,
                     }}
                   >
-                    <Download className="w-3.5 h-3.5" aria-hidden="true" />
-                    <span>Télécharger</span>
-                  </a>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Server PIN Gate if dynamic QR has PIN */}
-          {dynamicHasPin && !pinUnlocked ? (
-            <form
-              onSubmit={(e) => void handleServerPinCheck(e)}
-              data-testid="modal-pin-gate"
-              className="rounded-xl p-5 border space-y-3.5"
-              style={{
-                borderColor: tokens.borderColor,
-                backgroundColor: tokens.surfaceElevated,
-              }}
-            >
-              <div
-                className="flex items-center gap-2 text-xs font-semibold"
-                style={{ color: tokens.accentColor }}
-              >
-                <ShieldCheck className="w-4 h-4" aria-hidden="true" />
-                <span>Accès protégé par code PIN</span>
-              </div>
-              <p className="text-xs leading-relaxed" style={{ color: tokens.textMuted }}>
-                Entrez le code PIN configuré pour afficher ce contenu.
-              </p>
-              <div className="flex flex-wrap gap-2">
-                <input
-                  type="password"
-                  value={pinAttempt}
-                  onChange={(e) => setPinAttempt(e.target.value)}
-                  placeholder="Code PIN"
-                  required
-                  className="flex-1 min-w-[140px] px-3.5 py-2.5 text-sm rounded-xl border bg-transparent focus:outline-none"
-                  style={{ borderColor: tokens.borderColor, color: tokens.textPrimary }}
-                />
-                <button
-                  type="submit"
-                  disabled={verifyingPin}
-                  className="px-4 py-2.5 text-xs font-semibold rounded-xl cursor-pointer transition-opacity disabled:opacity-60"
-                  style={{
-                    backgroundColor: tokens.accentColor,
-                    color: tokens.accentContrastText,
-                  }}
-                >
-                  {verifyingPin ? 'Vérification...' : 'Déverrouiller'}
-                </button>
-              </div>
-              {pinError && (
-                <p role="alert" className="text-xs font-semibold text-red-500">
-                  {pinError}
-                </p>
-              )}
-            </form>
-          ) : (
-            <>
-              {decryptingMedia && (
-                <div
-                  data-testid="reader-loading-progress"
-                  className="rounded-xl border px-4 py-4 space-y-2.5"
-                  style={{
-                    borderColor: tokens.borderColor,
-                    backgroundColor: tokens.surfaceElevated,
-                  }}
-                >
-                  <div className="flex items-center justify-between gap-2 text-xs font-semibold">
-                    <div className="flex items-center gap-2">
-                      <Loader2
-                        className="w-4 h-4 animate-spin shrink-0"
-                        style={{ color: tokens.accentColor }}
-                        aria-hidden="true"
-                      />
-                      <span style={{ color: tokens.textPrimary }}>Chargement</span>
-                    </div>
-                    <span
-                      className="font-mono tabular-nums"
-                      style={{ color: tokens.accentColor }}
-                    >
-                      {loadingProgress}%
-                    </span>
+                    {categoryBadgeIcon}
                   </div>
-                  <div
-                    role="progressbar"
-                    aria-valuenow={loadingProgress}
-                    aria-valuemin={0}
-                    aria-valuemax={100}
-                    className="w-full h-1.5 rounded-full overflow-hidden"
-                    style={{ backgroundColor: tokens.borderColor }}
-                  >
-                    <div
-                      className="h-full rounded-full transition-all duration-150"
+                  <div className="space-y-1 min-w-0 flex-1">
+                    {customTitle && (
+                      <p
+                        className="text-[11px] font-semibold uppercase tracking-[0.09em]"
+                        style={{ color: tokens.accentColor }}
+                      >
+                        {genericTitle}
+                      </p>
+                    )}
+                    <h1
+                      id="target-preview-title"
+                      className="font-display text-xl sm:text-2xl font-bold tracking-tight leading-snug break-words"
                       style={{
-                        width: `${Math.max(4, loadingProgress)}%`,
-                        backgroundColor: tokens.accentColor,
+                        fontFamily: 'var(--font-display)',
+                        color: tokens.textPrimary,
                       }}
-                    />
+                    >
+                      {displayTitle}
+                    </h1>
+                    {customDescription && (
+                      <p
+                        className="text-sm leading-relaxed pt-0.5"
+                        style={{ color: tokens.textMuted }}
+                      >
+                        {customDescription}
+                      </p>
+                    )}
                   </div>
                 </div>
-              )}
+
+                {( (showImageSection && buckets.images.length > 1) ||
+                  (showVideoSection && buckets.videos.length > 1 && !showImageSection) ||
+                  (currentVideo && showVideoSection && !showImageSection && !showDocumentSection && !showAudioSection) ) && (
+                  <div className="flex items-center gap-2.5 shrink-0">
+                    {showImageSection && buckets.images.length > 1 && (
+                      <span
+                        className="text-xs font-mono font-semibold tabular-nums px-2.5 py-1 rounded-lg border"
+                        style={{
+                          color: tokens.textMuted,
+                          backgroundColor: tokens.surfaceElevated,
+                          borderColor: tokens.borderColor,
+                        }}
+                      >
+                        {safeImageIdx + 1} / {buckets.images.length}
+                      </span>
+                    )}
+                    {showVideoSection && buckets.videos.length > 1 && !showImageSection && (
+                      <span
+                        className="text-xs font-mono font-semibold tabular-nums px-2.5 py-1 rounded-lg border"
+                        style={{
+                          color: tokens.textMuted,
+                          backgroundColor: tokens.surfaceElevated,
+                          borderColor: tokens.borderColor,
+                        }}
+                      >
+                        {safeVideoIdx + 1} / {buckets.videos.length}
+                      </span>
+                    )}
+                    {currentVideo && showVideoSection && !showImageSection && !showDocumentSection && !showAudioSection && (
+                      <a
+                        href={resolveSafeDownloadHref(currentVideo.url)}
+                        download="video-sparkqr"
+                        className="inline-flex items-center gap-1.5 px-3.5 min-h-[40px] text-xs font-semibold rounded-xl border transition-opacity hover:opacity-85 whitespace-nowrap shrink-0"
+                        style={{
+                          color: tokens.textPrimary,
+                          backgroundColor: tokens.surfaceElevated,
+                          borderColor: tokens.borderColor,
+                        }}
+                      >
+                        <Download className="w-3.5 h-3.5" aria-hidden="true" />
+                        <span>Télécharger</span>
+                      </a>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Server PIN Gate if dynamic QR has PIN */}
+            {dynamicHasPin && !pinUnlocked ? (
+              <form
+                onSubmit={(e) => void handleServerPinCheck(e)}
+                data-testid="modal-pin-gate"
+                className="rounded-2xl p-5 sm:p-6 border space-y-4"
+                style={{
+                  borderColor: tokens.borderColor,
+                  backgroundColor: tokens.surfaceElevated,
+                }}
+              >
+                <div
+                  className="flex items-center gap-2 text-xs font-semibold uppercase tracking-[0.06em]"
+                  style={{ color: tokens.accentColor }}
+                >
+                  <ShieldCheck className="w-4 h-4" aria-hidden="true" />
+                  <span>Accès protégé par code PIN</span>
+                </div>
+                <p className="text-sm leading-relaxed" style={{ color: tokens.textMuted }}>
+                  Entrez le code PIN configuré pour afficher ce contenu.
+                </p>
+                <div className="flex flex-col sm:flex-row gap-2.5">
+                  <input
+                    type="password"
+                    value={pinAttempt}
+                    onChange={(e) => setPinAttempt(e.target.value)}
+                    placeholder="Code PIN"
+                    required
+                    className="flex-1 min-w-[140px] px-4 min-h-[44px] text-sm rounded-xl border bg-transparent focus:outline-none"
+                    style={{ borderColor: tokens.borderColor, color: tokens.textPrimary }}
+                  />
+                  <button
+                    type="submit"
+                    disabled={verifyingPin}
+                    className="px-5 min-h-[44px] text-xs font-semibold rounded-xl cursor-pointer transition-opacity hover:opacity-90 disabled:opacity-60 whitespace-nowrap"
+                    style={{
+                      backgroundColor: tokens.accentColor,
+                      color: tokens.accentContrastText,
+                    }}
+                  >
+                    {verifyingPin ? 'Vérification...' : 'Déverrouiller'}
+                  </button>
+                </div>
+                {pinError && (
+                  <p role="alert" className="text-xs font-semibold text-red-500">
+                    {pinError}
+                  </p>
+                )}
+              </form>
+            ) : (
+              <>
+                {decryptingMedia && (
+                  <div
+                    data-testid="reader-loading-progress"
+                    className="rounded-2xl border px-4 py-4 space-y-2.5"
+                    style={{
+                      borderColor: tokens.borderColor,
+                      backgroundColor: tokens.surfaceElevated,
+                    }}
+                  >
+                    <div className="flex items-center justify-between gap-2 text-xs font-semibold">
+                      <div className="flex items-center gap-2">
+                        <Loader2
+                          className="w-4 h-4 animate-spin shrink-0"
+                          style={{ color: tokens.accentColor }}
+                          aria-hidden="true"
+                        />
+                        <span style={{ color: tokens.textPrimary }}>Chargement</span>
+                      </div>
+                      <span
+                        className="font-mono tabular-nums"
+                        style={{ color: tokens.accentColor }}
+                      >
+                        {loadingProgress}%
+                      </span>
+                    </div>
+                    <div
+                      role="progressbar"
+                      aria-valuenow={loadingProgress}
+                      aria-valuemin={0}
+                      aria-valuemax={100}
+                      className="w-full h-1.5 rounded-full overflow-hidden"
+                      style={{ backgroundColor: tokens.borderColor }}
+                    >
+                      <div
+                        className="h-full rounded-full transition-all duration-150"
+                        style={{
+                          width: `${Math.max(4, loadingProgress)}%`,
+                          backgroundColor: tokens.accentColor,
+                        }}
+                      />
+                    </div>
+                  </div>
+                )}
 
               {mediaDecryptError && (
                 <div
@@ -1472,7 +1572,7 @@ export const SparkMediaReader: React.FC<SparkMediaReaderProps> = ({
                   className={
                     category === 'text-free'
                       ? 'w-full py-2 sm:py-4'
-                      : 'w-full pt-3.5 border-t'
+                      : 'w-full pt-5 border-t'
                   }
                   style={
                     category === 'text-free'
@@ -1494,7 +1594,7 @@ export const SparkMediaReader: React.FC<SparkMediaReaderProps> = ({
               {category === 'postcard' && (
                 <div
                   data-testid="exp-postcard-view"
-                  className="rounded-xl p-4 sm:p-5 border space-y-3.5"
+                  className="rounded-2xl p-5 sm:p-6 border space-y-4"
                   style={{
                     borderColor: tokens.borderColor,
                     backgroundColor: tokens.surfaceElevated,
@@ -1504,14 +1604,15 @@ export const SparkMediaReader: React.FC<SparkMediaReaderProps> = ({
                     className="flex items-center justify-between gap-2 text-xs"
                     style={{ color: tokens.textMuted }}
                   >
-                    <span>{experience.postcardFrom}</span>
+                    <span className="font-medium">{experience.postcardFrom}</span>
                     <button
                       type="button"
                       data-testid="flip-postcard-btn"
                       onClick={() => setPostcardFlipped((v) => !v)}
-                      className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-semibold cursor-pointer"
+                      className="inline-flex items-center gap-1.5 px-3 min-h-[38px] rounded-xl border text-xs font-semibold cursor-pointer transition-opacity hover:opacity-85"
                       style={{
                         borderColor: tokens.borderColor,
+                        backgroundColor: tokens.surfaceBackground,
                         color: tokens.accentColor,
                       }}
                     >
@@ -1523,12 +1624,12 @@ export const SparkMediaReader: React.FC<SparkMediaReaderProps> = ({
                   </div>
 
                   {!postcardFlipped ? (
-                    <div className="space-y-3">
+                    <div className="space-y-4">
                       {source.imageUrl && (
                         <img
                           src={decryptedAssets[source.imageUrl]?.blobUrl || source.imageUrl}
                           alt={customTitle || 'Carte postale'}
-                          className="w-full max-h-[320px] object-contain rounded-lg bg-black/10"
+                          className="w-full max-h-[340px] object-contain rounded-xl bg-black/10"
                         />
                       )}
                       <p
@@ -1545,13 +1646,13 @@ export const SparkMediaReader: React.FC<SparkMediaReaderProps> = ({
                       </p>
                     </div>
                   ) : (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 pt-1">
                       <div
-                        className="space-y-1.5 border-b sm:border-b-0 sm:border-r pb-3 sm:pb-0 sm:pr-4"
+                        className="space-y-2 border-b sm:border-b-0 sm:border-r pb-4 sm:pb-0 sm:pr-5"
                         style={{ borderColor: tokens.borderColor }}
                       >
                         <span
-                          className="text-[11px] uppercase tracking-wider"
+                          className="text-[11px] font-semibold uppercase tracking-wider"
                           style={{ color: tokens.textMuted }}
                         >
                           Correspondance
@@ -1565,9 +1666,9 @@ export const SparkMediaReader: React.FC<SparkMediaReaderProps> = ({
                             'Merci de votre visite.'}
                         </p>
                       </div>
-                      <div className="space-y-2">
+                      <div className="space-y-2.5">
                         <div
-                          className="inline-block px-2.5 py-1 border border-dashed rounded text-[10px] font-mono"
+                          className="inline-block px-3 py-1 border border-dashed rounded-lg text-[11px] font-mono"
                           style={{
                             borderColor: tokens.accentColor,
                             color: tokens.accentColor,
@@ -1591,20 +1692,20 @@ export const SparkMediaReader: React.FC<SparkMediaReaderProps> = ({
               {category === 'event-invite' && (
                 <div
                   data-testid="exp-event-view"
-                  className="rounded-xl p-4 sm:p-5 border grid grid-cols-1 sm:grid-cols-2 gap-4"
+                  className="rounded-2xl p-5 sm:p-6 border grid grid-cols-1 sm:grid-cols-2 gap-5"
                   style={{
                     borderColor: tokens.borderColor,
                     backgroundColor: tokens.surfaceElevated,
                   }}
                 >
-                  <div className="flex items-start gap-2.5">
+                  <div className="flex items-start gap-3">
                     <Calendar
                       className="w-4 h-4 mt-0.5 shrink-0"
                       style={{ color: tokens.accentColor }}
                     />
-                    <div>
+                    <div className="space-y-0.5">
                       <span
-                        className="block text-[11px]"
+                        className="block text-[11px] font-semibold uppercase tracking-wider"
                         style={{ color: tokens.textMuted }}
                       >
                         Date &amp; heure
@@ -1617,14 +1718,14 @@ export const SparkMediaReader: React.FC<SparkMediaReaderProps> = ({
                       </span>
                     </div>
                   </div>
-                  <div className="flex items-start gap-2.5">
+                  <div className="flex items-start gap-3">
                     <MapPin
                       className="w-4 h-4 mt-0.5 shrink-0"
                       style={{ color: tokens.accentColor }}
                     />
-                    <div>
+                    <div className="space-y-0.5">
                       <span
-                        className="block text-[11px]"
+                        className="block text-[11px] font-semibold uppercase tracking-wider"
                         style={{ color: tokens.textMuted }}
                       >
                         Lieu
@@ -1638,7 +1739,7 @@ export const SparkMediaReader: React.FC<SparkMediaReaderProps> = ({
                     </div>
                   </div>
                   <div
-                    className="sm:col-span-2 pt-2.5 border-t text-xs"
+                    className="sm:col-span-2 pt-3.5 border-t text-xs"
                     style={{
                       borderColor: tokens.borderColor,
                       color: tokens.textMuted,
@@ -1656,16 +1757,16 @@ export const SparkMediaReader: React.FC<SparkMediaReaderProps> = ({
               {category === 'business-card' && (
                 <div
                   data-testid="exp-business-view"
-                  className="rounded-xl p-4 sm:p-5 border space-y-3"
+                  className="rounded-2xl p-5 sm:p-6 border space-y-4"
                   style={{
                     borderColor: tokens.borderColor,
                     backgroundColor: tokens.surfaceElevated,
                   }}
                 >
-                  <div>
+                  <div className="space-y-0.5">
                     <div
-                      className="text-base sm:text-lg font-bold"
-                      style={{ color: tokens.textPrimary }}
+                      className="font-display text-lg sm:text-xl font-bold"
+                      style={{ color: tokens.textPrimary, fontFamily: 'var(--font-display)' }}
                     >
                       {experience.personName}
                     </div>
@@ -1677,17 +1778,17 @@ export const SparkMediaReader: React.FC<SparkMediaReaderProps> = ({
                     </div>
                   </div>
                   <div
-                    className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs"
-                    style={{ color: tokens.textMuted }}
+                    className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-3 border-t text-xs"
+                    style={{ borderColor: tokens.borderColor, color: tokens.textMuted }}
                   >
                     {experience.contactEmail && (
                       <a
                         href={`mailto:${experience.contactEmail}`}
-                        className="inline-flex items-center gap-1.5 hover:underline min-w-0 truncate"
+                        className="inline-flex items-center gap-2 hover:underline min-w-0 truncate min-h-[36px]"
                         style={{ color: tokens.textPrimary }}
                       >
                         <Mail
-                          className="w-3.5 h-3.5 shrink-0"
+                          className="w-4 h-4 shrink-0"
                           style={{ color: tokens.accentColor }}
                         />
                         <span className="truncate">{experience.contactEmail}</span>
@@ -1696,11 +1797,11 @@ export const SparkMediaReader: React.FC<SparkMediaReaderProps> = ({
                     {experience.contactPhone && (
                       <a
                         href={`tel:${experience.contactPhone}`}
-                        className="inline-flex items-center gap-1.5 hover:underline"
+                        className="inline-flex items-center gap-2 hover:underline min-h-[36px]"
                         style={{ color: tokens.textPrimary }}
                       >
                         <Phone
-                          className="w-3.5 h-3.5 shrink-0"
+                          className="w-4 h-4 shrink-0"
                           style={{ color: tokens.accentColor }}
                         />
                         <span>{experience.contactPhone}</span>
@@ -1714,14 +1815,14 @@ export const SparkMediaReader: React.FC<SparkMediaReaderProps> = ({
               {category === 'private-page' && (
                 <div
                   data-testid="exp-private-view"
-                  className="rounded-xl p-4 sm:p-5 border space-y-2"
+                  className="rounded-2xl p-5 sm:p-6 border space-y-2.5"
                   style={{
                     borderColor: tokens.borderColor,
                     backgroundColor: tokens.surfaceElevated,
                   }}
                 >
                   <div
-                    className="inline-flex items-center gap-1.5 text-xs font-semibold"
+                    className="inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider"
                     style={{ color: tokens.accentColor }}
                   >
                     <Lock className="w-3.5 h-3.5" />
@@ -1739,34 +1840,47 @@ export const SparkMediaReader: React.FC<SparkMediaReaderProps> = ({
               {/* 8. URL CARD */}
               {category === 'url' && (
                 <div
-                  className="rounded-xl p-4 border space-y-3"
+                  className="rounded-2xl p-5 sm:p-6 border space-y-4"
                   style={{
                     borderColor: tokens.borderColor,
                     backgroundColor: tokens.surfaceElevated,
                   }}
                 >
-                  <div className="flex items-center gap-2 text-xs font-semibold" style={{ color: tokens.accentColor }}>
-                    <Globe className="w-4 h-4 shrink-0" aria-hidden="true" />
-                    <span className="truncate">{hostname || 'Lien externe'}</span>
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 text-xs font-semibold" style={{ color: tokens.accentColor }}>
+                      <Globe className="w-4 h-4 shrink-0" aria-hidden="true" />
+                      <span className="truncate">{hostname || 'Lien externe'}</span>
+                    </div>
+                    <span className="text-[11px] font-medium" style={{ color: tokens.textMuted }}>
+                      Destination
+                    </span>
                   </div>
-                  <p
-                    className="text-xs sm:text-sm font-mono break-all select-all"
-                    style={{ color: tokens.textPrimary }}
+                  <div
+                    className="rounded-xl px-4 py-3 border"
+                    style={{
+                      borderColor: tokens.borderColor,
+                      backgroundColor: tokens.surfaceBackground,
+                    }}
                   >
-                    {payload}
-                  </p>
+                    <p
+                      className="text-xs sm:text-sm font-mono break-all select-all leading-relaxed"
+                      style={{ color: tokens.textPrimary }}
+                    >
+                      {payload}
+                    </p>
+                  </div>
                   {isWebLink && (
                     <a
                       href={payload}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1.5 px-4 min-h-[40px] rounded-xl text-xs font-semibold transition-opacity hover:opacity-90"
+                      className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 min-h-[44px] rounded-xl text-xs font-semibold transition-opacity hover:opacity-90"
                       style={{
                         backgroundColor: tokens.accentColor,
                         color: tokens.accentContrastText,
                       }}
                     >
-                      <ExternalLink className="w-3.5 h-3.5" aria-hidden="true" />
+                      <ExternalLink className="w-4 h-4" aria-hidden="true" />
                       <span>Ouvrir le lien</span>
                     </a>
                   )}
@@ -1820,7 +1934,7 @@ export const SparkMediaReader: React.FC<SparkMediaReaderProps> = ({
                   return (
                     <div
                       data-testid={`reader-social-${category}`}
-                      className="rounded-xl p-4 sm:p-5 border space-y-3"
+                      className="rounded-2xl p-5 sm:p-6 border space-y-4"
                       style={{
                         borderColor: tokens.borderColor,
                         backgroundColor: tokens.surfaceElevated,
@@ -1829,7 +1943,7 @@ export const SparkMediaReader: React.FC<SparkMediaReaderProps> = ({
                       <div className="flex items-center justify-between gap-2">
                         <div className="flex items-center gap-2 text-xs font-semibold" style={{ color: tokens.accentColor }}>
                           <Globe className="w-4 h-4 shrink-0" aria-hidden="true" />
-                          <span>Profil officiel · {label}</span>
+                          <span>Profil · {label}</span>
                         </div>
                         {hostname && (
                           <span className="text-[11px] font-mono" style={{ color: tokens.textMuted }}>
@@ -1839,30 +1953,41 @@ export const SparkMediaReader: React.FC<SparkMediaReaderProps> = ({
                       </div>
 
                       {handleDisplay && (
-                        <p className="text-base sm:text-lg font-bold break-all" style={{ color: tokens.textPrimary }}>
+                        <p
+                          className="font-display text-lg sm:text-xl font-bold break-all"
+                          style={{ color: tokens.textPrimary, fontFamily: 'var(--font-display)' }}
+                        >
                           {handleDisplay}
                         </p>
                       )}
 
-                      <p
-                        className="text-xs font-mono break-all select-all"
-                        style={{ color: tokens.textMuted }}
+                      <div
+                        className="rounded-xl px-4 py-2.5 border"
+                        style={{
+                          borderColor: tokens.borderColor,
+                          backgroundColor: tokens.surfaceBackground,
+                        }}
                       >
-                        {payload}
-                      </p>
+                        <p
+                          className="text-xs font-mono break-all select-all"
+                          style={{ color: tokens.textMuted }}
+                        >
+                          {payload}
+                        </p>
+                      </div>
 
                       {safeExternalHref && (
                         <a
                           href={safeExternalHref}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1.5 px-4 min-h-[42px] rounded-xl text-xs font-semibold transition-opacity hover:opacity-90"
+                          className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 min-h-[44px] rounded-xl text-xs font-semibold transition-opacity hover:opacity-90"
                           style={{
                             backgroundColor: tokens.accentColor,
                             color: tokens.accentContrastText,
                           }}
                         >
-                          <ExternalLink className="w-3.5 h-3.5" aria-hidden="true" />
+                          <ExternalLink className="w-4 h-4" aria-hidden="true" />
                           <span>Ouvrir sur {label}</span>
                         </a>
                       )}
@@ -1873,44 +1998,64 @@ export const SparkMediaReader: React.FC<SparkMediaReaderProps> = ({
               {/* 9. WI-FI CARD */}
               {category === 'wifi' && (
                 <div
-                  className="rounded-xl p-4 border space-y-3"
+                  className="rounded-2xl p-5 sm:p-6 border space-y-4"
                   style={{
                     borderColor: tokens.borderColor,
                     backgroundColor: tokens.surfaceElevated,
                   }}
                 >
                   <div className="flex items-center justify-between gap-4">
-                    <div className="flex items-center gap-2.5 min-w-0">
-                      <Wifi className="w-5 h-5 shrink-0" style={{ color: tokens.accentColor }} aria-hidden="true" />
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div
+                        className="w-10 h-10 rounded-xl border flex items-center justify-center shrink-0"
+                        style={{
+                          backgroundColor: tokens.surfaceBackground,
+                          borderColor: tokens.borderColor,
+                          color: tokens.accentColor,
+                        }}
+                      >
+                        <Wifi className="w-5 h-5" aria-hidden="true" />
+                      </div>
                       <div className="min-w-0">
-                        <p className="text-[11px]" style={{ color: tokens.textMuted }}>
+                        <p className="text-[11px] font-semibold uppercase tracking-wider" style={{ color: tokens.textMuted }}>
                           Nom du réseau
                         </p>
-                        <p className="text-base font-bold truncate" style={{ color: tokens.textPrimary }}>
+                        <p
+                          className="font-display text-base sm:text-lg font-bold truncate"
+                          style={{ color: tokens.textPrimary, fontFamily: 'var(--font-display)' }}
+                        >
                           {source.wifiSsid}
                         </p>
                       </div>
                     </div>
                     <span
-                      className="text-xs font-mono font-semibold shrink-0"
-                      style={{ color: tokens.accentColor }}
+                      className="text-xs font-mono font-semibold shrink-0 px-2.5 py-1 rounded-lg border"
+                      style={{
+                        color: tokens.accentColor,
+                        backgroundColor: tokens.surfaceBackground,
+                        borderColor: tokens.borderColor,
+                      }}
                     >
                       {source.wifiSecurity === 'nopass' ? 'Ouvert' : source.wifiSecurity}
                     </span>
                   </div>
                   {source.wifiSecurity !== 'nopass' && source.wifiPassword && (
                     <div
-                      className="pt-2.5 border-t flex flex-wrap items-center justify-between gap-2"
+                      className="pt-4 border-t flex flex-wrap items-center justify-between gap-3"
                       style={{ borderColor: tokens.borderColor }}
                     >
-                      <span className="text-xs font-mono break-all" style={{ color: tokens.textMuted }}>
-                        Mot de passe :{' '}
-                        <strong style={{ color: tokens.textPrimary }}>{source.wifiPassword}</strong>
-                      </span>
+                      <div className="min-w-0 space-y-0.5">
+                        <span className="block text-[11px] font-semibold uppercase tracking-wider" style={{ color: tokens.textMuted }}>
+                          Mot de passe
+                        </span>
+                        <span className="text-sm font-mono font-bold break-all" style={{ color: tokens.textPrimary }}>
+                          {source.wifiPassword}
+                        </span>
+                      </div>
                       <button
                         type="button"
                         onClick={() => void handleCopyText(source.wifiPassword)}
-                        className="inline-flex items-center gap-1.5 px-3 min-h-[36px] rounded-lg border text-xs font-semibold cursor-pointer"
+                        className="inline-flex items-center gap-1.5 px-3.5 min-h-[40px] rounded-xl border text-xs font-semibold cursor-pointer transition-opacity hover:opacity-85"
                         style={{
                           borderColor: tokens.borderColor,
                           backgroundColor: tokens.surfaceBackground,
@@ -1935,136 +2080,175 @@ export const SparkMediaReader: React.FC<SparkMediaReaderProps> = ({
               )}
 
               {/* 10. VCARD CONTACT CARD */}
-              {category === 'vcard' && (
-                <div
-                  data-testid="reader-vcard-view"
-                  className="rounded-xl p-4 sm:p-5 border space-y-3"
-                  style={{
-                    borderColor: tokens.borderColor,
-                    backgroundColor: tokens.surfaceElevated,
-                  }}
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="text-base sm:text-lg font-bold truncate" style={{ color: tokens.textPrimary }}>
-                        {[source.vcardFirstName, source.vcardLastName].filter(Boolean).join(' ') || 'Contact'}
-                      </p>
-                      {(source.vcardTitle || source.vcardOrg) && (
-                        <p className="text-xs font-semibold flex items-center gap-1.5 mt-0.5" style={{ color: tokens.accentColor }}>
-                          <Building2 className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
-                          <span>{[source.vcardTitle, source.vcardOrg].filter(Boolean).join(' · ')}</span>
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
-                    {source.vcardPhone && (
-                      <a
-                        href={`tel:${source.vcardPhone.replace(/\s+/g, '')}`}
-                        className="inline-flex items-center gap-1.5 hover:underline"
-                        style={{ color: tokens.textPrimary }}
-                      >
-                        <Phone className="w-3.5 h-3.5 shrink-0" style={{ color: tokens.accentColor }} aria-hidden="true" />
-                        <span>{source.vcardPhone}</span>
-                      </a>
-                    )}
-                    {source.vcardEmail && (
-                      <a
-                        href={`mailto:${source.vcardEmail}`}
-                        className="inline-flex items-center gap-1.5 hover:underline truncate"
-                        style={{ color: tokens.textPrimary }}
-                      >
-                        <Mail className="w-3.5 h-3.5 shrink-0" style={{ color: tokens.accentColor }} aria-hidden="true" />
-                        <span className="truncate">{source.vcardEmail}</span>
-                      </a>
-                    )}
-                    {source.vcardWebsite && (
-                      <a
-                        href={source.vcardWebsite}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1.5 hover:underline truncate"
-                        style={{ color: tokens.textPrimary }}
-                      >
-                        <Globe className="w-3.5 h-3.5 shrink-0" style={{ color: tokens.accentColor }} aria-hidden="true" />
-                        <span className="truncate">{source.vcardWebsite}</span>
-                      </a>
-                    )}
-                    {source.vcardAddress && (
-                      <span className="inline-flex items-center gap-1.5" style={{ color: tokens.textMuted }}>
-                        <MapPin className="w-3.5 h-3.5 shrink-0" style={{ color: tokens.accentColor }} aria-hidden="true" />
-                        <span>{source.vcardAddress}</span>
-                      </span>
-                    )}
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const vcf = payload.startsWith('BEGIN:VCARD')
-                        ? payload
-                        : [
-                            'BEGIN:VCARD',
-                            'VERSION:3.0',
-                            `N:${source.vcardLastName || ''};${source.vcardFirstName || ''};;;`,
-                            `FN:${[source.vcardFirstName, source.vcardLastName].filter(Boolean).join(' ')}`,
-                            source.vcardOrg ? `ORG:${source.vcardOrg}` : '',
-                            source.vcardTitle ? `TITLE:${source.vcardTitle}` : '',
-                            source.vcardPhone ? `TEL:${source.vcardPhone}` : '',
-                            source.vcardEmail ? `EMAIL:${source.vcardEmail}` : '',
-                            source.vcardWebsite ? `URL:${source.vcardWebsite}` : '',
-                            'END:VCARD',
-                          ]
-                            .filter(Boolean)
-                            .join('\r\n');
-                      const blob = new Blob([vcf], { type: 'text/vcard;charset=utf-8' });
-                      const url = URL.createObjectURL(blob);
-                      const a = document.createElement('a');
-                      a.href = url;
-                      a.download = 'contact-sparkqr.vcf';
-                      a.click();
-                      setTimeout(() => URL.revokeObjectURL(url), 1000);
-                    }}
-                    className="inline-flex items-center gap-1.5 px-4 min-h-[40px] rounded-xl text-xs font-semibold cursor-pointer transition-opacity hover:opacity-90"
+              {category === 'vcard' && (() => {
+                const fullName =
+                  [source.vcardFirstName, source.vcardLastName].filter(Boolean).join(' ') ||
+                  'Contact';
+                const initials =
+                  [source.vcardFirstName?.[0], source.vcardLastName?.[0]]
+                    .filter(Boolean)
+                    .join('')
+                    .toUpperCase() || 'C';
+                return (
+                  <div
+                    data-testid="reader-vcard-view"
+                    className="rounded-2xl p-5 sm:p-6 border space-y-5"
                     style={{
-                      backgroundColor: tokens.accentColor,
-                      color: tokens.accentContrastText,
+                      borderColor: tokens.borderColor,
+                      backgroundColor: tokens.surfaceElevated,
                     }}
                   >
-                    <UserPlus className="w-3.5 h-3.5" aria-hidden="true" />
-                    <span>Enregistrer le contact (.vcf)</span>
-                  </button>
-                </div>
-              )}
+                    <div className="flex items-center gap-3.5">
+                      <div
+                        className="w-12 h-12 rounded-2xl flex items-center justify-center font-display text-base font-bold shrink-0"
+                        style={{
+                          backgroundColor: tokens.accentColor,
+                          color: tokens.accentContrastText,
+                          fontFamily: 'var(--font-display)',
+                        }}
+                      >
+                        {initials}
+                      </div>
+                      <div className="min-w-0">
+                        <p
+                          className="font-display text-lg sm:text-xl font-bold truncate"
+                          style={{ color: tokens.textPrimary, fontFamily: 'var(--font-display)' }}
+                        >
+                          {fullName}
+                        </p>
+                        {(source.vcardTitle || source.vcardOrg) && (
+                          <p
+                            className="text-xs font-semibold flex items-center gap-1.5 mt-0.5 truncate"
+                            style={{ color: tokens.accentColor }}
+                          >
+                            <Building2 className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
+                            <span className="truncate">
+                              {[source.vcardTitle, source.vcardOrg].filter(Boolean).join(' · ')}
+                            </span>
+                          </p>
+                        )}
+                      </div>
+                    </div>
+
+                    <div
+                      className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-4 border-t text-xs"
+                      style={{ borderColor: tokens.borderColor }}
+                    >
+                      {source.vcardPhone && (
+                        <a
+                          href={`tel:${source.vcardPhone.replace(/\s+/g, '')}`}
+                          className="inline-flex items-center gap-2 hover:underline min-h-[36px]"
+                          style={{ color: tokens.textPrimary }}
+                        >
+                          <Phone className="w-4 h-4 shrink-0" style={{ color: tokens.accentColor }} aria-hidden="true" />
+                          <span>{source.vcardPhone}</span>
+                        </a>
+                      )}
+                      {source.vcardEmail && (
+                        <a
+                          href={`mailto:${source.vcardEmail}`}
+                          className="inline-flex items-center gap-2 hover:underline truncate min-h-[36px]"
+                          style={{ color: tokens.textPrimary }}
+                        >
+                          <Mail className="w-4 h-4 shrink-0" style={{ color: tokens.accentColor }} aria-hidden="true" />
+                          <span className="truncate">{source.vcardEmail}</span>
+                        </a>
+                      )}
+                      {source.vcardWebsite && (
+                        <a
+                          href={source.vcardWebsite}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-2 hover:underline truncate min-h-[36px]"
+                          style={{ color: tokens.textPrimary }}
+                        >
+                          <Globe className="w-4 h-4 shrink-0" style={{ color: tokens.accentColor }} aria-hidden="true" />
+                          <span className="truncate">{source.vcardWebsite}</span>
+                        </a>
+                      )}
+                      {source.vcardAddress && (
+                        <span className="inline-flex items-center gap-2 min-h-[36px]" style={{ color: tokens.textMuted }}>
+                          <MapPin className="w-4 h-4 shrink-0" style={{ color: tokens.accentColor }} aria-hidden="true" />
+                          <span>{source.vcardAddress}</span>
+                        </span>
+                      )}
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const vcf = payload.startsWith('BEGIN:VCARD')
+                          ? payload
+                          : [
+                              'BEGIN:VCARD',
+                              'VERSION:3.0',
+                              `N:${source.vcardLastName || ''};${source.vcardFirstName || ''};;;`,
+                              `FN:${fullName}`,
+                              source.vcardOrg ? `ORG:${source.vcardOrg}` : '',
+                              source.vcardTitle ? `TITLE:${source.vcardTitle}` : '',
+                              source.vcardPhone ? `TEL:${source.vcardPhone}` : '',
+                              source.vcardEmail ? `EMAIL:${source.vcardEmail}` : '',
+                              source.vcardWebsite ? `URL:${source.vcardWebsite}` : '',
+                              'END:VCARD',
+                            ]
+                              .filter(Boolean)
+                              .join('\r\n');
+                        const blob = new Blob([vcf], { type: 'text/vcard;charset=utf-8' });
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = 'contact-sparkqr.vcf';
+                        a.click();
+                        setTimeout(() => URL.revokeObjectURL(url), 1000);
+                      }}
+                      className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 min-h-[44px] rounded-xl text-xs font-semibold cursor-pointer transition-opacity hover:opacity-90"
+                      style={{
+                        backgroundColor: tokens.accentColor,
+                        color: tokens.accentContrastText,
+                      }}
+                    >
+                      <UserPlus className="w-4 h-4" aria-hidden="true" />
+                      <span>Enregistrer le contact (.vcf)</span>
+                    </button>
+                  </div>
+                );
+              })()}
 
               {/* 11. CALENDAR EVENT CARD */}
               {category === 'event' && (
                 <div
                   data-testid="reader-event-view"
-                  className="rounded-xl p-4 sm:p-5 border space-y-3"
+                  className="rounded-2xl p-5 sm:p-6 border space-y-4"
                   style={{
                     borderColor: tokens.borderColor,
                     backgroundColor: tokens.surfaceElevated,
                   }}
                 >
-                  <div className="space-y-1">
-                    <p className="text-base font-bold" style={{ color: tokens.textPrimary }}>
+                  <div className="space-y-2">
+                    <p
+                      className="font-display text-lg font-bold"
+                      style={{ color: tokens.textPrimary, fontFamily: 'var(--font-display)' }}
+                    >
                       {source.eventTitle || displayTitle}
                     </p>
-                    <p className="text-xs font-semibold flex items-center gap-1.5" style={{ color: tokens.accentColor }}>
-                      <Calendar className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
+                    <p className="text-xs font-semibold flex items-center gap-2" style={{ color: tokens.accentColor }}>
+                      <Calendar className="w-4 h-4 shrink-0" aria-hidden="true" />
                       <span>
                         {source.eventStart ? new Date(source.eventStart).toLocaleString('fr-FR') : ''}
                         {source.eventEnd ? ` → ${new Date(source.eventEnd).toLocaleString('fr-FR')}` : ''}
                       </span>
                     </p>
                     {source.eventLocation && (
-                      <p className="text-xs flex items-center gap-1.5" style={{ color: tokens.textMuted }}>
-                        <MapPin className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
+                      <p className="text-xs flex items-center gap-2" style={{ color: tokens.textMuted }}>
+                        <MapPin className="w-4 h-4 shrink-0" aria-hidden="true" />
                         <span>{source.eventLocation}</span>
                       </p>
                     )}
                     {source.eventDescription && (
-                      <p className="text-xs leading-relaxed pt-1" style={{ color: tokens.textPrimary }}>
+                      <p
+                        className="text-sm leading-relaxed pt-2 border-t"
+                        style={{ borderColor: tokens.borderColor, color: tokens.textPrimary }}
+                      >
                         {source.eventDescription}
                       </p>
                     )}
@@ -2083,13 +2267,13 @@ export const SparkMediaReader: React.FC<SparkMediaReaderProps> = ({
                       a.click();
                       setTimeout(() => URL.revokeObjectURL(url), 1000);
                     }}
-                    className="inline-flex items-center gap-1.5 px-4 min-h-[40px] rounded-xl text-xs font-semibold cursor-pointer transition-opacity hover:opacity-90"
+                    className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 min-h-[44px] rounded-xl text-xs font-semibold cursor-pointer transition-opacity hover:opacity-90"
                     style={{
                       backgroundColor: tokens.accentColor,
                       color: tokens.accentContrastText,
                     }}
                   >
-                    <Calendar className="w-3.5 h-3.5" aria-hidden="true" />
+                    <Calendar className="w-4 h-4" aria-hidden="true" />
                     <span>Ajouter au calendrier (.ics)</span>
                   </button>
                 </div>
@@ -2102,19 +2286,28 @@ export const SparkMediaReader: React.FC<SparkMediaReaderProps> = ({
                 category === 'whatsapp') && (
                 <div
                   data-testid={`reader-${category}-view`}
-                  className="rounded-xl p-4 sm:p-5 border space-y-3"
+                  className="rounded-2xl p-5 sm:p-6 border space-y-4"
                   style={{
                     borderColor: tokens.borderColor,
                     backgroundColor: tokens.surfaceElevated,
                   }}
                 >
-                  <div className="flex items-center gap-2 text-xs font-semibold" style={{ color: tokens.accentColor }}>
-                    {category === 'email' && <Mail className="w-4 h-4 shrink-0" aria-hidden="true" />}
-                    {category === 'phone' && <Phone className="w-4 h-4 shrink-0" aria-hidden="true" />}
-                    {(category === 'sms' || category === 'whatsapp') && (
-                      <MessageSquare className="w-4 h-4 shrink-0" aria-hidden="true" />
-                    )}
-                    <span>
+                  <div className="flex items-center gap-2.5 text-sm font-bold" style={{ color: tokens.textPrimary }}>
+                    <span
+                      className="w-9 h-9 rounded-xl border flex items-center justify-center shrink-0"
+                      style={{
+                        backgroundColor: tokens.surfaceBackground,
+                        borderColor: tokens.borderColor,
+                        color: tokens.accentColor,
+                      }}
+                    >
+                      {category === 'email' && <Mail className="w-4 h-4" aria-hidden="true" />}
+                      {category === 'phone' && <Phone className="w-4 h-4" aria-hidden="true" />}
+                      {(category === 'sms' || category === 'whatsapp') && (
+                        <MessageSquare className="w-4 h-4" aria-hidden="true" />
+                      )}
+                    </span>
+                    <span className="break-all">
                       {category === 'email'
                         ? source.emailAddress
                         : category === 'phone'
@@ -2136,25 +2329,33 @@ export const SparkMediaReader: React.FC<SparkMediaReaderProps> = ({
                     : category === 'whatsapp'
                     ? source.whatsappMessage
                     : '') && (
-                    <p className="text-xs whitespace-pre-wrap leading-relaxed" style={{ color: tokens.textPrimary }}>
-                      {category === 'email'
-                        ? source.emailBody
-                        : category === 'sms'
-                        ? source.smsMessage
-                        : source.whatsappMessage}
-                    </p>
+                    <div
+                      className="rounded-xl px-4 py-3 border"
+                      style={{
+                        borderColor: tokens.borderColor,
+                        backgroundColor: tokens.surfaceBackground,
+                      }}
+                    >
+                      <p className="text-xs whitespace-pre-wrap leading-relaxed" style={{ color: tokens.textPrimary }}>
+                        {category === 'email'
+                          ? source.emailBody
+                          : category === 'sms'
+                          ? source.smsMessage
+                          : source.whatsappMessage}
+                      </p>
+                    </div>
                   )}
                   <a
                     href={payload}
                     target={category === 'whatsapp' ? '_blank' : undefined}
                     rel={category === 'whatsapp' ? 'noopener noreferrer' : undefined}
-                    className="inline-flex items-center gap-1.5 px-4 min-h-[40px] rounded-xl text-xs font-semibold transition-opacity hover:opacity-90"
+                    className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 min-h-[44px] rounded-xl text-xs font-semibold transition-opacity hover:opacity-90"
                     style={{
                       backgroundColor: tokens.accentColor,
                       color: tokens.accentContrastText,
                     }}
                   >
-                    <ExternalLink className="w-3.5 h-3.5" aria-hidden="true" />
+                    <ExternalLink className="w-4 h-4" aria-hidden="true" />
                     <span>
                       {category === 'email'
                         ? 'Envoyer un e-mail'
@@ -2172,17 +2373,26 @@ export const SparkMediaReader: React.FC<SparkMediaReaderProps> = ({
               {category === 'geo' && (
                 <div
                   data-testid="reader-geo-view"
-                  className="rounded-xl p-4 sm:p-5 border space-y-3"
+                  className="rounded-2xl p-5 sm:p-6 border space-y-4"
                   style={{
                     borderColor: tokens.borderColor,
                     backgroundColor: tokens.surfaceElevated,
                   }}
                 >
-                  <div className="flex items-start gap-2.5">
-                    <MapPin className="w-5 h-5 shrink-0 mt-0.5" style={{ color: tokens.accentColor }} aria-hidden="true" />
-                    <div>
+                  <div className="flex items-start gap-3">
+                    <div
+                      className="w-10 h-10 rounded-xl border flex items-center justify-center shrink-0"
+                      style={{
+                        backgroundColor: tokens.surfaceBackground,
+                        borderColor: tokens.borderColor,
+                        color: tokens.accentColor,
+                      }}
+                    >
+                      <MapPin className="w-5 h-5" aria-hidden="true" />
+                    </div>
+                    <div className="space-y-0.5 min-w-0">
                       {source.geoLabel && (
-                        <p className="text-sm font-bold" style={{ color: tokens.textPrimary }}>
+                        <p className="font-display text-base font-bold" style={{ color: tokens.textPrimary, fontFamily: 'var(--font-display)' }}>
                           {source.geoLabel}
                         </p>
                       )}
@@ -2197,13 +2407,13 @@ export const SparkMediaReader: React.FC<SparkMediaReaderProps> = ({
                     )}`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 px-4 min-h-[40px] rounded-xl text-xs font-semibold transition-opacity hover:opacity-90"
+                    className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 min-h-[44px] rounded-xl text-xs font-semibold transition-opacity hover:opacity-90"
                     style={{
                       backgroundColor: tokens.accentColor,
                       color: tokens.accentContrastText,
                     }}
                   >
-                    <Navigation className="w-3.5 h-3.5" aria-hidden="true" />
+                    <Navigation className="w-4 h-4" aria-hidden="true" />
                     <span>Ouvrir l’itinéraire</span>
                   </a>
                 </div>
@@ -2213,13 +2423,13 @@ export const SparkMediaReader: React.FC<SparkMediaReaderProps> = ({
               {category === 'payment' && (
                 <div
                   data-testid="reader-payment-view"
-                  className="rounded-xl p-4 sm:p-5 border space-y-3"
+                  className="rounded-2xl p-5 sm:p-6 border space-y-4"
                   style={{
                     borderColor: tokens.borderColor,
                     backgroundColor: tokens.surfaceElevated,
                   }}
                 >
-                  <div className="flex items-center gap-2 text-xs font-semibold" style={{ color: tokens.accentColor }}>
+                  <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider" style={{ color: tokens.accentColor }}>
                     <CreditCard className="w-4 h-4 shrink-0" aria-hidden="true" />
                     <span>
                       {source.paymentMode === 'link'
@@ -2228,26 +2438,34 @@ export const SparkMediaReader: React.FC<SparkMediaReaderProps> = ({
                     </span>
                   </div>
                   {source.paymentMode === 'link' ? (
-                    <div className="space-y-2.5">
-                      <p className="text-xs font-mono break-all" style={{ color: tokens.textPrimary }}>
-                        {source.paymentUrl || payload}
-                      </p>
+                    <div className="space-y-3.5">
+                      <div
+                        className="rounded-xl px-4 py-3 border"
+                        style={{
+                          borderColor: tokens.borderColor,
+                          backgroundColor: tokens.surfaceBackground,
+                        }}
+                      >
+                        <p className="text-xs font-mono break-all" style={{ color: tokens.textPrimary }}>
+                          {source.paymentUrl || payload}
+                        </p>
+                      </div>
                       <a
                         href={source.paymentUrl || payload}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1.5 px-4 min-h-[40px] rounded-xl text-xs font-semibold transition-opacity hover:opacity-90"
+                        className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-5 min-h-[44px] rounded-xl text-xs font-semibold transition-opacity hover:opacity-90"
                         style={{
                           backgroundColor: tokens.accentColor,
                           color: tokens.accentContrastText,
                         }}
                       >
-                        <ExternalLink className="w-3.5 h-3.5" aria-hidden="true" />
+                        <ExternalLink className="w-4 h-4" aria-hidden="true" />
                         <span>Accéder au paiement</span>
                       </a>
                     </div>
                   ) : (
-                    <div className="space-y-1.5 text-xs">
+                    <div className="space-y-2 text-xs">
                       <p style={{ color: tokens.textPrimary }}>
                         <strong>Bénéficiaire :</strong> {source.paymentName}
                       </p>
@@ -2260,7 +2478,7 @@ export const SparkMediaReader: React.FC<SparkMediaReaderProps> = ({
                         </p>
                       )}
                       {source.paymentAmount && (
-                        <p className="font-bold tabular-nums" style={{ color: tokens.accentColor }}>
+                        <p className="text-base font-bold tabular-nums pt-1" style={{ color: tokens.accentColor }}>
                           Montant : {source.paymentAmount} EUR
                         </p>
                       )}
@@ -2279,7 +2497,7 @@ export const SparkMediaReader: React.FC<SparkMediaReaderProps> = ({
           {/* Contextual Utility Footer */}
           {showFooter && (
             <footer
-              className="pt-3 border-t flex flex-wrap items-center justify-between gap-2"
+              className="pt-4 border-t flex flex-wrap items-center justify-between gap-2.5"
               style={{ borderColor: tokens.borderColor }}
             >
               <div className="flex flex-wrap items-center gap-2">
@@ -2293,7 +2511,7 @@ export const SparkMediaReader: React.FC<SparkMediaReaderProps> = ({
                           : payload
                       )
                     }
-                    className="inline-flex items-center gap-1.5 px-3.5 min-h-[38px] text-xs font-semibold rounded-xl border transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+                    className="inline-flex items-center gap-1.5 px-4 min-h-[40px] text-xs font-semibold rounded-xl border transition-opacity hover:opacity-85 whitespace-nowrap shrink-0 cursor-pointer"
                     style={{
                       color: tokens.textPrimary,
                       backgroundColor: tokens.surfaceElevated,
@@ -2318,7 +2536,7 @@ export const SparkMediaReader: React.FC<SparkMediaReaderProps> = ({
                   <a
                     href={resolveSafeDownloadHref(currentImage.url)}
                     download="image-sparkqr"
-                    className="inline-flex items-center gap-1.5 px-3.5 min-h-[38px] text-xs font-semibold rounded-xl border transition-colors whitespace-nowrap shrink-0"
+                    className="inline-flex items-center gap-1.5 px-4 min-h-[40px] text-xs font-semibold rounded-xl border transition-opacity hover:opacity-85 whitespace-nowrap shrink-0"
                     style={{
                       color: tokens.textPrimary,
                       backgroundColor: tokens.surfaceElevated,
@@ -2334,7 +2552,7 @@ export const SparkMediaReader: React.FC<SparkMediaReaderProps> = ({
                   <a
                     href={resolveSafeDownloadHref(currentVideo.url)}
                     download="video-sparkqr"
-                    className="inline-flex items-center gap-1.5 px-3.5 min-h-[38px] text-xs font-semibold rounded-xl border transition-colors whitespace-nowrap shrink-0"
+                    className="inline-flex items-center gap-1.5 px-4 min-h-[40px] text-xs font-semibold rounded-xl border transition-opacity hover:opacity-85 whitespace-nowrap shrink-0"
                     style={{
                       color: tokens.textPrimary,
                       backgroundColor: tokens.surfaceElevated,
@@ -2362,7 +2580,7 @@ export const SparkMediaReader: React.FC<SparkMediaReaderProps> = ({
                     href={dedicatedHref}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 px-4 min-h-[38px] text-xs font-semibold rounded-xl transition-opacity hover:opacity-90 whitespace-nowrap shrink-0"
+                    className="inline-flex items-center gap-1.5 px-4 min-h-[40px] text-xs font-semibold rounded-xl transition-opacity hover:opacity-90 whitespace-nowrap shrink-0"
                     style={{
                       backgroundColor: tokens.accentColor,
                       color: tokens.accentContrastText,
@@ -2375,6 +2593,7 @@ export const SparkMediaReader: React.FC<SparkMediaReaderProps> = ({
               })()}
             </footer>
           )}
+          </div>
         </article>
       </div>
 

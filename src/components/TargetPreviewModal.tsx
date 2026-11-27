@@ -48,12 +48,12 @@ export const TargetPreviewModal: React.FC<TargetPreviewModalProps> = ({
       role="dialog"
       aria-modal="true"
       aria-labelledby="target-preview-title"
-      className="fixed inset-0 z-50 flex items-center justify-center bg-[#090B12]/70 backdrop-blur-xs p-2.5 sm:p-5"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-[#090B12]/72 backdrop-blur-sm p-3 sm:p-6"
       onClick={onClose}
     >
       <div
         data-testid="scan-showcase-backdrop"
-        className="relative w-full max-w-4xl max-h-[92dvh] overflow-y-auto rounded-2xl shadow-[0_28px_80px_rgba(9,11,18,0.45)] animate-modal-enter"
+        className="relative w-full max-w-3xl max-h-[92dvh] overflow-y-auto rounded-2xl sm:rounded-3xl shadow-[0_32px_90px_rgba(9,11,18,0.52)] animate-modal-enter"
         onClick={(e) => e.stopPropagation()}
       >
         <SparkMediaReader
