@@ -754,5 +754,19 @@
     "accessCode": "SPK-7QVA-9RUX",
     "createdAt": "2026-11-27T12:25:12.043Z",
     "updatedAt": "2026-11-27T12:25:12.043Z"
+  },
+  "ws_ebCqVNoXca4r": {
+    "id": "ws_ebCqVNoXca4r",
+    "name": "Mon espace créatif",
+    "accessCode": "SPK-FANH-YK5F",
+    "createdAt": "2026-11-27T12:37:02.835Z",
+    "updatedAt": "2026-11-27T12:37:02.835Z"
+  },
+  "ws_Di7tw3Em2UvT": {
+    "id": "ws_Di7tw3Em2UvT",
+    "name": "Mon espace créatif",
+    "accessCode": "SPK-NRJS-6F73",
+    "createdAt": "2026-11-27T12:37:46.703Z",
+    "updatedAt": "2026-11-27T12:37:46.703Z"
   }
 }
