@@ -177,7 +177,7 @@ export const ExperienceSecurityPanel: React.FC<ExperienceSecurityPanelProps> = (
     <section
       aria-labelledby="exp-sec-heading"
       data-testid="experience-security-panel"
-      className="bg-white dark:bg-[#131926] border border-[#E2E6F0] dark:border-[#242C3D] rounded-2xl overflow-hidden shadow-[0_2px_10px_rgba(15,23,42,0.03)] transition-colors"
+      className="lux-surface bg-white dark:bg-[#131926] border border-[#E2E6F0] dark:border-[#242C3D] rounded-2xl overflow-hidden transition-colors"
     >
       <div className="px-5 sm:px-6 py-4 bg-[#F8FAFC] dark:bg-[#0F172A] border-b border-[#E2E6F0] dark:border-[#242C3D] flex flex-wrap items-center justify-between gap-3">
         <div className="min-w-0">

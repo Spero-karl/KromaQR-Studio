@@ -102,6 +102,24 @@ async function sha256Hex(input: string): Promise<string> {
   ).repeat(2);
 }
 
+function canonicalizeForHash(value: unknown): unknown {
+  if (value === null || typeof value !== 'object') {
+    return value;
+  }
+  if (Array.isArray(value)) {
+    return value.map((item) => canonicalizeForHash(item));
+  }
+  const obj = value as Record<string, unknown>;
+  const sortedKeys = Object.keys(obj)
+    .filter((k) => obj[k] !== undefined)
+    .sort();
+  const out: Record<string, unknown> = {};
+  for (const key of sortedKeys) {
+    out[key] = canonicalizeForHash(obj[key]);
+  }
+  return out;
+}
+
 function buildCanonicalSealInput(bundle: {
   payload: string;
   name: string;
@@ -109,22 +127,33 @@ function buildCanonicalSealInput(bundle: {
   fingerprint: string;
   config: QrConfig;
   source: QrSourceState;
+  experience?: PostScanExperience;
 }): string {
-  return JSON.stringify({
-    domain: SEAL_DOMAIN,
-    payload: bundle.payload,
-    name: bundle.name,
-    issuedAt: bundle.issuedAt,
-    fingerprint: bundle.fingerprint,
-    themeId: bundle.config.themeId,
-    foregroundColor: bundle.config.foregroundColor,
-    qrBackgroundColor: bundle.config.qrBackgroundColor,
-    fontId: bundle.config.fontId,
+  const cleanSource: QrSourceState = {
+    ...bundle.source,
+    useSourceImageAsLogo: false,
+  };
+  const cleanConfig: QrConfig = {
+    ...bundle.config,
     laserEnabled: Boolean(bundle.config.laserEnabled),
     energyWaveEnabled: Boolean(bundle.config.energyWaveEnabled),
-    sourceType: bundle.source.type,
-    textMode: bundle.source.textMode,
-  });
+    customLogoDataUrl:
+      bundle.config.customLogoDataUrl && bundle.config.customLogoDataUrl.length <= 90_000
+        ? bundle.config.customLogoDataUrl
+        : null,
+  };
+  return JSON.stringify(
+    canonicalizeForHash({
+      domain: SEAL_DOMAIN,
+      payload: bundle.payload,
+      name: bundle.name,
+      issuedAt: bundle.issuedAt,
+      fingerprint: bundle.fingerprint,
+      config: cleanConfig,
+      source: cleanSource,
+      experience: bundle.experience ?? null,
+    })
+  );
 }
 
 export async function createSparkQrAuthenticBundle(input: {
@@ -172,6 +201,7 @@ export async function createSparkQrAuthenticBundle(input: {
         fingerprint,
         config: safeConfig,
         source: safeSource,
+        experience: input.experience,
       })
     )
   ).slice(0, 32);
@@ -222,6 +252,7 @@ export async function verifyLocalSparkQrBundle(
         fingerprint: obj.fingerprint,
         config: obj.config,
         source: obj.source,
+        experience: obj.experience,
       })
     )
   ).slice(0, 32);
@@ -480,6 +511,53 @@ export function extractOpticalSparkQrWatermark(
   return { detected: false };
 }
 
+const LOCAL_SPARKQR_MARKS_KEY = 'sparkqr_local_marks_v1';
+
+export function rememberLocalSparkQrBundle(bundle: SparkQrAuthenticBundle): void {
+  try {
+    if (typeof localStorage === 'undefined') return;
+    const raw = localStorage.getItem(LOCAL_SPARKQR_MARKS_KEY);
+    const parsed = raw ? (JSON.parse(raw) as Record<string, SparkQrAuthenticBundle>) : {};
+    const map: Record<string, SparkQrAuthenticBundle> =
+      parsed && typeof parsed === 'object' ? parsed : {};
+    map[bundle.fingerprint.toLowerCase()] = bundle;
+
+    const entries = Object.entries(map);
+    if (entries.length > 40) {
+      entries.sort(
+        (a, b) => Date.parse(b[1]?.issuedAt || '') - Date.parse(a[1]?.issuedAt || '')
+      );
+      const trimmed: Record<string, SparkQrAuthenticBundle> = {};
+      for (const [k, v] of entries.slice(0, 40)) {
+        trimmed[k] = v;
+      }
+      localStorage.setItem(LOCAL_SPARKQR_MARKS_KEY, JSON.stringify(trimmed));
+      return;
+    }
+
+    localStorage.setItem(LOCAL_SPARKQR_MARKS_KEY, JSON.stringify(map));
+  } catch {
+    // Ignore localStorage quota/availability errors
+  }
+}
+
+export function lookupLocalSparkQrBundleByFingerprint(
+  fingerprint: string
+): SparkQrAuthenticBundle | null {
+  try {
+    if (typeof localStorage === 'undefined') return null;
+    const fp = (fingerprint || '').trim().toLowerCase();
+    if (!/^[0-9a-f]{16}$/.test(fp)) return null;
+    const raw = localStorage.getItem(LOCAL_SPARKQR_MARKS_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Record<string, SparkQrAuthenticBundle>;
+    const candidate = parsed?.[fp];
+    return candidate && typeof candidate === 'object' ? candidate : null;
+  } catch {
+    return null;
+  }
+}
+
 export async function signSparkQrBundleViaServer(
   bundle: SparkQrAuthenticBundle
 ): Promise<SparkQrAuthenticBundle> {
@@ -507,6 +585,7 @@ export async function verifySparkQrViaServer(params: {
   authentic: boolean;
   bundle?: SparkQrAuthenticBundle;
   reason?: string;
+  networkError?: boolean;
 }> {
   try {
     const res = await fetch('/api/sparkqr/verify', {
@@ -514,13 +593,15 @@ export async function verifySparkQrViaServer(params: {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(params),
     });
-    if (!res.ok) return { authentic: false };
+    if (!res.ok) {
+      return { authentic: false, networkError: res.status >= 500 };
+    }
     return (await res.json()) as {
       authentic: boolean;
       bundle?: SparkQrAuthenticBundle;
       reason?: string;
     };
   } catch {
-    return { authentic: false };
+    return { authentic: false, networkError: true };
   }
 }

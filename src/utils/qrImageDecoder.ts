@@ -2,15 +2,32 @@ import { verifyQrDecodeFromImageData } from './qrLogic';
 import {
   extractOpticalSparkQrWatermark,
   extractSparkQrChunkFromPngBytes,
+  isPngBytes,
+  lookupLocalSparkQrBundleByFingerprint,
   verifyLocalSparkQrBundle,
   verifySparkQrViaServer,
+  type SparkQrAuthenticBundle,
 } from './sparkqrMark';
+import { isUnsafePayloadString } from './sharedQrPackage';
 
 export interface QrDecodeAttemptOptions {
   allowAdaptive?: boolean;
   allowColorDistance?: boolean;
   allowChannels?: boolean;
 }
+
+export type SparkQrVerificationChannel =
+  | 'png-chunk-hmac'
+  | 'png-chunk-seal'
+  | 'svg-metadata-hmac'
+  | 'svg-metadata-seal'
+  | 'optical-watermark-registry';
+
+export type SparkQrRejectCode =
+  | 'not-sparkqr'
+  | 'tampered-signature'
+  | 'payload-mismatch'
+  | 'unsafe-payload';
 
 export interface DecodedQrImageResult {
   payload: string;
@@ -23,10 +40,13 @@ export interface DecodedQrImageResult {
     | 'dark-backdrop'
     | 'card-crop'
     | 'svg-metadata';
+  sourceFileKind?: 'png' | 'svg' | 'raster';
+  verificationChannel?: SparkQrVerificationChannel;
   sparkQrMetadata?: Record<string, unknown> | null;
   sparkQrAuthentic?: boolean;
   sparkQrFingerprint?: string;
   sparkQrRejectReason?: string;
+  sparkQrRejectCode?: SparkQrRejectCode;
 }
 
 /**
@@ -232,7 +252,7 @@ function bufferHasTransparency(data: Uint8ClampedArray): boolean {
   return false;
 }
 
-function tryExtractSvgMetadata(svgText: string): Record<string, unknown> | null {
+export function tryExtractSvgMetadata(svgText: string): Record<string, unknown> | null {
   try {
     const match = svgText.match(
       /<metadata[^>]*data-sparkqr-meta=["']1["'][^>]*>([\s\S]*?)<\/metadata>/i
@@ -242,9 +262,10 @@ function tryExtractSvgMetadata(svgText: string): Record<string, unknown> | null 
       .trim()
       .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/i, '$1')
       .replace(/&quot;/g, '"')
-      .replace(/&amp;/g, '&')
+      .replace(/&apos;|&#39;/g, "'")
       .replace(/&lt;/g, '<')
-      .replace(/&gt;/g, '>');
+      .replace(/&gt;/g, '>')
+      .replace(/&amp;/g, '&');
     const parsed = JSON.parse(raw);
     return parsed && typeof parsed === 'object' ? (parsed as Record<string, unknown>) : null;
   } catch {
@@ -275,64 +296,122 @@ function drawRegionAndDecode(
   return decodeQrFromRgbaBuffer(imgData.data, canvas.width, canvas.height, opts);
 }
 
-async function verifyExtractedSparkQrAuthenticity(params: {
+export async function verifyExtractedSparkQrAuthenticity(params: {
   decodedPayload: string;
   rawMetadata: Record<string, unknown> | null;
   opticalFingerprint?: string;
+  sourceFileKind?: 'png' | 'svg' | 'raster';
+  verifyViaServer?: (req: {
+    bundle?: SparkQrAuthenticBundle | Record<string, unknown> | null;
+    fingerprint?: string;
+  }) => Promise<{
+    authentic: boolean;
+    bundle?: SparkQrAuthenticBundle;
+    reason?: string;
+    networkError?: boolean;
+  }>;
+  lookupLocalByFingerprint?: (fp: string) => SparkQrAuthenticBundle | null;
 }): Promise<{
   authentic: boolean;
   bundle: Record<string, unknown> | null;
   fingerprint?: string;
+  verificationChannel?: SparkQrVerificationChannel;
+  rejectCode?: SparkQrRejectCode;
   rejectReason?: string;
 }> {
+  if (isUnsafePayloadString(params.decodedPayload || '')) {
+    return {
+      authentic: false,
+      bundle: null,
+      rejectCode: 'unsafe-payload',
+      rejectReason: 'Contenu QR non conforme ou potentiellement dangereux refusé.',
+    };
+  }
+
+  const serverVerifier = params.verifyViaServer ?? verifySparkQrViaServer;
+  const localFingerprintLookup =
+    params.lookupLocalByFingerprint ?? lookupLocalSparkQrBundleByFingerprint;
+  const fileKind = params.sourceFileKind ?? 'png';
+
   if (params.rawMetadata) {
     const localCheck = await verifyLocalSparkQrBundle(params.rawMetadata);
     if (!localCheck.valid || !localCheck.bundle) {
       return {
         authentic: false,
         bundle: null,
+        rejectCode: 'tampered-signature',
         rejectReason:
           localCheck.reason ||
           'Cette image ne comporte pas une signature SparkQR valide.',
       };
     }
-    if (
-      localCheck.bundle.payload.trim() !== params.decodedPayload.trim()
-    ) {
+    if (localCheck.bundle.payload.trim() !== params.decodedPayload.trim()) {
       return {
         authentic: false,
         bundle: null,
+        rejectCode: 'payload-mismatch',
         rejectReason:
-          'Le contenu du QR code ne correspond pas aux attributs signés SparkQR.',
+          'Le contenu du QR code ne correspond pas aux caractéristiques signées par SparkQR.',
       };
     }
+
+    let hasVerifiedHmac = false;
     if (localCheck.bundle.hmac) {
-      const serverCheck = await verifySparkQrViaServer({ bundle: localCheck.bundle });
-      if (serverCheck && serverCheck.reason === 'invalid-hmac') {
-        return {
-          authentic: false,
-          bundle: null,
-          rejectReason: 'Signature SparkQR invalide ou modifiée.',
-        };
+      const serverCheck = await serverVerifier({ bundle: localCheck.bundle });
+      if (!serverCheck.networkError) {
+        if (!serverCheck.authentic) {
+          return {
+            authentic: false,
+            bundle: null,
+            rejectCode: 'tampered-signature',
+            rejectReason:
+              serverCheck.reason === 'invalid-hmac'
+                ? 'Signature cryptographique SparkQR invalide ou falsifiée.'
+                : serverCheck.reason || 'Signature SparkQR refusée par le registre.',
+          };
+        }
+        hasVerifiedHmac = true;
       }
     }
+
+    const verificationChannel: SparkQrVerificationChannel =
+      fileKind === 'svg'
+        ? hasVerifiedHmac
+          ? 'svg-metadata-hmac'
+          : 'svg-metadata-seal'
+        : hasVerifiedHmac
+        ? 'png-chunk-hmac'
+        : 'png-chunk-seal';
+
     return {
       authentic: true,
       bundle: localCheck.bundle as unknown as Record<string, unknown>,
       fingerprint: localCheck.bundle.fingerprint,
+      verificationChannel,
     };
   }
 
   if (params.opticalFingerprint) {
-    const recovered = await verifySparkQrViaServer({
+    const recovered = await serverVerifier({
       fingerprint: params.opticalFingerprint,
     });
-    if (recovered.authentic && recovered.bundle) {
-      if (recovered.bundle.payload.trim() === params.decodedPayload.trim()) {
+    const candidateBundle =
+      recovered.authentic && recovered.bundle
+        ? recovered.bundle
+        : localFingerprintLookup(params.opticalFingerprint);
+
+    if (candidateBundle) {
+      const candidateVerify = await verifyLocalSparkQrBundle(candidateBundle);
+      if (
+        candidateVerify.valid &&
+        candidateVerify.bundle &&
+        candidateVerify.bundle.payload.trim() === params.decodedPayload.trim()
+      ) {
         return {
           authentic: true,
-          bundle: recovered.bundle as unknown as Record<string, unknown>,
-          fingerprint: recovered.bundle.fingerprint,
+          bundle: candidateVerify.bundle as unknown as Record<string, unknown>,
+          fingerprint: candidateVerify.bundle.fingerprint,
+          verificationChannel: 'optical-watermark-registry',
         };
       }
     }
@@ -342,8 +421,9 @@ async function verifyExtractedSparkQrAuthenticity(params: {
     authentic: false,
     bundle: null,
     fingerprint: params.opticalFingerprint,
+    rejectCode: 'not-sparkqr',
     rejectReason:
-      'Seules les images de codes QR générées par SparkQR sont acceptées dans l’importateur.',
+      'Code QR externe non reconnu : seules les images de codes QR générées par SparkQR sont acceptées.',
   };
 }
 
@@ -353,11 +433,33 @@ async function verifyExtractedSparkQrAuthenticity(params: {
  */
 export async function decodeQrImageFile(file: File): Promise<DecodedQrImageResult> {
   const lowerName = file.name.toLowerCase();
-  const isSvg = file.type === 'image/svg+xml' || lowerName.endsWith('.svg');
-  const isPng = file.type === 'image/png' || lowerName.endsWith('.png');
+  const headBytes = new Uint8Array(await file.slice(0, 512).arrayBuffer());
+  const isPngMagic = isPngBytes(headBytes);
+  const isJpegMagic =
+    headBytes.length >= 3 &&
+    headBytes[0] === 0xff &&
+    headBytes[1] === 0xd8 &&
+    headBytes[2] === 0xff;
+  const isWebpMagic =
+    headBytes.length >= 12 &&
+    headBytes[0] === 0x52 &&
+    headBytes[1] === 0x49 &&
+    headBytes[2] === 0x46 &&
+    headBytes[3] === 0x46 &&
+    headBytes[8] === 0x57 &&
+    headBytes[9] === 0x45 &&
+    headBytes[10] === 0x42 &&
+    headBytes[11] === 0x50;
+  const headText = new TextDecoder('utf-8', { fatal: false }).decode(headBytes).trimStart();
+  const isSvgMagic = /^(?:<\?xml[^>]*>\s*)?<svg\b/i.test(headText);
+
+  const isSvg = file.type === 'image/svg+xml' || lowerName.endsWith('.svg') || isSvgMagic;
+  const isPng = file.type === 'image/png' || lowerName.endsWith('.png') || isPngMagic;
   const isAllowedImage =
     isSvg ||
     isPng ||
+    isJpegMagic ||
+    isWebpMagic ||
     file.type === 'image/jpeg' ||
     file.type === 'image/webp' ||
     /\.(png|jpe?g|webp|svg)$/i.test(lowerName);
@@ -370,15 +472,16 @@ export async function decodeQrImageFile(file: File): Promise<DecodedQrImageResul
 
   let sparkQrMetadata: Record<string, unknown> | null = null;
   let svgQrCropAttrs: { x: number; y: number; size: number; vbW: number; vbH: number } | null = null;
+  let svgTextCache = '';
 
   if (isSvg) {
     try {
-      const svgText = await file.text();
-      sparkQrMetadata = tryExtractSvgMetadata(svgText);
-      const vbMatch = svgText.match(/viewBox=["']\s*([\d.\-]+)\s+([\d.\-]+)\s+([\d.\-]+)\s+([\d.\-]+)\s*["']/i);
-      const qx = svgText.match(/data-qr-x=["']([\d.\-]+)["']/i);
-      const qy = svgText.match(/data-qr-y=["']([\d.\-]+)["']/i);
-      const qs = svgText.match(/data-qr-size=["']([\d.\-]+)["']/i);
+      svgTextCache = await file.text();
+      sparkQrMetadata = tryExtractSvgMetadata(svgTextCache);
+      const vbMatch = svgTextCache.match(/viewBox=["']\s*([\d.\-]+)\s+([\d.\-]+)\s+([\d.\-]+)\s+([\d.\-]+)\s*["']/i);
+      const qx = svgTextCache.match(/data-qr-x=["']([\d.\-]+)["']/i);
+      const qy = svgTextCache.match(/data-qr-y=["']([\d.\-]+)["']/i);
+      const qs = svgTextCache.match(/data-qr-size=["']([\d.\-]+)["']/i);
       if (vbMatch && qx && qy && qs) {
         svgQrCropAttrs = {
           vbW: Number(vbMatch[3]) || 400,
@@ -405,7 +508,11 @@ export async function decodeQrImageFile(file: File): Promise<DecodedQrImageResul
     strategy: DecodedQrImageResult['strategy'];
     opticalFingerprint?: string;
   }>((resolve, reject) => {
-    const objectUrl = URL.createObjectURL(file);
+    const imageSourceBlob =
+      isSvg && svgTextCache && file.type !== 'image/svg+xml'
+        ? new Blob([svgTextCache], { type: 'image/svg+xml;charset=utf-8' })
+        : file;
+    const objectUrl = URL.createObjectURL(imageSourceBlob);
     const img = new Image();
 
     img.onload = () => {
@@ -641,18 +748,28 @@ export async function decodeQrImageFile(file: File): Promise<DecodedQrImageResul
     img.src = objectUrl;
   });
 
+  const sourceFileKind: 'png' | 'svg' | 'raster' = isSvg
+    ? 'svg'
+    : isPng
+    ? 'png'
+    : 'raster';
+
   const auth = await verifyExtractedSparkQrAuthenticity({
     decodedPayload: decoded.payload,
     rawMetadata: sparkQrMetadata,
     opticalFingerprint: decoded.opticalFingerprint,
+    sourceFileKind,
   });
 
   return {
     payload: decoded.payload,
     strategy: decoded.strategy,
+    sourceFileKind,
+    verificationChannel: auth.verificationChannel,
     sparkQrMetadata: auth.bundle,
     sparkQrAuthentic: auth.authentic,
     sparkQrFingerprint: auth.fingerprint,
     sparkQrRejectReason: auth.rejectReason,
+    sparkQrRejectCode: auth.rejectCode,
   };
 }

@@ -5,6 +5,7 @@ import {
   createSparkQrAuthenticBundle,
   embedOpticalSparkQrWatermark,
   injectSparkQrChunkIntoPngBytes,
+  rememberLocalSparkQrBundle,
   signSparkQrBundleViaServer,
   type SparkQrAuthenticBundle,
 } from './sparkqrMark';
@@ -78,7 +79,9 @@ async function resolveAuthenticBundle(
     config: meta.config as QrConfig,
     experience: meta.experience as PostScanExperience | undefined,
   });
-  return signSparkQrBundleViaServer(baseBundle);
+  const signed = await signSparkQrBundleViaServer(baseBundle);
+  rememberLocalSparkQrBundle(signed);
+  return signed;
 }
 
 export async function serializeSvgForExport(

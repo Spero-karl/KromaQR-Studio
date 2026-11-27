@@ -126,6 +126,16 @@ test('SparkQrMarkRegistry signs, persists, verifies valid HMAC bundles, and reje
   });
   assert.equal(tamperedUnknown.authentic, false);
 
+  // Tampering with HMAC even when using an existing registered fingerprint MUST be rejected
+  const tamperedKnownFp = registry.verify({
+    bundle: {
+      ...sampleBundle,
+      hmac: 'f'.repeat(64),
+    },
+  });
+  assert.equal(tamperedKnownFp.authentic, false);
+  assert.equal(tamperedKnownFp.reason, 'invalid-hmac');
+
   const unknownFp = registry.verify({ fingerprint: 'aaaaaaaaaaaaaaaa' });
   assert.equal(unknownFp.authentic, false);
 });

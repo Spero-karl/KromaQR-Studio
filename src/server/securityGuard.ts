@@ -283,18 +283,30 @@ export class SparkQrMarkRegistry {
       const clean = sanitizeJsonObject(params.bundle);
       const fp = typeof clean.fingerprint === 'string' ? clean.fingerprint.toLowerCase() : '';
       const providedHmac = typeof clean.hmac === 'string' ? clean.hmac.toLowerCase() : '';
-      if (providedHmac && /^[0-9a-f]{64}$/.test(providedHmac)) {
+      if (providedHmac) {
+        if (!/^[0-9a-f]{64}$/.test(providedHmac)) {
+          return { authentic: false, reason: 'invalid-hmac' };
+        }
         const expected = this.computeHmac(clean);
         try {
           if (crypto.timingSafeEqual(Buffer.from(providedHmac, 'hex'), Buffer.from(expected, 'hex'))) {
             return { authentic: true, bundle: clean };
           }
         } catch {
-          // Fall through to registry lookup
+          // Invalid hex buffer length
         }
+        return { authentic: false, reason: 'invalid-hmac' };
       }
       if (fp && map[fp]) {
-        return { authentic: true, bundle: map[fp].bundle };
+        const stored = map[fp].bundle;
+        const storedPayload = typeof stored.payload === 'string' ? stored.payload.trim() : '';
+        const cleanPayload = typeof clean.payload === 'string' ? clean.payload.trim() : '';
+        const storedSeal = typeof stored.localSeal === 'string' ? stored.localSeal.toLowerCase() : '';
+        const cleanSeal = typeof clean.localSeal === 'string' ? clean.localSeal.toLowerCase() : '';
+        if (storedPayload === cleanPayload && storedSeal === cleanSeal) {
+          return { authentic: true, bundle: stored };
+        }
+        return { authentic: false, reason: 'Empreinte SparkQR incohérente.' };
       }
       return { authentic: false, reason: 'Empreinte SparkQR non authentifiée.' };
     }

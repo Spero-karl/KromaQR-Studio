@@ -32,14 +32,11 @@ import {
   X,
 } from 'lucide-react';
 import {
-  DEFAULT_CONFIG,
   DEFAULT_EXPERIENCE,
-  DEFAULT_SOURCE,
   PROJECT_CATEGORIES,
 } from '../data/presets';
 import type {
   DynamicQrRecord,
-  PostScanExperience,
   ProjectCategory,
   QrConfig,
   QrSourceState,
@@ -48,23 +45,21 @@ import type {
   WorkspaceInfo,
 } from '../types/qr';
 import { updateDynamicQr } from '../utils/dynamicApi';
-import { decryptJsonWithKey, isValidE2eeEnvelope } from '../utils/e2eeCrypto';
-import { normalizeConfigWithDefaults } from '../utils/historyReducer';
 import { resolveMediaDownloadUrl } from '../utils/mediaReaderLogic';
 import { relativeLuminance } from '../utils/qrLogic';
-import { decodeQrImageFile } from '../utils/qrImageDecoder';
 import { summarizeDynamicScanStats } from '../utils/scanStatsSummary';
 import {
   describeSavedQrAccessibility,
   formatRemainingDuration,
 } from '../utils/serverAvailability';
 import {
-  buildImportedSparkQrItem,
-  describeQrPayloadFormat,
   encodeSparkQrJsonFile,
   encodeSparkQrSharePackage,
-  extractSparkQrReaderEndpoint,
 } from '../utils/sharedQrPackage';
+import {
+  recognizeAndImportSparkQrFile,
+  type SparkQrRecognizedCharacteristics,
+} from '../utils/sparkqrRecognizer';
 import { LegendEnergyWaveOverlay } from './LegendEnergyWaveOverlay';
 import { QrCanvasRenderer } from './QrCanvasRenderer';
 
@@ -249,6 +244,7 @@ export const HistoryGallery: React.FC<HistoryGalleryProps> = ({
     energyWaveEnabled: boolean;
     formatLabel: string;
     fingerprint?: string;
+    characteristics: SparkQrRecognizedCharacteristics;
   } | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
   const [importBusy, setImportBusy] = useState(false);
@@ -277,148 +273,27 @@ export const HistoryGallery: React.FC<HistoryGalleryProps> = ({
     setImportError(null);
     setImportParsed(null);
     try {
-      const decodedResult = await decodeQrImageFile(file);
+      const recognition = await recognizeAndImportSparkQrFile(file);
       if (seq !== importSeqRef.current) return;
 
-      const built = buildImportedSparkQrItem({
-        decodedPayload: decodedResult.payload,
-        sparkQrAuthentic: decodedResult.sparkQrAuthentic,
-        sparkQrMetadata: decodedResult.sparkQrMetadata,
-        sparkQrRejectReason: decodedResult.sparkQrRejectReason,
-      });
-
-      if (!built.ok) {
-        setImportError(built.error);
+      if (!recognition.recognized) {
+        setImportError(recognition.reason);
         return;
       }
 
-      let nextName = built.item.name;
-      const nextPayload = built.item.payload;
-      let nextSource = built.item.source;
-      let nextConfig = built.item.config;
-      let nextExperience = built.item.experience ?? DEFAULT_EXPERIENCE;
-
-      const endpointInfo = extractSparkQrReaderEndpoint(nextPayload);
-      if (endpointInfo) {
-        try {
-          const apiUrl =
-            endpointInfo.kind === 'media'
-              ? `/api/reader/media/${encodeURIComponent(endpointInfo.id)}`
-              : `/api/reader/dynamic/${encodeURIComponent(endpointInfo.id)}`;
-          const res = await fetch(apiUrl);
-          if (res.ok) {
-            const body = (await res.json()) as {
-              config?: Partial<QrConfig>;
-              cardTheme?: Partial<QrConfig>;
-              source?: Partial<QrSourceState>;
-              experience?: Partial<PostScanExperience>;
-              mediaType?: string;
-              title?: string;
-              isEncrypted?: boolean;
-              encryptedMeta?: unknown;
-              locked?: boolean;
-            };
-
-            if (seq !== importSeqRef.current) return;
-
-            if (body.config && !decodedResult.sparkQrMetadata?.config) {
-              nextConfig = normalizeConfigWithDefaults(body.config, DEFAULT_CONFIG);
-            } else if (body.cardTheme && !decodedResult.sparkQrMetadata?.config) {
-              nextConfig = normalizeConfigWithDefaults(body.cardTheme, DEFAULT_CONFIG);
-            }
-
-            if (body.source) {
-              nextSource = {
-                ...DEFAULT_SOURCE,
-                ...body.source,
-                ...nextSource,
-                imageName: '',
-                videoName: '',
-                documentName: '',
-                audioName: '',
-              };
-            }
-
-            if (body.experience) {
-              nextExperience = { ...DEFAULT_EXPERIENCE, ...body.experience, ...nextExperience };
-            }
-
-            if (
-              (body.mediaType === 'document' || body.mediaType === 'audio') &&
-              nextExperience.galleryItems.every(
-                (g) => !g.url.includes(`/api/media/${endpointInfo.id}/file`)
-              )
-            ) {
-              nextExperience = {
-                ...nextExperience,
-                template: 'media-gallery',
-                galleryItems: [
-                  {
-                    id: `media-${endpointInfo.id}`,
-                    type: body.mediaType,
-                    url: `/api/media/${endpointInfo.id}/file`,
-                    caption: '',
-                    isEncrypted: Boolean(body.isEncrypted),
-                  },
-                ],
-              };
-            }
-
-            if (!body.locked && body.isEncrypted && endpointInfo.keyFragment && isValidE2eeEnvelope(body.encryptedMeta)) {
-              const decrypted = await decryptJsonWithKey<{
-                source?: Partial<QrSourceState>;
-                experience?: Partial<PostScanExperience>;
-                title?: string;
-              }>(body.encryptedMeta, endpointInfo.keyFragment);
-
-              if (seq !== importSeqRef.current) return;
-
-              if (decrypted.source) {
-                nextSource = {
-                  ...nextSource,
-                  ...decrypted.source,
-                  imageName: '',
-                  videoName: '',
-                  documentName: '',
-                  audioName: '',
-                  e2eeEnabled: true,
-                  e2eeKeyFragment: endpointInfo.keyFragment,
-                };
-              } else {
-                nextSource = {
-                  ...nextSource,
-                  e2eeEnabled: true,
-                  e2eeKeyFragment: endpointInfo.keyFragment,
-                };
-              }
-              if (decrypted.experience) {
-                nextExperience = { ...nextExperience, ...decrypted.experience };
-              }
-              if (decrypted.title && decrypted.title !== 'Contenu chiffré') {
-                nextName = decrypted.title;
-              }
-            } else if (body.title && body.title !== 'Contenu chiffré' && !nextName) {
-              nextName = body.title;
-            }
-          }
-        } catch {
-          // Keep signed SparkQR image bundle intact even if offline
-        }
-      }
-
-      if (seq !== importSeqRef.current) return;
-
+      const { item, characteristics, fingerprint } = recognition;
       setImportParsed({
-        name: nextName,
-        payload: nextPayload,
-        source: nextSource,
-        config: nextConfig,
-        experience: nextExperience,
+        name: item.name,
+        payload: item.payload,
+        source: item.source,
+        config: item.config,
+        experience: item.experience ?? DEFAULT_EXPERIENCE,
         category: 'Importé',
-        laserEnabled: nextConfig.laserEnabled !== false,
-        energyWaveEnabled: Boolean(nextConfig.energyWaveEnabled),
-        formatLabel: describeQrPayloadFormat(nextPayload),
-        fingerprint: decodedResult.sparkQrFingerprint,
+        laserEnabled: item.config.laserEnabled !== false,
+        energyWaveEnabled: Boolean(item.config.energyWaveEnabled),
+        formatLabel: characteristics.formatLabel,
+        fingerprint,
+        characteristics,
       });
     } catch (err) {
       if (seq !== importSeqRef.current) return;
@@ -816,30 +691,110 @@ export const HistoryGallery: React.FC<HistoryGalleryProps> = ({
               </div>
 
               {importError && (
-                <p role="alert" data-testid="import-qr-error" className="text-xs font-medium text-[#B91C1C] dark:text-[#FCA5A5]">
+                <div
+                  role="alert"
+                  data-testid="import-qr-error"
+                  className="rounded-xl border border-[#FECACA] dark:border-[#7F1D1D] bg-[#FEF2F2] dark:bg-[#2A1215] px-3.5 py-2.5 text-xs font-medium text-[#B91C1C] dark:text-[#FCA5A5]"
+                >
                   {importError}
-                </p>
+                </div>
               )}
             </div>
 
             {importParsed && (
               <div className="space-y-4 pt-3 border-t border-[#EFEFF5] dark:border-[#242C3D]">
-                {/* Recognition Summary & Decoded Content */}
+                {/* Recognition Summary & Decoded Characteristics */}
                 <div
                   data-testid="import-recognition-summary"
-                  className="rounded-xl border border-[#DCE6FF] dark:border-[#243047] bg-[#F5F8FF] dark:bg-[#0F172A] px-3.5 py-2.5 space-y-1"
+                  className="rounded-xl border border-[#DCE6FF] dark:border-[#243047] bg-[#F5F8FF] dark:bg-[#0F172A] px-3.5 py-3 space-y-2.5"
                 >
                   <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] font-semibold">
-                    <span className="text-[#1D4ED8] dark:text-[#60A5FA]">
-                      Signature SparkQR authentifiée
+                    <span className="inline-flex items-center gap-1.5 text-[#1D4ED8] dark:text-[#60A5FA]">
+                      <ShieldCheck className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
+                      <span>Code SparkQR reconnu</span>
+                      {importParsed.fingerprint && (
+                        <span className="font-mono text-[10px] opacity-80">
+                          #{importParsed.fingerprint.slice(0, 8)}
+                        </span>
+                      )}
                     </span>
                     <span className="text-[#5C5E66] dark:text-[#94A3B8]">
                       Format · {importParsed.formatLabel}
                     </span>
                   </div>
+
                   <p className="text-xs text-[#111214] dark:text-[#E2E8F0] break-all line-clamp-2">
                     {importParsed.payload}
                   </p>
+
+                  <div
+                    data-testid="import-characteristics-panel"
+                    className="grid grid-cols-2 sm:grid-cols-3 gap-x-3 gap-y-1.5 pt-2 border-t border-[#DCE6FF]/80 dark:border-[#243047] text-[11px]"
+                  >
+                    <div>
+                      <span className="block text-[10px] text-[#6E7078] dark:text-[#94A3B8]">
+                        Modèle visuel
+                      </span>
+                      <span className="font-semibold text-[#111214] dark:text-[#F1F5F9] truncate block">
+                        {importParsed.characteristics.presetName}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="block text-[10px] text-[#6E7078] dark:text-[#94A3B8]">
+                        Modules &amp; Yeux
+                      </span>
+                      <span className="font-semibold text-[#111214] dark:text-[#F1F5F9] truncate block">
+                        {importParsed.characteristics.moduleShapeLabel} · {importParsed.characteristics.eyeShapeLabel}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="block text-[10px] text-[#6E7078] dark:text-[#94A3B8]">
+                        Cadre &amp; Police
+                      </span>
+                      <span className="font-semibold text-[#111214] dark:text-[#F1F5F9] truncate block">
+                        {importParsed.characteristics.frameStyleLabel} · {importParsed.characteristics.fontName}
+                      </span>
+                    </div>
+                    <div className="col-span-2 sm:col-span-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] text-[#4B4D54] dark:text-[#CBD5E1] pt-0.5">
+                      <span className="inline-flex items-center gap-1">
+                        <span
+                          className="w-2.5 h-2.5 rounded-full border border-black/15 shrink-0"
+                          style={{ backgroundColor: importParsed.characteristics.foregroundColor }}
+                        />
+                        <span
+                          className="w-2.5 h-2.5 rounded-full border border-black/15 shrink-0"
+                          style={{ backgroundColor: importParsed.characteristics.cardBackgroundColor }}
+                        />
+                        <span>Couleurs conservées</span>
+                      </span>
+                      <span>·</span>
+                      <span>
+                        Laser {importParsed.laserEnabled ? 'actif' : 'inactif'}
+                      </span>
+                      <span>·</span>
+                      <span>
+                        Ondes {importParsed.energyWaveEnabled ? 'actives' : 'inactives'}
+                      </span>
+                      {importParsed.characteristics.hasCenterLogo && (
+                        <>
+                          <span>·</span>
+                          <span>Logo central inclus</span>
+                        </>
+                      )}
+                      {importParsed.characteristics.hasCornerStickers && (
+                        <>
+                          <span>·</span>
+                          <span>Autocollants inclus</span>
+                        </>
+                      )}
+                      {importParsed.characteristics.isEncrypted && (
+                        <>
+                          <span>·</span>
+                          <span>Chiffrement E2EE</span>
+                        </>
+                      )}
+                    </div>
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-[1fr_140px] gap-2.5">

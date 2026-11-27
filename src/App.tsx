@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AlertCircle, CheckCircle2, Crown, Monitor, Moon, Sun, UserCheck } from 'lucide-react';
+import { AlertCircle, CheckCircle2, Monitor, Moon, Sun, UserCheck } from 'lucide-react';
 import { AdminPricingModal } from './components/AdminPricingModal';
 import { CustomizePanel, type CustomizeCategoryTab } from './components/CustomizePanel';
 import { ExperienceSecurityPanel } from './components/ExperienceSecurityPanel';
@@ -96,7 +96,6 @@ function parseViewerRoute(
 type ActiveView = 'studio' | 'gallery' | 'conservation';
 type UiThemeMode = 'system' | 'light' | 'dark';
 const UI_THEME_STORAGE_KEY = 'sparkqr_ui_theme';
-const BLACK_FRIDAY_STORAGE_KEY = 'sparkqr_black_friday_mode';
 
 async function buildE2eeTransmissionBundle(params: {
   src: QrSourceState;
@@ -362,44 +361,30 @@ export default function App() {
     return 'system';
   });
 
-  const [blackFridayMode, setBlackFridayMode] = useState<boolean>(() => {
-    if (typeof window === 'undefined') return false;
-    try {
-      return localStorage.getItem(BLACK_FRIDAY_STORAGE_KEY) === 'true';
-    } catch {
-      return false;
-    }
-  });
-
   useEffect(() => {
     if (typeof window === 'undefined') return;
     const media = window.matchMedia('(prefers-color-scheme: dark)');
     const applyTheme = () => {
       const isDark =
-        blackFridayMode ||
         uiThemeMode === 'dark' ||
         (uiThemeMode === 'system' && media.matches);
       document.documentElement.classList.toggle('dark', isDark);
-      document.documentElement.classList.toggle('theme-black-friday', blackFridayMode);
+      document.documentElement.classList.remove('theme-black-friday');
       document.documentElement.style.colorScheme = isDark ? 'dark' : 'light';
       const meta = document.querySelector('meta[name="theme-color"]');
       if (meta) {
-        meta.setAttribute(
-          'content',
-          blackFridayMode ? '#070709' : isDark ? '#0B0F1A' : '#F6F7FB'
-        );
+        meta.setAttribute('content', isDark ? '#080C15' : '#F6F8FC');
       }
     };
     applyTheme();
     try {
       localStorage.setItem(UI_THEME_STORAGE_KEY, uiThemeMode);
-      localStorage.setItem(BLACK_FRIDAY_STORAGE_KEY, blackFridayMode ? 'true' : 'false');
     } catch {
       // Ignore storage errors
     }
     media.addEventListener('change', applyTheme);
     return () => media.removeEventListener('change', applyTheme);
-  }, [uiThemeMode, blackFridayMode]);
+  }, [uiThemeMode]);
 
   const cycleUiThemeMode = () => {
     setUiThemeMode((prev) =>
@@ -1241,14 +1226,10 @@ export default function App() {
   }
 
   return (
-    <div
-      className={`min-h-[100dvh] flex flex-col spark-canvas-bg text-[#111214] dark:text-[#F1F5F9] pb-safe ${
-        blackFridayMode ? 'theme-black-friday' : ''
-      }`}
-    >
+    <div className="min-h-[100dvh] flex flex-col spark-canvas-bg text-[#111214] dark:text-[#F1F5F9] pb-safe">
       {/* Top Bar: strict 3-zone contract */}
-      <header className="sticky top-0 z-30 pt-safe bg-white/92 dark:bg-[#0F1522]/92 backdrop-blur-md border-b border-[#E2E6F0] dark:border-[#242C3D]">
-        <div className="max-w-[1400px] mx-auto px-3 sm:px-6 h-14 sm:h-15 flex items-center justify-between gap-2 sm:gap-6">
+      <header className="sticky top-0 z-30 pt-safe bg-white/88 dark:bg-[#0D1321]/88 backdrop-blur-xl border-b border-[#E4E8F2] dark:border-[#1E2738] shadow-[0_1px_0_rgba(15,23,42,0.03)]">
+        <div className="max-w-[1400px] mx-auto px-3 sm:px-6 h-14 sm:h-16 flex items-center justify-between gap-2 sm:gap-8">
           <a
             href="#studio"
             onClick={(e) => {
@@ -1257,13 +1238,7 @@ export default function App() {
             }}
             className="group inline-flex items-center gap-2.5 font-display text-base sm:text-xl font-bold tracking-tight text-[#111214] dark:text-[#F8FAFC] whitespace-nowrap shrink-0"
           >
-            <span
-              className={`w-7 h-7 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl flex items-center justify-center animate-spark-emblem ${
-                blackFridayMode
-                  ? 'bg-gradient-to-br from-[#FACC15] to-[#D97706] text-[#090806]'
-                  : 'bg-[#2563EB] text-white'
-              }`}
-            >
+            <span className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl flex items-center justify-center bg-gradient-to-br from-[#2563EB] to-[#4F46E5] text-white shadow-[0_4px_12px_rgba(37,99,235,0.28)] animate-spark-emblem">
               <svg viewBox="0 0 24 24" className="w-4 h-4 sm:w-4.5 sm:h-4.5" aria-hidden="true">
                 <rect x="3" y="3" width="6.5" height="6.5" rx="1.8" fill="none" stroke="currentColor" strokeWidth="2.2" />
                 <rect x="14.5" y="3" width="6.5" height="6.5" rx="3.2" fill="none" stroke="currentColor" strokeWidth="2.2" />
@@ -1276,14 +1251,14 @@ export default function App() {
 
           <nav
             aria-label="Navigation principale"
-            className="hidden md:flex items-center gap-6 text-sm font-medium text-[#5C5E66] dark:text-[#94A3B8]"
+            className="hidden md:flex items-center gap-7 text-sm font-medium text-[#5C5E66] dark:text-[#94A3B8]"
           >
             <button
               type="button"
               onClick={() => setView('studio')}
-              className={`py-1.5 hover:text-[#111214] dark:hover:text-[#F8FAFC] transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
+              className={`py-2 hover:text-[#111214] dark:hover:text-[#F8FAFC] transition-colors whitespace-nowrap shrink-0 cursor-pointer ${
                 view === 'studio'
-                  ? 'bf-nav-active text-[#111214] dark:text-[#F8FAFC] font-semibold underline underline-offset-8 decoration-2 decoration-[#2563EB]'
+                  ? 'text-[#111214] dark:text-[#F8FAFC] font-semibold underline underline-offset-8 decoration-2 decoration-[#2563EB] dark:decoration-[#60A5FA]'
                   : ''
               }`}
             >
@@ -1298,9 +1273,9 @@ export default function App() {
                 void refreshHostedMedia();
                 setView('gallery');
               }}
-              className={`py-1.5 hover:text-[#111214] dark:hover:text-[#F8FAFC] transition-colors whitespace-nowrap shrink-0 cursor-pointer tabular-nums ${
+              className={`py-2 hover:text-[#111214] dark:hover:text-[#F8FAFC] transition-colors whitespace-nowrap shrink-0 cursor-pointer tabular-nums ${
                 view === 'gallery'
-                  ? 'bf-nav-active text-[#111214] dark:text-[#F8FAFC] font-semibold underline underline-offset-8 decoration-2 decoration-[#2563EB]'
+                  ? 'text-[#111214] dark:text-[#F8FAFC] font-semibold underline underline-offset-8 decoration-2 decoration-[#2563EB] dark:decoration-[#60A5FA]'
                   : ''
               }`}
             >
@@ -1315,9 +1290,9 @@ export default function App() {
                 void refreshHostedMedia();
                 setView('conservation');
               }}
-              className={`py-1.5 hover:text-[#111214] dark:hover:text-[#F8FAFC] transition-colors whitespace-nowrap shrink-0 cursor-pointer tabular-nums ${
+              className={`py-2 hover:text-[#111214] dark:hover:text-[#F8FAFC] transition-colors whitespace-nowrap shrink-0 cursor-pointer tabular-nums ${
                 view === 'conservation'
-                  ? 'bf-nav-active text-[#111214] dark:text-[#F8FAFC] font-semibold underline underline-offset-8 decoration-2 decoration-[#2563EB]'
+                  ? 'text-[#111214] dark:text-[#F8FAFC] font-semibold underline underline-offset-8 decoration-2 decoration-[#2563EB] dark:decoration-[#60A5FA]'
                   : ''
               }`}
             >
@@ -1333,36 +1308,12 @@ export default function App() {
               type="button"
               data-testid="nav-workspace-btn"
               onClick={() => setWorkspaceModalOpen(true)}
-              className="hidden md:inline-flex items-center gap-1.5 px-3 py-1.5 min-h-[36px] rounded-xl border border-[#E2E6F0] dark:border-[#242C3D] bg-white dark:bg-[#131926] hover:bg-[#F5F7FA] dark:hover:bg-[#1E293B] text-[#111214] dark:text-[#E2E8F0] text-xs font-semibold transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+              className="hidden md:inline-flex items-center gap-1.5 px-3 py-1.5 min-h-[38px] rounded-xl border border-[#E2E6F0] dark:border-[#242C3D] bg-white dark:bg-[#131926] hover:bg-[#F5F7FA] dark:hover:bg-[#1E293B] text-[#111214] dark:text-[#E2E8F0] text-xs font-semibold transition-colors whitespace-nowrap shrink-0 cursor-pointer"
             >
               <UserCheck className="w-3.5 h-3.5 text-[#2563EB] dark:text-[#60A5FA] shrink-0" aria-hidden="true" />
               <span className="max-w-[130px] truncate">
                 {workspace?.name || 'Mon espace'}
               </span>
-            </button>
-            <button
-              type="button"
-              data-testid="black-friday-toggle"
-              aria-pressed={blackFridayMode}
-              onClick={() => setBlackFridayMode((prev) => !prev)}
-              aria-label={
-                blackFridayMode
-                  ? 'Désactiver le thème Black Friday'
-                  : 'Activer le thème Black Friday'
-              }
-              title={
-                blackFridayMode
-                  ? 'Thème Black Friday activé'
-                  : 'Activer l’ambiance Black Friday'
-              }
-              className={`inline-flex items-center justify-center gap-1.5 h-9 px-2.5 sm:px-3 rounded-xl border text-xs font-semibold transition-all whitespace-nowrap shrink-0 cursor-pointer ${
-                blackFridayMode
-                  ? 'border-[#FACC15]/70 bg-gradient-to-r from-[#1A150B] to-[#0E0C08] text-[#FACC15] shadow-[0_0_16px_rgba(250,204,21,0.25)]'
-                  : 'border-[#E2E6F0] dark:border-[#242C3D] bg-white dark:bg-[#131926] text-[#5C5E66] dark:text-[#94A3B8] hover:text-[#B45309] dark:hover:text-[#FACC15] hover:border-[#F59E0B]/50'
-              }`}
-            >
-              <Crown className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
-              <span className="hidden lg:inline">Black Friday</span>
             </button>
             <button
               type="button"
@@ -1497,155 +1448,145 @@ export default function App() {
           </div>
         )}
 
-        {view === 'studio' ? (
-          <div className="space-y-5 animate-spark-enter">
-            <section
-              data-testid="welcome-intro-card"
-              aria-label="Bienvenue sur SparkQR"
-              className={`lux-surface lux-rise-in rounded-2xl border border-[#E2E6F0] dark:border-[#242C3D] bg-white dark:bg-[#131926] px-4 py-3.5 sm:px-6 sm:py-4 flex flex-wrap items-center justify-between gap-2 ${
-                blackFridayMode ? 'bf-welcome-card' : ''
-              }`}
-            >
-              <p className="font-display text-base sm:text-xl font-bold tracking-tight text-[#111214] dark:text-[#F8FAFC] leading-snug">
-                {blackFridayMode
-                  ? 'Édition Black Friday · Créez des codes QR d’exception.'
-                  : 'Transformez vos idées en codes QR.'}
-              </p>
-              <p className="hidden sm:flex items-center gap-2 text-xs font-medium text-[#5C5E66] dark:text-[#94A3B8] tabular-nums">
-                {blackFridayMode ? (
-                  <>
-                    <span className="bf-accent-text font-semibold">Ambiance Or &amp; Obsidienne</span>
-                    <span aria-hidden="true">·</span>
-                    <span>1. Contenu</span>
-                    <span aria-hidden="true">·</span>
-                    <span>2. Modèle &amp; Style</span>
-                    <span aria-hidden="true">·</span>
-                    <span>3. Aperçu &amp; Export</span>
-                  </>
-                ) : (
-                  <>
-                    <span>1. Contenu</span>
-                    <span aria-hidden="true">·</span>
-                    <span>2. Modèle &amp; Style</span>
-                    <span aria-hidden="true">·</span>
-                    <span>3. Aperçu &amp; Export</span>
-                  </>
-                )}
-              </p>
-            </section>
+        <div key={view} data-testid="main-view-stage" className="animate-spark-enter">
+          {view === 'studio' ? (
+            <div className="space-y-6">
+              <section
+                data-testid="welcome-intro-card"
+                aria-label="Bienvenue sur SparkQR"
+                className="lux-surface lux-rise-in rounded-2xl border border-[#E4E8F2] dark:border-[#1E2738] bg-gradient-to-r from-white via-[#FAFBFD] to-[#F3F6FF] dark:from-[#121826] dark:via-[#111724] dark:to-[#131C2E] px-5 py-4 sm:px-6 sm:py-4.5 flex flex-wrap items-center justify-between gap-3"
+              >
+                <p className="font-display text-base sm:text-xl font-bold tracking-tight text-[#111214] dark:text-[#F8FAFC] leading-snug text-balance">
+                  Transformez vos idées en codes QR.
+                </p>
+                <p className="hidden sm:flex items-center gap-2.5 text-xs font-medium text-[#5C5E66] dark:text-[#94A3B8] tabular-nums">
+                  <span>
+                    <strong className="font-semibold text-[#111214] dark:text-[#E2E8F0]">1.</strong> Contenu
+                  </span>
+                  <span aria-hidden="true" className="text-[#CBD5E1] dark:text-[#334155]">·</span>
+                  <span>
+                    <strong className="font-semibold text-[#111214] dark:text-[#E2E8F0]">2.</strong> Modèle &amp; Style
+                  </span>
+                  <span aria-hidden="true" className="text-[#CBD5E1] dark:text-[#334155]">·</span>
+                  <span>
+                    <strong className="font-semibold text-[#111214] dark:text-[#E2E8F0]">3.</strong> Aperçu &amp; Export
+                  </span>
+                </p>
+              </section>
 
-            <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_480px] xl:grid-cols-[minmax(0,1fr)_520px] gap-6 xl:gap-8 items-start">
-              <div className="space-y-5 min-w-0">
-                <SourcePanel
-                  selectedIntent={selectedIntent}
-                  onSelectIntent={handleSelectIntent}
-                  source={source}
-                  onChange={handleSourceChange}
-                  onGenerate={() => void handleGenerate()}
-                  isGenerated={isGenerated}
-                  isGenerating={isGenerating}
-                  config={config}
-                  validationError={validationError}
-                  onMediaUploaded={() => {
-                    void refreshHostedMedia();
-                    void refreshUnreadNotifications();
-                  }}
-                  onJumpToTypography={handleJumpToTypography}
-                />
-
-                <div ref={customizeSectionRef}>
-                  <CustomizePanel
+              <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_480px] xl:grid-cols-[minmax(0,1fr)_520px] gap-6 xl:gap-8 items-start">
+                <div className="space-y-6 min-w-0">
+                  <SourcePanel
+                    selectedIntent={selectedIntent}
+                    onSelectIntent={handleSelectIntent}
+                    source={source}
+                    onChange={handleSourceChange}
+                    onGenerate={() => void handleGenerate()}
+                    isGenerated={isGenerated}
+                    isGenerating={isGenerating}
                     config={config}
-                    onChange={setConfig}
-                    onReset={handleResetStyle}
-                    canUndo={configHistory.past.length > 0}
-                    canRedo={configHistory.future.length > 0}
-                    onUndo={handleUndo}
-                    onRedo={handleRedo}
-                    activeTab={customizeTab}
-                    onTabChange={setCustomizeTab}
+                    validationError={validationError}
+                    onMediaUploaded={() => {
+                      void refreshHostedMedia();
+                      void refreshUnreadNotifications();
+                    }}
+                    onJumpToTypography={handleJumpToTypography}
+                  />
+
+                  <div ref={customizeSectionRef}>
+                    <CustomizePanel
+                      config={config}
+                      onChange={setConfig}
+                      onReset={handleResetStyle}
+                      canUndo={configHistory.past.length > 0}
+                      canRedo={configHistory.future.length > 0}
+                      onUndo={handleUndo}
+                      onRedo={handleRedo}
+                      activeTab={customizeTab}
+                      onTabChange={setCustomizeTab}
+                    />
+                  </div>
+
+                  <ExperienceSecurityPanel
+                    experience={experience}
+                    onChangeExperience={handleExperienceChange}
+                    dynamicSecurity={dynamicSecurity}
+                    onChangeSecurity={handleSecurityChange}
+                    projectCategory={projectCategory}
+                    onChangeCategory={setProjectCategory}
+                    e2eeEnabled={source.e2eeEnabled !== false}
+                    e2eeKey={source.e2eeKeyFragment}
+                    onEnsureE2eeKey={ensureE2eeKey}
+                    onMediaUploaded={() => {
+                      void refreshHostedMedia();
+                      void refreshUnreadNotifications();
+                    }}
                   />
                 </div>
 
-                <ExperienceSecurityPanel
-                  experience={experience}
-                  onChangeExperience={handleExperienceChange}
-                  dynamicSecurity={dynamicSecurity}
-                  onChangeSecurity={handleSecurityChange}
-                  projectCategory={projectCategory}
-                  onChangeCategory={setProjectCategory}
-                  e2eeEnabled={source.e2eeEnabled !== false}
-                  e2eeKey={source.e2eeKeyFragment}
-                  onEnsureE2eeKey={ensureE2eeKey}
-                  onMediaUploaded={() => {
-                    void refreshHostedMedia();
-                    void refreshUnreadNotifications();
-                  }}
+                <PreviewStage
+                  isGenerated={isGenerated}
+                  canGenerate={selectedIntent !== null}
+                  isGenerating={isGenerating}
+                  payload={activePayload}
+                  config={config}
+                  source={activeSource}
+                  experience={activeExperience}
+                  report={scannabilityReport}
+                  svgRef={qrSvgRef}
+                  onGenerate={() => void handleGenerate()}
+                  onDownloadPng={handleDownloadPng}
+                  onDownloadSvg={handleDownloadSvg}
+                  onCopyPng={handleCopyPng}
+                  onOpenTargetPreview={() => isGenerated && setPreviewModalOpen(true)}
+                  onSaveToHistory={handleSaveToHistory}
+                  onClearGenerated={() => setGeneratedSnapshot(null)}
+                  onToggleLaser={handleToggleLaser}
+                  justSaved={justSaved}
+                  dynamicSlug={generatedSnapshot?.dynamicSlug ?? null}
+                  dynamicHasPin={generatedSnapshot?.dynamicHasPin ?? false}
+                  onOpenProExport={() => isGenerated && setExportModalOpen(true)}
                 />
               </div>
-
-              <PreviewStage
-                isGenerated={isGenerated}
-                canGenerate={selectedIntent !== null}
-                isGenerating={isGenerating}
-                payload={activePayload}
-                config={config}
-                source={activeSource}
-                experience={activeExperience}
-                report={scannabilityReport}
-                svgRef={qrSvgRef}
-                onGenerate={() => void handleGenerate()}
-                onDownloadPng={handleDownloadPng}
-                onDownloadSvg={handleDownloadSvg}
-                onCopyPng={handleCopyPng}
-                onOpenTargetPreview={() => isGenerated && setPreviewModalOpen(true)}
-                onSaveToHistory={handleSaveToHistory}
-                onClearGenerated={() => setGeneratedSnapshot(null)}
-                onToggleLaser={handleToggleLaser}
-                justSaved={justSaved}
-                dynamicSlug={generatedSnapshot?.dynamicSlug ?? null}
-                dynamicHasPin={generatedSnapshot?.dynamicHasPin ?? false}
-                onOpenProExport={() => isGenerated && setExportModalOpen(true)}
-              />
             </div>
-          </div>
-        ) : view === 'gallery' ? (
-          <HistoryGallery
-            items={savedItems}
-            dynamicRecords={dynamicRecords}
-            hostedMedia={hostedMedia}
-            workspace={workspace}
-            onOpenWorkspaceModal={() => setWorkspaceModalOpen(true)}
-            onLoadItem={handleLoadSavedItem}
-            onDuplicateItem={handleDuplicateItem}
-            onDeleteItem={handleDeleteSavedItem}
-            onDeleteDynamic={handleDeleteDynamicRecord}
-            onRefreshDynamic={refreshDynamicRecords}
-            onDeleteMedia={handleDeleteHostedMedia}
-            onRefreshMedia={refreshHostedMedia}
-            onOpenExtend={(target) => setExtendTarget(target)}
-            onImportQrItem={handleImportQrItem}
-            onOpenTargetPreview={(item) => setGalleryPreviewItem(item)}
-            onBackToStudio={() => setView('studio')}
-          />
-        ) : (
-          <StorageConservationView
-            key={dashboardNonce}
-            onOpenExtend={(target) => setExtendTarget(target)}
-            onOpenPrivacy={() => setPrivacyModalOpen(true)}
-            onResourceDeleted={() => {
-              void Promise.all([
-                refreshDynamicRecords(),
-                refreshHostedMedia(),
-                refreshUnreadNotifications(),
-              ]);
-            }}
-            onNotificationsChanged={setUnreadNotificationsCount}
-          />
-        )}
+          ) : view === 'gallery' ? (
+            <HistoryGallery
+              items={savedItems}
+              dynamicRecords={dynamicRecords}
+              hostedMedia={hostedMedia}
+              workspace={workspace}
+              onOpenWorkspaceModal={() => setWorkspaceModalOpen(true)}
+              onLoadItem={handleLoadSavedItem}
+              onDuplicateItem={handleDuplicateItem}
+              onDeleteItem={handleDeleteSavedItem}
+              onDeleteDynamic={handleDeleteDynamicRecord}
+              onRefreshDynamic={refreshDynamicRecords}
+              onDeleteMedia={handleDeleteHostedMedia}
+              onRefreshMedia={refreshHostedMedia}
+              onOpenExtend={(target) => setExtendTarget(target)}
+              onImportQrItem={handleImportQrItem}
+              onOpenTargetPreview={(item) => setGalleryPreviewItem(item)}
+              onBackToStudio={() => setView('studio')}
+            />
+          ) : (
+            <StorageConservationView
+              key={dashboardNonce}
+              onOpenExtend={(target) => setExtendTarget(target)}
+              onOpenPrivacy={() => setPrivacyModalOpen(true)}
+              onResourceDeleted={() => {
+                void Promise.all([
+                  refreshDynamicRecords(),
+                  refreshHostedMedia(),
+                  refreshUnreadNotifications(),
+                ]);
+              }}
+              onNotificationsChanged={setUnreadNotificationsCount}
+            />
+          )}
+        </div>
       </main>
 
-      <footer className="border-t border-[#E2E6F0] dark:border-[#242C3D] bg-white/85 dark:bg-[#0F1522]/85 backdrop-blur-xs">
+      <footer className="border-t border-[#E4E8F2] dark:border-[#1E2738] bg-white/80 dark:bg-[#0D1321]/80 backdrop-blur-md">
         <div className="max-w-[1400px] mx-auto px-3.5 sm:px-6 py-3.5 flex flex-wrap items-center justify-between gap-3 text-xs text-[#5C5E66] dark:text-[#94A3B8]">
           <span>SparkQR Studio · Confidentialité &amp; conservation maîtrisée</span>
           <div className="flex flex-wrap items-center gap-4">
