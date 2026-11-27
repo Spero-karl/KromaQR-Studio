@@ -334,5 +334,125 @@
         }
       ]
     }
+  },
+  "f9atqse4": {
+    "slug": "f9atqse4",
+    "ownerWorkspaceId": "ws_TBHr4yex2iM8",
+    "active": true,
+    "pinSalt": null,
+    "pinHash": null,
+    "expiresAt": "2026-12-04T13:31:23.994Z",
+    "retentionPlanMonths": null,
+    "isEncrypted": false,
+    "sentMilestones": [],
+    "maxScans": null,
+    "createdAt": "2026-11-27T13:31:23.994Z",
+    "updatedAt": "2026-11-27T13:31:23.994Z",
+    "destination": {
+      "intent": "url",
+      "payload": "https://sparkqr.studio",
+      "title": "SparkQR Studio",
+      "sourceSnapshot": {
+        "type": "text",
+        "textMode": "url",
+        "urlValue": "https://sparkqr.studio",
+        "e2eeEnabled": false
+      },
+      "experience": {
+        "template": "standard",
+        "headline": "Bienvenue sur SparkQR",
+        "description": "Accès direct vérifié",
+        "accentMood": "auto",
+        "readerThemeMode": "light",
+        "galleryItems": []
+      },
+      "cardTheme": {
+        "cardBackgroundColor": "#FFFFFF",
+        "foregroundColor": "#2563EB",
+        "eyeColor": "#2563EB",
+        "fontId": "bricolage"
+      }
+    },
+    "stats": {
+      "totalScans": 1,
+      "lastScannedAt": "2026-11-27T13:31:24.011Z",
+      "deviceBreakdown": {
+        "mobile": 0,
+        "desktop": 1,
+        "other": 0
+      },
+      "locationCounts": {
+        "Réseau local": 1
+      },
+      "recentEvents": [
+        {
+          "at": "2026-11-27T13:31:24.011Z",
+          "device": "Linux Desktop",
+          "deviceType": "desktop",
+          "location": "Réseau local",
+          "unlocked": true
+        }
+      ]
+    }
+  },
+  "yvh2xj9z": {
+    "slug": "yvh2xj9z",
+    "ownerWorkspaceId": "ws_VbuzrD4HWdX5",
+    "active": true,
+    "pinSalt": null,
+    "pinHash": null,
+    "expiresAt": "2026-12-04T13:31:58.202Z",
+    "retentionPlanMonths": null,
+    "isEncrypted": false,
+    "sentMilestones": [],
+    "maxScans": null,
+    "createdAt": "2026-11-27T13:31:58.202Z",
+    "updatedAt": "2026-11-27T13:31:58.202Z",
+    "destination": {
+      "intent": "text",
+      "payload": "Bienvenue sur SparkQR Studio — Page après scan vérifiée !",
+      "title": "Message de bienvenue",
+      "sourceSnapshot": {
+        "type": "text",
+        "textMode": "text",
+        "textValue": "Bienvenue sur SparkQR Studio — Page après scan vérifiée !",
+        "e2eeEnabled": false
+      },
+      "experience": {
+        "template": "standard",
+        "headline": "Bienvenue sur SparkQR",
+        "description": "Accès direct après scan",
+        "accentMood": "auto",
+        "readerThemeMode": "light",
+        "galleryItems": []
+      },
+      "cardTheme": {
+        "cardBackgroundColor": "#FFFFFF",
+        "foregroundColor": "#2563EB",
+        "eyeColor": "#2563EB",
+        "fontId": "bricolage"
+      }
+    },
+    "stats": {
+      "totalScans": 1,
+      "lastScannedAt": "2026-11-27T13:31:58.993Z",
+      "deviceBreakdown": {
+        "mobile": 0,
+        "desktop": 1,
+        "other": 0
+      },
+      "locationCounts": {
+        "Réseau local": 1
+      },
+      "recentEvents": [
+        {
+          "at": "2026-11-27T13:31:58.993Z",
+          "device": "Linux Desktop",
+          "deviceType": "desktop",
+          "location": "Réseau local",
+          "unlocked": true
+        }
+      ]
+    }
   }
 }

@@ -727,7 +727,7 @@ export const SparkMediaReader: React.FC<SparkMediaReaderProps> = ({
       data-reader-category={category}
       className={
         standalone
-          ? 'min-h-[100dvh] w-full flex flex-col px-4 py-6 pb-safe pt-safe sm:px-8 sm:py-10 transition-colors duration-200 font-sans'
+          ? 'min-h-[100dvh] w-full flex flex-col pb-safe transition-colors duration-200 font-sans'
           : 'relative w-full transition-colors duration-200 rounded-2xl sm:rounded-3xl font-sans'
       }
       style={{
@@ -736,24 +736,28 @@ export const SparkMediaReader: React.FC<SparkMediaReaderProps> = ({
         fontFamily: 'var(--font-sans)',
       }}
     >
-      <div
+      {/* Top Brand + Theme Toggle Bar anchored at top of page (Typography locked to SparkQR system UI) */}
+      <header
         className={
           standalone
-            ? `${standaloneMaxWidth} w-full mx-auto flex-1 flex flex-col justify-center gap-6 sm:gap-8`
-            : 'w-full p-4 sm:p-7 flex flex-col gap-6 sm:gap-7'
+            ? 'sticky top-0 z-30 w-full pt-safe border-b backdrop-blur-md transition-colors'
+            : 'sticky top-0 z-20 w-full px-4 py-3 sm:px-6 sm:py-3.5 border-b backdrop-blur-md flex items-center justify-between gap-3 rounded-t-2xl sm:rounded-t-3xl transition-colors'
         }
+        style={{
+          backgroundColor: tokens.surfaceBackground,
+          borderColor: tokens.borderColor,
+          boxShadow:
+            colorMode === 'dark'
+              ? '0 8px 24px rgba(0, 0, 0, 0.28)'
+              : '0 6px 20px rgba(15, 23, 42, 0.05)',
+        }}
       >
-        {/* Top Brand + Theme Toggle Bar (Typography locked to SparkQR system UI) */}
-        <header
-          className="flex items-center justify-between gap-3 px-3.5 py-2.5 sm:px-4 sm:py-3 rounded-2xl border transition-colors"
-          style={{
-            backgroundColor: tokens.surfaceBackground,
-            borderColor: tokens.borderColor,
-            boxShadow:
-              colorMode === 'dark'
-                ? '0 8px 24px rgba(0, 0, 0, 0.28)'
-                : '0 6px 20px rgba(15, 23, 42, 0.05)',
-          }}
+        <div
+          className={
+            standalone
+              ? `${standaloneMaxWidth} w-full mx-auto px-4 sm:px-8 h-14 sm:h-16 flex items-center justify-between gap-3`
+              : 'w-full flex items-center justify-between gap-3'
+          }
         >
           <div className="flex items-center gap-3 min-w-0">
             <div
@@ -871,8 +875,17 @@ export const SparkMediaReader: React.FC<SparkMediaReaderProps> = ({
               </button>
             )}
           </div>
-        </header>
+        </div>
+      </header>
 
+      <div
+        data-testid="post-scan-content-container"
+        className={
+          standalone
+            ? `${standaloneMaxWidth} w-full mx-auto flex-1 px-4 sm:px-8 pt-12 pb-12 sm:pb-16`
+            : 'w-full px-4 pb-5 pt-8 sm:px-7 sm:pb-7 sm:pt-12'
+        }
+      >
         {/* Unified Content Surface Inheriting Theme Colors Only (UI Typography Stays Stable) */}
         <article
           className={`rounded-2xl sm:rounded-3xl border animate-spark-enter relative overflow-hidden ${

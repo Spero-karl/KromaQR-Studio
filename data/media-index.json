@@ -1661,7 +1661,8 @@
     },
     "retentionPlanMonths": null,
     "sentMilestones": [
-      "48h"
+      "48h",
+      "24h"
     ],
     "storage": {
       "provider": "collection"
@@ -1828,7 +1829,9 @@
       "ct": "KGhCWMY5s--o6XreyOlr1NgC6p0jYbPJEwRpU9cJJxMaILSAmNIjQpWPv-3NfPKdfxvByxaUy6Q8ysnj8YJ8TZwkRLyoawU2UusstjzEDVaYQDo-ZCk0OtccgnwdqO39k7gKWa2dYvnFY4TOqsRyfj54NV7KaakRw0XlWedpEa0eMGMeRwxoZ9YrreJ7VrgtOgRX36ZiLkFRoqn3PtBMVy-3w5gd0oBuLj-x51ufcmcJ0nITZnuyDu_fN2QixGpmYrROSTKkL2I7J2aJzgam-gsZu452SpQG2mJQHouazPW_9uzKGHJdZGKLz6vKERcbHocuC2ucZmtcsmgafJolR9xusZ6wG5oj_OhbFjkcdiO9S_JEsJOeHQjTjGAM-vmym7_3huumORGoojgsS3Vw2zWyxextacy337TV-OQmQSa0RqkKHobMJPJG9JU9XI9il3pEjcCMi_-SN5Xtawf0XBuSzaOt3CSllVnuQ93jb_jhPtjTExNMi-7MPUAInoexiRrQaApu8akjFL7XnvlYvot4iGrEdRORpOPF_MYYxjynSE6CnuHCc_eVhi3y0S2O9jLrFWIV6Df9oCajK-b6rjdlr-3tyDCQjOXYtV-eQ5pJb0w1MLZ82pr32GdmXXW871djs_Quajrr7CVJ3haeMrnkDR5kmxRhH4ZesHm3vl3ygYHFdnQmmK79o8M-sEQLwgyrDx0kZvBsK7M6WjqIcC2M3rKwlIwxZ9odmW4Bnve7_CfvU8BDHh1TNqwQs9wcAyCzvkvE-aIMoQKNwGLaEBWoOB8Umj-wobR4NbApoBI9mPik4KibrsaX8hnEUzt4mh5DDD-kasUp1j7wX-uc6u4iVLlEkiGnP3CIozSnKtlqw3m0Sq7HxUo2IZh43oYTVr8QCXenoQ2oKJTt-CWuFThX_MLw5Q1tV1xM_KBszetj7ocMSiPegD5EmU1qbfLdua3YcZAT1qmtSbYL2hsB8JCpunv_TOaNGWYw2gvVy_aMrRCfpCar60_zSqqsichdvQn1ECOwYX-Qo0D1Pz-7TWyiwJNdjiiybYmMjDFgubCUEgALzR6DxdlcGdWxg1XcMUeDJTwcFP6m6cY8c9rW6LY7MAbNOsDknmVvhxL8bhSvql-geMDnXxnaj3xAgrbftkPcSMSsYdhOLk3JdtIErnAQ-vVUEAtEdFXhBhziuF-2ghR3PUupqJLCFHQ18J1EbEW9OutL5KEBP3DU7DI5heFlCemMBeegO2ok8SSR6jTSiD8qO1BuP_Uv5PIe55Q22YUnbA7jE6NJAs4jjytcdzeu8J8pD6_ObLYT7Ul4ZcHdIr20cJvnrBF-VWzI0zjK6h0W7fCV0Xm1aMAczQcCADG9GdzEleVkVEotsrxS6XGXRzLAWmc0UL8DK4uAjpg0Mq8mL1IQ34v473cjUx34ZnncPCF0LRk_znksNo2QPIrniJk8bn87rDeWbLVzpdYpdloucm-kziRERROZxrSX-Gx1QC2i-m4Istmw1uqsGjq4SrHK8Hg5adA_C2DeY5XLrEz86m49Bx18C7zxj9-twgtdSfVmZFuqwUIggsZ2Mbtj1hK-6EWsfLUEANoLWpLRHriiwUqScQTbDi52TEfZNg9lxkGNZwgKjiJQ9RAbQ5-pJy0TjcujuPH2sBf-geUxq7tMEgWvKunhSugM-SgaQZkhbXuaWDN27fof4WhFr-3X5j5-wHhpiXL4QJjaij22PBbl52c5j-_uQFb0Ez-9h-m-Q-k9s6h8GLdbwxAFZfYVXYBMJ46_6PJKp1jujUaCH75L8Vw9bk3XwcP-HEZsVcYTM77Y3T83fwr_5DaN-IpUk9vFAZps7jQhlH1Z318LuIS3PiVOteMlBRlToOLXzGdC28QtFeovbw"
     },
     "retentionPlanMonths": null,
-    "sentMilestones": [],
+    "sentMilestones": [
+      "48h"
+    ],
     "storage": {
       "provider": "collection"
     },
@@ -1994,7 +1997,9 @@
       "ct": "y_EVxx6sNwfwOMBLnf3qB6GNyJ0TBV1ZR3CGh2dFO6gGKFxiWCSJ72Vr10q1H3NSvwUfg_b5o9JkihbVhTyAa8h7UWPk4Qe-3-uNa5oh_RK2iEYEFrClfNKwhgAJPUrktIA9Os8OZCajlBSiOdJSLvbJWKBDACWFibyEfMmRQfidZsqc6CE9FtoOHUrKFtqOQc3ZWI68TQQy3VIqmN4bAVEOBhHfkwkms0N7j_Vbg_NaZN_R8mQPuX73FqGvlboSMd4505yC6tDudTntZDA_1KPUiZY7-S5d9Mzzq-LXyS6vKtu-TybiZLmioCBZ0b2-efplQZaA6GXVPEyr2JT8nAnCAW4o3bI_5q7gO4XyN4rNMg3NtmnHTJybEK62bVWxu1vF5Vr-74wRF1oDkDLrYyemg1lr6v8eIAhch3Wn_nb21XB_T1jc3RYUJQ08GH9WJcEHa7ODvCu3ZjxQfrd-Ds3ZkXQejVlu4tCinAZZeDbm52tzDXIfdLNLMEA9Dtc0DqEcu79K9D6CkPsc6YA_4Ed2fBHHpgrrXjZATV-k04ajAisXAlJSv-g5haS4sELQHUfiBl66Sf8nodIBaXEgXyXATRqYRQPlYAdETzc6UjXGVuICCbHdv6uhvyNzJpDMaaAGwtcXkGFNey_O51Cfi6CD2Td--EPh0tT-XHuztgBsZJfQtkX7APslZb8v2rBpDbnE4IiObUHFFXf8GvyQFcgsqGLNLWcembHie3ljLAlww6Nk8vXeJZqgIs3irO47Gg-1C_7KjH1MrqTKy5CjUGztelIeetUo2Y_sa9L_JLdJUTwMvh2TtFQHAcnHRx935H5VEWZqD6zimidCPo9Xv6_x6SgV5xwT4-I_i8qc7KfAxeoB1PSHXeVzOfOhaQUctPCxgyJIceCtpMJxOeEYyK08zWvSMMMke1SnCe03vpbi4HftusJZL_97LXFV3nnVmeTAjd4vukgNt44gJryTzwJKPXNnw7lRyr2iotycAJpAnMVZqeLfrud4xQIrMpDwkAdz7pyK62A07kANinwFNJSZ8SlPFu2jK1_YdYfgEofDUAxqtPAieQm-az5lBbLXRpeLYSdJU72tBj9oHarP6nZJ7bKnO38izosg6Nwhi5g2aEeDunqYfnXiht-giqKOqxWe1QdclX8ebt2nYSJ4TkkMnuPe8raa-LLmOzKqlVqv00bLOTTcvS9zSqLl4EBHsYaNeNk9wUgmMrdV10lrKx2hmghDSKe4HbEpXKBrsII4MGd_SHHFARiiTnCSVVA2wlBrOybmTFWqXyy4mbbd7e6mjEKI2cJF9bI9IydXs0cruqlgSApem9I3mUaGnFUWez0f7UsChKgDJmpN9Hs4xUq-N9ErmBLxRqJvWaDaNuwnaAa7fX_ZKBkQQwQrtHzwr4inEympM1INDnX_Zg6N9QKdSF7bFSbJBkpdDAQqWlHkACMglzcvi1rT4MjrsG-5IBdldKPZhXG1khX-15qRMzvwWRMvvsZJbJuiJOsocFy0So69hIGBI5Gp-acqWy8aT1JvnfBaZIdScb3dM0dNgGjCRw7JcuynnNb48UOXjWn-Hx_fF1tN_9irkCPKLQEtFATCPb0NCiUVbSvgAmTWOtEAdX0OcmXXn5-Q1uwZoYcuvpWqE-Bsp7kn0cLvgFXyi_KMW3hLiN-4FKTJg3vvm4T3xn9ba3WxC1Q-kVtaTzQeBBkK_B9D9JxZFOOgFcKY1erDFKnfoiNZ1n0qwNN0SeDBkluwGQpXc__f4QVzkI5TovDdIz-_BbnKVLWbsjnxqwQfVS786vj8MBIQtfGvFbfRx_NY5V-GRNJKAfdP5cDhTSH_kUFoUqrUkczMS_Z7K3WqKJ5JExQvCcjTuwXWijALYHuU8Mtp4Q"
     },
     "retentionPlanMonths": null,
-    "sentMilestones": [],
+    "sentMilestones": [
+      "48h"
+    ],
     "storage": {
       "provider": "collection"
     },
@@ -2160,7 +2165,9 @@
       "ct": "a_CHmeVE9CLnIpXZSGI-LlQke9C4WMMKuSjY2jnN1de9jnmy4JZh-EMSQfrBm7rJ8J6ygYdgoBaTE5WBN3ee4YzfLIj-3n0RaMY3vAlHogSGJbv53Zm8r6rFVqNQBm0YUEleSSvCeY3L5crq3CPsGUZoOmPdu_QhbIOwDhjxofOWB3MhzTWjkDQeioXGMGPB45RKjEhq1ZVGk1sGN4c6vkBss_WMvsiseZ5bH4TB6nxiom0y8BC1DQOaxxSxkFFkWAbgccN0Tky1LThtLIHqFKWy7YH0LtC_zSfHLKH1AkI86yxBQlYbmrg2T_j8dUm-81eDP1k3jTl0reJBUDF0YX7_EhwPesH52gi0ekyUwtcDE0aRpw_NnOZBWV4NMjqPO2GAVaXlXlgYpuGhLmO2JtCV2hDlYvaEkPU5nd9pyuT_Nix4HgauWLUu-7wzFFLp7K76F72f-jkyyQKcQvFX6Q5H5vwYHoCkLu87Siq18Gymr2UiMa_MMs1i6_g29Nxov9iJ4B2oSRTUUweimM7oayJc781hZFyTGx7CTIrLnVaFj3OUeg3kxemLqTkvrOEmM4S31dLjnycLDSf3W3bJn5Ho0Bd57e1-BSAxS0jSoZepEGGfMQYjC12jz0ziDOuKwBxhFONc_ysw3qlmnTdGNcbwlgdPVKpomxmOh6JAETPJ_-4GOnfd0YIHXBYnYGqr1Dbj_g_QwvuIpGLs0xkANbw3q6yVR49dhI-CegRAcFkjy41fMFs0HksLY5mTKxtwCyEgTtIwB-CaRLG-xjgnfEYfASvI9NP7uaT-SkdFuWk4DozB1lLnUAU1VlJ6KnMmoefQWHcwgAq-LEsvqzZI-E6fjwA6YGIWT1hx-d7MTMqWsAEvOMIg0KlfGhD7hXQqp17TSl0CMe7tTqI9JRUbmXgrS1oVLySw8sa3vKVjQBtzarlcrtcjismK7-ok2qplxNRV7JoxnRra5YevzBmdKoksE3X1VH90Q49d8teK78q25haVk0JfMi01D2rWChIMqR6BivXgT30kNzMjkqDrcKSCq1W9Rfj_bAN40TT5G_1IuoRYyBv-uzxYbKyqmbNPN4Q2n3BQLpMGAAhc59AjvbNKcpC9R6ETIDI7ti6sttgopq7VKLppBwRiGYMChm-FLxNiLC_P6rnfRjrtD2c7IWMce4vB7g4vJLGkoFB3ka2kyvHjTNPbesnpWfMwe_SFa1vx1fxfEg8CuShsZSkj-b79gQ6GWN8wHOt0OLNUUxvj5CWLKlctoihg34HDT99oRf_o-IUXWydVzt8XvBt2gZUFP5aGtSS89qBvZjyD5W6uuQMMZ0Ah1djRJawC3KNB0XCbx55Fjwor9zZV74XcckQAuTVRSy93eMoq6cepO-qpU8sLtVPNKYXeNMZDjFFXJqIBeot3hzpl9rSXhpz5ZY987IARC-9OTVm1GQgBGNEfcmdi4vnF2fvw5erVEmq3t9isLkyk9D6c92YlF9OJbwmwA8VAXF6zjlK8qpMdYGk-rz9zJVaME_y5b6jBCphOaCGbE3iA3LKgyFyaOeUR6YlfcazgF4IM6-1fnu8sXuAABP2bxq5-z1q0FEY1lXOT3KLpu4PVqsC52bK_lQVvV7XYV0fDwH2ka2KPXXHWopAwilQMOeN_F-IJSalMuaSWIZYu29vh_S2F7aY381V1QwlVVHI6P_mGt91CYjvXkXznUvlVSRgrYwpkBWgXSUMYiMX6l55OttZdrFnY2_h9uTf6yOfbR61wXb-Hqp2d_VNikpju0nAO0VN5MHpeqwN2uiErpv0_u4Vtq5p5OTa035xA-NQL5wXAmdkSZnQbIgkjkQ0WKQJJtoLxKcCaGxwj4iq-iGcENRKcaAo_m_MtrqeNvX7Nadm8oQ"
     },
     "retentionPlanMonths": null,
-    "sentMilestones": [],
+    "sentMilestones": [
+      "48h"
+    ],
     "storage": {
       "provider": "collection"
     },
@@ -2485,7 +2492,9 @@
     "url": "/m/dgdgxzk",
     "isEncrypted": false,
     "retentionPlanMonths": null,
-    "sentMilestones": [],
+    "sentMilestones": [
+      "48h"
+    ],
     "storage": {
       "provider": "collection"
     },
@@ -2517,7 +2526,9 @@
     "url": "/m/vjmuydd",
     "isEncrypted": false,
     "retentionPlanMonths": null,
-    "sentMilestones": [],
+    "sentMilestones": [
+      "48h"
+    ],
     "storage": {
       "provider": "collection"
     },
@@ -2549,7 +2560,9 @@
     "url": "/m/jr9eykq",
     "isEncrypted": false,
     "retentionPlanMonths": null,
-    "sentMilestones": [],
+    "sentMilestones": [
+      "48h"
+    ],
     "storage": {
       "provider": "collection"
     },
@@ -2583,7 +2596,9 @@
     "url": "/m/vpx95zn",
     "isEncrypted": false,
     "retentionPlanMonths": null,
-    "sentMilestones": [],
+    "sentMilestones": [
+      "48h"
+    ],
     "storage": {
       "provider": "collection"
     },
@@ -2618,7 +2633,9 @@
     "url": "/m/2uve35b",
     "isEncrypted": false,
     "retentionPlanMonths": null,
-    "sentMilestones": [],
+    "sentMilestones": [
+      "48h"
+    ],
     "storage": {
       "provider": "collection"
     },
@@ -2650,7 +2667,9 @@
     "url": "/m/kfbkja7",
     "isEncrypted": false,
     "retentionPlanMonths": null,
-    "sentMilestones": [],
+    "sentMilestones": [
+      "48h"
+    ],
     "storage": {
       "provider": "collection"
     },
@@ -2684,7 +2703,9 @@
     "url": "/m/ftxswud",
     "isEncrypted": false,
     "retentionPlanMonths": null,
-    "sentMilestones": [],
+    "sentMilestones": [
+      "48h"
+    ],
     "storage": {
       "provider": "collection"
     },
@@ -2740,7 +2761,9 @@
       "ct": "eYZ1uLy79X4japT-TLkF3IbRBR6FLJ_c2lsGtcXSydN1XkRxrE_TIMp91J0I-M9olLkSsHg167Edr61aR5NaOnNiT69r7Po0gObAgyXnDlP45x8kzFO9jQGeGHTWMbGiTAREWEEcAvxpqKLnrDpQUurhmfhibft-MiO9sWFCh2mKiDB3QTHWxTV16M6pLl8G3nVv9LgYn4Ho45budWIqjy1rAx4VyDBVsZScS6nLG3rQ16r7qMmowlBGw2Qn3UHKjtFPWwbUygloDlsJ3I_FOX54X2LGa0qPGlCO_9Sz0lO1cpFt_IhhWuP_-xaeOIFuPTbvnVVRlGkxvs6fXqiGNWRu8793MdOOs-9Zivwwgr3KsNn8m202-oCvr1rX19MXSPWC_w7WukEJAB-9BU5HEFsiuDA-WMxw9CFiobwZK1JJ2z61yAC-LDTDehychnP3Yt8DsSXWgjFlWRDUww7wBuxrllpDazw7dYQUyqK4PK4cGayRK8RvlpKWTbBfFhL-TLjCDYuGtk3Rg0AKVDIFwLFcBGAiTBVxdN-9ht931o997Igi9t6cEcVZDCp_p-9L-zCZezzVkExY1Cl-sVnIdIWEed__d3pj6QCnN3O4WzgVunkNuHUjFdaTlqgecQx51S5Vfbs42qWvQ8sgHMzKo7I0sZ1qSu9BBwC9uFgFBNsDNWpzTx3ACJMcKlpHvKTb4u63-XtQtV3mPtMPCN-2OIB_1WYavHEhtk_GJhKxZUb1-aXjr6jwI4ahbbC_nk-BGKyT-VHNQ9bwwTOphuyGEtqze2m6uqkY9rb8mxfggqiWfiyRVg7tv6cg19zQaGmWs58ZRuD1WdQbbInbk3CDMwbvhMg14ExuvYaRpC4ZU7a2AbT4mm3_EOdKLs5VDZ26fhCwzxVzAsQR24aLbZ4YwsQlCyWo0Bd8IKOHGijxjlGJoqkVh2vR-HEyX3zJygWpksOoGbAah1mNCwnD5njTCLv_6l6Lj9F98Mh-Bx5ASi0pjXEPiFANsFoL8u2B-lwhtxqavDSkNfT5B72aOvNqGsnTItcnY-ZEt-3Tr_It61cDZvkeH_kzVT12j4-W69CTtFnz1atTckrKJ34buUIt3xumHYTKxNz-DqWroY52d2XGjrGY14peuJCq4krvpMcj2TOpNIyteWK2lV-ySmRvWO7l8sTCHxr3XZnj6QuGeD-Qt7vAAQY0O9l_qxFuzZ_wsLc555SgsVta6u3KYZHLvN2ED79h26hD-hnJizIxN-eCyY7gkSL6WjIc3y0l4ED4-nQYnDl27Kp4KqY6JPprs-MZV8zvwEpNuX-uoBHbOf95X7yRdONKfz3O_sMehfWAUnDfruEUClQewMx5ujRVjHY7IQhbiCU9Ndgy79cNRAI-xbo8LIf8Kz0WPcxOxOWKrrRKJdxCGOHRk9g6FSud4W3i_KbGBOiwEYBAuGYIE3xfgL1b60JLdZs1qL_5SLCj3oHLzuJcrHXqHdrjxqnOzLd4xTskWnMulh4d-4cxHq86fBi-nqd3zZwYW_qgkzhvXY8KznOyIxm8uBw4fCS8A6LSVePWigKPEF-1LzLgZ384fpUHT3kwcNKZYjIkiEvJ36XztMKXI4uIxag5UwBI9xruzJWlhsMpHmobgXT3HUftSLRNHly8W7t1md27ivFOvvkxXUfdqyvrjFU3GgwNgchMLgZf3Zuu1Lfvdc0vIyFjSqMiRPesHFfdEvUUJZooaq2zJj1lKwzkDvuacewJgcQU6rOikKhvO2rtfvmzZyFgBL74nNVtAs0xFLyvOfHkvQDSk8r3768bL0bZ1zP_cLTRbU6xCNCjUEi4Mnu4_NeOQzgk7t_VYZFsI4wtfxxHPFWXrGYppg"
     },
     "retentionPlanMonths": null,
-    "sentMilestones": [],
+    "sentMilestones": [
+      "48h"
+    ],
     "storage": {
       "provider": "collection"
     },
@@ -2906,7 +2929,9 @@
       "ct": "0GGNEoB7VyUxuK8cBAO3IoSrqb4yNyjX_WpwzPmbnhSUWbyBxFSvYRxJsGoWtm2IygyGjMm48C8vXhhsskM79KyQoy6D9buM2D69FJ7AVkrKBlmh2ElBjhU6HLz2Rl3mTCVi_Y6gvZItvGWmtWQlw8pauMhnQTG-nzzBS33CzaaC5dY9C8brAcQcITWUCFVcuLn1SSk0BRtwfMKJ1Hf_q5g2OjJ3rwyHky3oUk2mP0Sm2-VJt_2Ie9LGpG3bZ-HyFWQ-bLtZR9wVjai7BcHQ9p6ES4F1QZGDTgl_Vo04OGjV-D_fj4mDDKoVn8dyKcT-kziTLPIGeVM5YUmnDAOtTox899jqiIixf3PqWDZEGyUOZsb0u8F_KiqlqHGn967_u7G-4t8-RQpNjKgPmOWgJxDkdg2biGxJVlzDpvUvL2xEBHZEHToX24kbYe5Od8T93Sqi83nOoDovTFLHeeiu5PFN3K6SmbR8Bh6BIf7Fa-mniPHVowK75kK6_mogoH7UWJpxbkzQLvDrCcZJTRq8xx6_Ay7S12VWhFHOyErdgyIeyuDmh63PyuIXEEnQfZNBoewVgY-banpODK-kfXNUNu0grzmz6GrUUefqVEe23TIS_fW_RqSi1b9ibSzDMFK6IE3lx8E9IIcmKXZ_heQfSaH5hUq64TEfRktVMjTbHM41-vpS1kZ4eSppYYbkNkp0ik9yz336lUw14TTNwNYVcHsGM6bUP78y_kUScQ2TW4fPhh1IXXabh2tA4FjXo-m0YLJtRTVS9cpokuQjtJ29d1TE9KNummbe51sqL5T2t5GYyUwV6fwMBkYDXlvYhI88QV0plRSQmtnX9qgq90d42Vi9mLrcaMX54intbasIUKzJINxnJgjhraHhUnRnSdt0zPFDv12EL8LMXIEnrRZvoUwJhquE7IIDx2IXIFVz_1X5o51BPFZHVR_xmfSupYXOLABUq5yL5inmO-k8vFHsxiOHCuH9idOaVTvhnWq2FdjYK0SnYt-132eLvHw4JmXd3IERybeY_EAJdkGly9ikZ_64GL3wkIDF9sPzpKzL5EdD5jWZRvk3VxDAFxOovn8tomgeEDDPdKDUfKBvsJSEXHHIlOMIyHMlWv_q94yocRGDxAS1vNR-4QTwNJd--mlnul3U-jNdbUhcVHXQrseHdknBxvkPJYXRrnqFhZ9wZY6nF8bazwgJgyJAmqiYbtkSd7YjvBzULLwGKwPqAFmNhL1w3D76kq4BLVPTCvAidb_XiH1yTrT-fQG3hMoREfpxU8nmeTp7PbLjTB7aVi8eMX2g3avk-YcJK6gxOndqtMql0JfUdluBODKPgTsPIdGculSE5rPzJaxBm-YSBPWtsHlL-lPTQBvBldLEtjTOUu8hIhar_ol6MFRf881AYDa4aPNUxqPyswPIFHAUPP2KweBBgeia7YPicwF3chAEHRtrWXNw-3KBjeR2En-WQIUZqnZ7Op-uX7v0SDTMZO20x5J-eoywcWLCTtKtHx7cW6xjrFzsf4U1NhW9Cn-bvbjlxNk78-GolyliTmdV-rKXPKlNeI9LwcDs2RpERNv7l4Cs8jIzABqbzBlm3S8VD1LD6rWvkXp1m2diifZBFfv-1A2wNKC2OTzabB-pqnJbpFCeAWf8Yde1UrSI3fSsGKvgWLWy_2ljcycljgjJXVi8v0TRrO-ZYE53nxI_tsLVzzLflxBtZl17op5DETzHwr1c6gI4ct5qBi8mD6JFpkYSbYdaXnjvL4sA_TBRBaT6slFJ0X4ljvJMKbM0DAebifGqeJa62uTU5hCWm78FxWSleAQTaPGtT8Jb3ByTmZM8hWxD-3W2BgEAmWE"
     },
     "retentionPlanMonths": null,
-    "sentMilestones": [],
+    "sentMilestones": [
+      "48h"
+    ],
     "storage": {
       "provider": "collection"
     },
@@ -3072,7 +3097,9 @@
       "ct": "lzOo6qjceeHpqaYG_E2QjpcNLeKeKu5sfq0swqtObAlELscqnNuTrwIlPxFcVXtSja7N4V6p9u5X8XXK7UP9UrFqPUDhslgJ4sdiN-gERiMKWw_tHr9L1QF7IiALKLBW3Jm_HnbWWqlCzyU9Om_BzFZXg1nj4BAW_8LqLFpgsoXTM3XNHw-K_Im7WDrWQb7oq5HOBjM0T765zoxxsnjj5Up0nhBD6SbBPghDi0uQ3WjGgQ02cDb_ToyYa_BjvW0Q6EYCW93CsOzZxY4GOPw_SCPHwcUd3HukioqROfTvIyZ0kSDH89gJ9Yl7FgxbMJxaVyDkNm9JvBiMxma8uLzOnQRJBtUnCjYG-4r85nOH4go-N8qA91UkW-Ous-PgcpCVuDLMDi3eJsmSZvkIpikzPu3wiiLfwZoovYGz9Iv5kuBPlKYAjMAhZKA20_F1JO8cpFjZ1NEw_AuME3H_Rw7op8zlhzz-cUvo9oYbf4d0uExj6FR0SPrKSGPEY-jy7bTedI1z43V-sHLxhWK0yjjnmvM8pkPDEf4d1OKL7XC4dsJmA-bTPc6y62-fQfpk4TBk6dMgwPT292ihgjFFpGXA0j1KIB7cn80Jyci4hicTlg7mY82Xni_DXdvZBSSZ-Y6xyRPE26fycEsdv8PlAUFnaXPFd7zrTZBa7rHAvAnPWmr4PLvANjCWScad1JihFZfD6EdtE_oBguVEcFUOty78O8I1iLB8Tz98Y31B1YKzahhSfSYNaGE7ug8KxaZcZT_R2ydwmlav2h4urOy1Ejt6sZ4bKB4Sm6iwCMzSs-J-Ky7fTQazK2mtbKoQKqOPQIuY08BeCU7oPsuVdn7fRdLV94OBHhPK_SkdDQzbxh0kmHmyzSYUHAeL_47j1haBU_J5XQFi6UbYwZKPV8vMeDVgFtxJ8jau_cbDSbOSlEgkDKNrQs_CEPZBgCWgoVbXfWyMS62SNvmpx0v8NU1nVhkU7fmbBbd3fiu9e8wWcKY_Z5DFufk2AQBXD1RC0mG3FPzhUfw0yg_jLKpyZivtaN545f3_CcaOFg2k7V-6r8NLBM6UR_uuBY14pkY1Hx05TfIycy9JjwJtB8hMQpB7Zj6nbLPad6iHGYbc_AVR1FLbg2WP3GSEjAjLAU-LwjdqNae5XqqRwZnDb6oXhE7WH_QikGFj4gCpAYYCvNz48VIep8V0GIhnI0hUXVeZaeBl-aAOjC8wYlm6jaebjtGz6aYk53HShZ_pcvXei5JffPmlQLhExk7bwqfBE_WKj3dFmpskwuzyVNsuBVp54cwf-06Zn-uvFbvq8aQObOtZ-fuykYR-zfH8faGghxZP39odfmSN2xt0nUuA35Itb6eDdnBMvnRb1YI9a-yI2fB5nOrkwy3oaFvQQf22SCdTnYYbuh0XqW-Fn4_9ITRk9LyIFq3Ikw1imRJbSIQYb0OxTgv1fApBeoW-uti0oOMLzq1QqmYH2zeTXgWlMvrq99d2W6ph2aHJxAH4yjXVNAMU7DsAeJD-cSLH9qnLvVLBAMKG5GaidTr1Z7uotzhGg7OTxKNefIVfdLYFexwWjKtO1Zi2vUz1FXZNBi9Y6-1ELlJljSF22Hh9iQaqez1OgWCpJlcNSBcSucf-RXq-b4o4rxlFKcHGFhOCf--a4JAVUkVvL3mDaC9AGG-Nqj8RWV68smSGSejACwAV_Lp8zoC2Q6kHR93ps7A81h0I8CqgafSE2j8B0te77zEc_0gaUdGuRdDOrOPQd479saF2FvHfk73ZfbCrj8Nv3gnRuRQRaeSt4Pj22sLqq_0fb18DUqkh2UAVR1g0ycMnkhcX-68-RGbYazOtx09OSiuNDWs"
     },
     "retentionPlanMonths": null,
-    "sentMilestones": [],
+    "sentMilestones": [
+      "48h"
+    ],
     "storage": {
       "provider": "collection"
     },
@@ -3238,7 +3265,9 @@
       "ct": "ki1QANwfxKTydZB7TW9oQOLuDWv6MgBibx9oqm_Sb92QKscpgodGNGBjssym-8tZotks_sSMrZQOYc3wfiQ_hZu9N_YlRP9gTC6xb8Vt7o4B8wFVUVWK8sFh3cG0KSmYs-HiKqFLq10plZBEdTCopmpK9EjAcac_T58114WbqiSeh2SpZU6MgEEvDhwSsqAxFrwK8u_40olbJEJc_trGCulRndVAj0oFpgb7W_aBqJZH9wTRmjTvnBwOrcLjtp9JXJOon_YtDclpf6BcPt5VYtr9XNtJQjk0-Q1iTosRdip1Rl0y-JRfCBW9deNPAedLu9Ryb1qHj2OzxbselIh7PKFV76FRvx7zjbGyXnfdiSfWycmdNnO-Hjo9PMUWigsiGnjWQQZBsW32yKVKq7viA1lrz3MFV5LNJodNxzUnt1e41BqHLn0KTI_B5xpY2klvAdbsPmoPOKkq1lip-nFg5W2VUbvZ__6O7Ty45mEp8W9WnWSfFH1XkVZIq5wM0KangsLobQyEhRqRPIUZ7Db7EEd84TeHJvQ5BC2IUIppFbGOff2Es7Gnh_PmNOBy4dR9QPArDTXgWLys_ki1jE4il-nI13l4EL--O9CgjZJH_fPprgtbJP3bUYhRl4g_JL1_VnrnFUmzVtoUMeTXdH1ttfUeXDtCRYpjSX5Q9RU6qkB_FknulM0yNfSftdMRSGDMX5rfTs-Co9tIYizvL_5f4G6J7Cq51Gb1yRGDk4NXstiIJVPxIYG7x8sG5GpwkDU12C1UJRDBRlVXHdYFJu3a3y5vEsOk2xIsWGIqeOVYUgvh1DP_6aU2NVdfONXTCpNh7iVQEHuwnIg8dKqh3xCQPm1Wampwcz5BYAWXzN4TCGlsY6piKgHgTwKCzA-hWuMZRXn5jd5jVbgN8aEcdfwE050jP4xo-K2lJZ_L9uDYC8eKiD-DdOfLorJ5objk_10sqWXzYROV08QTbKqSMuMUSB3fs_2-WQpukhcIptNSFKz5RHHA0RmObZmohbQJfEzXbh7zJEaxXh0ltpVo5AVZ4hjwdvEGGyWL-j0ghNbFl-NsF8eNWHARyo3n5K6tOplxcxj-Q-ypAOi3BolmYp3CQnxHCuE60ThuT3B0kC2rlxl0EKiM3ONskALdNVj7cF-Kg8bmb-7W1FH8TY0xBMytKSJNx4Agyh663mZ4y-s1DLoO4TuNA61XwGFSa7C8qLxbtqfRaNqe-e83slt26a-LsbrXJN3x4iXbcsrUs8VAH3_0SpQE7CvwV4pgGBAeq5NfX-vQ3EFlX7Q36AK9hH8mH_L_FcGqfLmxA1fp3w7ifgaQWdQU83nSaEjzi3js3-C7amQHtzm2P8ddkHcKwdT0MPCilpVQpVJ8XWjFW5pnlEaXeVWad-FZlGI1cOp3s1HqhRhIFxpkFTzzp5a031MhQT--byx54dmzn4X6B-s-KAxuNXWzqXm3OVYtAbud7iEH9sIibdz3OK_TVqIRVX92oM_pKPBDynwRBHH3CxV-EJMbpIIty9u7kzHulmzfXjbWXjErFGeenAaL_HnGYRdOtPe5W52gvkZboeAQM5AP16MCkyX1fsZSvx2TVCV85G7WqBNyIa0-Eecl4lHAeiSxNSvOeN-ef7x60MeCiHdK6TmBZ577WmB1uKf7ifrkIzAzhc_wsT1nzkOB6T0x-p5FUxvZogMEwtzbEzmNIadnACqU0S-ynWyih8j4xoEIS0ZOWcf18PIjjeAWj4-uNNZYIWbJAFL21KDEo0Cq0zPqSRJ9_AdJkJn49LF9DF1ciYCqPXklXRpslvFS90rtY2myk8xQ2HE5Y1FRExGS-GBQKe-EMZAWKMNnTUw"
     },
     "retentionPlanMonths": null,
-    "sentMilestones": [],
+    "sentMilestones": [
+      "48h"
+    ],
     "storage": {
       "provider": "collection"
     },
@@ -6429,5 +6458,215 @@
     },
     "serverExpiresAt": "2026-12-04T08:56:40.838Z",
     "createdAt": "2026-11-27T08:56:40.838Z"
+  },
+  "fgq8id5k": {
+    "id": "fgq8id5k",
+    "ownerWorkspaceId": "ws_VbuzrD4HWdX5",
+    "kind": "collection",
+    "type": "collection",
+    "filename": "fgq8id5k",
+    "originalName": "Contenu chiffré #fgq8id5k",
+    "mimeType": "application/json",
+    "size": 2899,
+    "url": "/m/fgq8id5k",
+    "isEncrypted": true,
+    "e2eeVersion": 1,
+    "encryptedMeta": {
+      "v": 1,
+      "alg": "AES-256-GCM",
+      "iv": "O62a9NvUERSqsiMC",
+      "ct": "21gH9Y3A7C2Tisd6dbfdDHN93QWwyhvWUetp_zGyqIVT1tkw5B_ttwpqZs5ZmdHvmZ1sl-_vd9xVuVNwgLVLp-aqllTfPNDrpvg3JZyQyNVqpvn8a17Gyyj7D3k_SjflgjxPNB051iBxRN090JmucMpb8P7uqHSoeKpeO7MtYV2V_aJl8kX0eqDd8cVU20N2U2og2W5p_3skViZaeoFz15cVg5M-5ROsPc1RMES_JpsLCg-Iw2_SRF4MhpBKkDnl09rHmmm9h8wvw93IkIBgiaK0Hu6ycSyI0l82ys0-IFtNjHyLG10a7WqH3BewrQ0hQITtXjPUR0FlFBqoifr_dUeek0-jxx7O561iBJimhVpRuMe09UUNjug2GnaQTs9V0pZC894i-F-J0H_C87tH9y_PrzbP0jNhJudurjlWdKGDiPYtk0VRGp1BxZ59r05akY0qiS1WalGjfGv7wMGsasX2kY6oWAN4cBB94GwGX__kP-9Z26p3PY6Sij5qzvnX_Go5z2UC6KkNfMn3mQTd8RsZNacX9WcilBFFuwaYx7xMl9vbqMmjYLov_CqiNuI6aQVqVR9rdyo6PEXvr-G2X1A34MNPq9_hMeXsYD0-NlgtOP850SulknTq8T-_Sv4MGPx_BCpQV_A4pSpPYeCVZ1hn9V67VLb_olWOXYYx0tMmaU8E1tD9vokkFNgluR76DK9N0y_k4irvg5iLh4YfvHu1hDGI3jPpVZXBvGAQ_dsStb2lJoaameIJLszA5g21Pjw9AegDVBk37yVX7ymFZfH-l2gMnAhWb4wUoeARQTWmn3boQnVkbsxQYpyEYfWx5WLt-tNFr7mWDP3YIRrlIoKtwH7vEr6qHesNTmZJHa0OFQL6nouSHO1f29WgC5KkPJ49S177E-bIEQXBUUVd9ClY7kORZ8gg6Xh6D8K-GXfehfEWq7dXpAwHCzx0Bj10bSxNBj-cPgySEurxzicicTEXrn0_VhwoFj2ntftBtU4yYxXgKj0lrtVQ_3aYHbhQNetbYquChRxLc6RFumX-zhXAXKXE9IUe_6l4mr7V-_JnX0ipdpkt_hgFiLKqVIklyUH_bwButAsr9_1QV1tVVc8toalgVNEO15H3UNVtLc4M_hKZ0V7yUyWaBAyjCrWmjoWNO6LQ6jxdwBA_RXEMiB6ADLPk5uATf_JqH3KhT2wxD6D6UVMYQdY69DqDzTVlY4HAgUocYwQmygbS5FFRACm7phLHz9oSKd40ZAsBXF6tcZcqhnxNnEPFxM6ISoxdAJSKhk-NED2R0j3VC4pCKppIyVx-YCgXtnUwVsD2nlYtjzcXxlHBOROWKALz71Y_tgqqM4HICVKSx1UrZXTv0UzPEcbn99PxfJC4T9tix0ZZnY0UW3hnWDHqd2jgH2k6GgsBzkOgDAEihFiYoesgeu0IvQpMcmeGd2TBQrBtAqhI7azGm8czSK1yEH3I10ap5lYUDsuR9KtiC7KzwLXS0l8sLWCdYhesu7glL5eNuNT3YLhRiJPOgXvunpCsDKzmVT_-O8tAu6jQ_zR3g_bZgC6GhqtrZV4cACXLws-wc-Esq7wGyjZdtByqrl8c18lvQ8T6TPiSiglvVtNjjPcNukwHFVuU4CnX5ADWqG06pzUICBpWGbSI2dGqTfUxKexdPdqpVn0X1L0RVIjzhmmgPQCekQCeJs6MeDN0a3OuRaEndMpqiKZ29LZtd3dUIqJZqlTOfen7ZUCceyktiaQ3gZFy3kbq80whcLOW14F1JRlrgTU8d_jTgW6AGSgmu0htf3ao-Zn6eRuZTq5QEGNCQmxCDBoPcSO7LZnUhL7fh4ipf-4QtrAa1kO3qEVvxHASdL857QPyYQaVTGWfLuK2cUASD04YV12h_Eczh-jhHetNgTgLRvCfwMJYZ9xUHTf8dNEUUb9zfV21wTxwMcCQHUmBvQNzZGw8gBOoS5nXiMky8cVlR9vata16ZevhNr_cPS6WB3-Jdi5ZIoLR-604vm0A52kCvd4KPYcZhoLDSFRFDIsepa1fl7nkLPWKJ8wxQgCbkWsQgF_VGQPAIAno3I7r6bVK5Gjpif2exhquBKmIC6DEcEjXvrp6ESP3hrU1ti9E_rn6wNJ4BgpcUWJJH4c897iPv4jyTq8c2gJEbFCc9yM-gvncALKMmjurY_VrL7j2vPcozK0q54hIrkqHcliMzBo2sF33OUfACK1puq3orQR3_thtO3WzyA_8cQ_Cs-lbzCAu72UpfqejOn5R24hy-VNiukXyYuzfwiFlvXjfLSfwev-smN6ezf4wYAxo54rYN0L6H4QhAhLkjmGfmO4od-s_EjSBHjaO7e92o9rB2o-7echsPVjFgRK2wa0m5NCnVekJ4FxOs1nQ05E30QGDjU87kVQ-xZCKH7kP5dgjLblg-6tjrG5Slpi5IlUgSO1pMuD5UuCD0l18xsegpwZA0CNV_3-J9TmWt7nqpdYx35gmP7TLG4H_me8LD2umTC4Jbqlj61BFkq-nYtGMr9yTkvQg9QNQc0vpn2m4I4GxA5OYpW73jXKYAw-U7XxmUZWPsRJ_3dUBepcIUscYvWOJCRLJtYPJWaVEBcOEJQzUKM97WiIGMgnH10ICZWtf45SQ604b2x3K9yJBS_prjU2zwsLDEsCarBkLiLgrTChauVooaAIivI30DOia3VViMZEqtYieFS2LAw3msDFwHztMu-9818UF8ZVRjyaldTWT4mjNDIoE91fq5Emm2WaeRgFtQRGC3FMseOsLeOniVN2G5pCZS-Bhxa-byUP2B84vFQZlWpNLXcZN30pwoaqMdJau9XGBDGTBkITyNuo4JU0t"
+    },
+    "retentionPlanMonths": null,
+    "sentMilestones": [],
+    "storage": {
+      "provider": "collection"
+    },
+    "source": {
+      "type": "text",
+      "textMode": "text",
+      "urlValue": "",
+      "textValue": "",
+      "wifiSsid": "",
+      "wifiPassword": "",
+      "wifiSecurity": "WPA",
+      "vcardFirstName": "",
+      "vcardLastName": "",
+      "vcardOrg": "",
+      "vcardTitle": "",
+      "vcardPhone": "",
+      "vcardEmail": "",
+      "vcardWebsite": "",
+      "vcardAddress": "",
+      "eventTitle": "",
+      "eventStart": "",
+      "eventEnd": "",
+      "eventLocation": "",
+      "eventDescription": "",
+      "emailAddress": "",
+      "emailSubject": "",
+      "emailBody": "",
+      "phoneNumber": "",
+      "smsPhone": "",
+      "smsMessage": "",
+      "whatsappPhone": "",
+      "whatsappMessage": "",
+      "geoLat": "",
+      "geoLng": "",
+      "geoLabel": "",
+      "paymentMode": "sepa",
+      "paymentName": "",
+      "paymentIban": "",
+      "paymentBic": "",
+      "paymentAmount": "",
+      "paymentReference": "",
+      "paymentUrl": "",
+      "tiktokHandle": "",
+      "instagramHandle": "",
+      "facebookHandle": "",
+      "telegramHandle": "",
+      "twitterHandle": "",
+      "imageUrl": "",
+      "imageName": "",
+      "imagePageUrl": "",
+      "useSourceImageAsLogo": false,
+      "videoUrl": "",
+      "videoName": "",
+      "videoPageUrl": "",
+      "videoPosterUrl": "",
+      "documentUrl": "",
+      "documentName": "",
+      "documentPageUrl": "",
+      "audioUrl": "",
+      "audioName": "",
+      "audioPageUrl": "",
+      "e2eeEnabled": true
+    },
+    "experience": {
+      "template": "standard",
+      "headline": "Contenu chiffré",
+      "description": "",
+      "mixedTextBlock": "",
+      "accentMood": "auto",
+      "readerThemeMode": "light",
+      "eventDate": "18 juin 2026",
+      "eventTime": "19h30",
+      "eventLocation": "Palais de Tokyo — Salle 4, Paris",
+      "eventDressCode": "Tenue de soirée · Accès VIP",
+      "personName": "Camille Laurent",
+      "personRole": "Directrice Artistique",
+      "companyName": "Atelier Travers Studio",
+      "contactEmail": "bonjour@atelier-travers.fr",
+      "contactPhone": "+33 1 42 68 55 10",
+      "websiteUrl": "https://atelier-travers.fr",
+      "postcardFrom": "Atelier Lumière, Paris",
+      "postcardTo": "Pour vous",
+      "postcardStampText": "PAR AVION · ÉDITION 2026",
+      "privateBadgeLabel": "Accès confidentiel vérifié",
+      "privateSecretNote": "Ce message réservé s’affiche uniquement après validation confidentielle.",
+      "galleryItems": [
+        {
+          "id": "demo-g1",
+          "type": "image",
+          "url": "/demo-atelier-1.jpg",
+          "caption": ""
+        }
+      ],
+      "ctaLabel": "",
+      "ctaUrl": ""
+    },
+    "config": {
+      "themeId": "atelier-alpin",
+      "foregroundColor": "#0F172A",
+      "foregroundSecondaryColor": "#1D4ED8",
+      "gradientType": "linear",
+      "gradientAngle": 135,
+      "useCustomEyeColor": true,
+      "eyeColor": "#1D4ED8",
+      "qrBackgroundColor": "#FFFFFF",
+      "cardBackgroundColor": "#FFFFFF",
+      "cardTextColor": "#0F172A",
+      "moduleShape": "capsule",
+      "eyeShape": "frame",
+      "filter": "none",
+      "filterIntensity": 55,
+      "frameStyle": "signature",
+      "cardTexture": "none",
+      "metallicSheen": false,
+      "borderWidth": 0,
+      "borderColor": "#D4AF37",
+      "editionLabel": "ÉDITION LIMITÉE · N° 01",
+      "fontId": "bricolage",
+      "subtitleFontId": "jakarta",
+      "titleSize": 21,
+      "subtitleSize": 13,
+      "messageFontSize": 18,
+      "titleWeight": 700,
+      "titleItalic": false,
+      "titleUppercase": false,
+      "textAlign": "center",
+      "messageWeight": 400,
+      "messageItalic": false,
+      "messageAlign": "center",
+      "messageColor": "",
+      "messageLetterSpacing": 0,
+      "messageTextDecoration": "none",
+      "titleText": "Mon Code QR",
+      "subtitleText": "Scannez pour découvrir",
+      "titleOffsetY": 0,
+      "logoId": "aperture",
+      "centerEmoji": null,
+      "monogramText": "SQ",
+      "customLogoDataUrl": null,
+      "logoSize": 0.16,
+      "logoOffsetX": 0,
+      "logoOffsetY": 0,
+      "logoRotation": 0,
+      "logoKnockout": "squircle",
+      "logoColor": "#1D4ED8",
+      "cornerStickerPlacement": "none",
+      "cornerStickerKind": "vector",
+      "cornerStickerVectorId": "star",
+      "cornerStickerEmoji": "✨",
+      "cornerStickerColor": "#1D4ED8",
+      "cornerStickerScale": 1,
+      "cornerStickerRotation": 0,
+      "cornerStickerOffset": 0,
+      "layers": [
+        {
+          "id": "frame",
+          "label": "Cadre & Texture",
+          "visible": true
+        },
+        {
+          "id": "modules",
+          "label": "Modules & Repères QR",
+          "visible": true
+        },
+        {
+          "id": "centerLogo",
+          "label": "Emblème central",
+          "visible": true
+        },
+        {
+          "id": "cornerStickers",
+          "label": "Stickers d’angle",
+          "visible": true
+        },
+        {
+          "id": "typography",
+          "label": "Textes & Titres",
+          "visible": true
+        }
+      ],
+      "extraTexts": [],
+      "errorCorrection": "H",
+      "margin": 3,
+      "cornerRadius": 24,
+      "laserEnabled": true,
+      "energyWaveEnabled": false
+    },
+    "serverExpiresAt": "2026-12-04T13:31:45.457Z",
+    "createdAt": "2026-11-27T13:31:45.457Z"
   }
 }

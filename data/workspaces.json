@@ -768,5 +768,26 @@
     "accessCode": "SPK-NRJS-6F73",
     "createdAt": "2026-11-27T12:37:46.703Z",
     "updatedAt": "2026-11-27T12:37:46.703Z"
+  },
+  "ws_iQcl5zW8bRk8": {
+    "id": "ws_iQcl5zW8bRk8",
+    "name": "Mon espace créatif",
+    "accessCode": "SPK-N34N-PRAF",
+    "createdAt": "2026-11-27T13:30:42.654Z",
+    "updatedAt": "2026-11-27T13:30:42.654Z"
+  },
+  "ws_TBHr4yex2iM8": {
+    "id": "ws_TBHr4yex2iM8",
+    "name": "Mon espace créatif",
+    "accessCode": "SPK-S9QK-UZRM",
+    "createdAt": "2026-11-27T13:31:07.375Z",
+    "updatedAt": "2026-11-27T13:31:07.375Z"
+  },
+  "ws_VbuzrD4HWdX5": {
+    "id": "ws_VbuzrD4HWdX5",
+    "name": "Mon espace créatif",
+    "accessCode": "SPK-C7RS-M539",
+    "createdAt": "2026-11-27T13:31:42.673Z",
+    "updatedAt": "2026-11-27T13:31:42.673Z"
   }
 }

@@ -1464,7 +1464,7 @@ export default function App() {
         </nav>
       </header>
 
-      <main className="flex-1 max-w-[1400px] w-full mx-auto px-3.5 sm:px-6 pt-8 sm:pt-10 pb-8 sm:pb-10">
+      <main className="flex-1 max-w-[1400px] w-full mx-auto px-3.5 sm:px-6 pt-10 sm:pt-12 pb-8 sm:pb-10">
         <h1 className="sr-only">
           SparkQR — Studio créatif de codes QR graphiques et dynamiques
         </h1>
