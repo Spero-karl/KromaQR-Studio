@@ -1355,7 +1355,7 @@ export default function App() {
               disabled={!isGenerated}
               onClick={() => isGenerated && setExportModalOpen(true)}
               aria-label="Exporter Pro"
-              className="px-3 sm:px-4 py-1.5 sm:py-2 min-h-[36px] sm:min-h-[38px] text-xs font-semibold text-white bg-[#2563EB] hover:bg-[#1D4ED8] dark:bg-[#3B82F6] dark:hover:bg-[#2563EB] rounded-xl transition-colors whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+              className="lux-cta px-3 sm:px-4 py-1.5 sm:py-2 min-h-[36px] sm:min-h-[38px] text-xs font-semibold text-white bg-[#2563EB] hover:bg-[#1D4ED8] dark:bg-[#3B82F6] dark:hover:bg-[#2563EB] rounded-xl transition-colors whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
             >
               <span className="hidden sm:inline">Exporter Pro</span>
               <span className="sm:hidden">Export</span>
@@ -1413,7 +1413,7 @@ export default function App() {
         </nav>
       </header>
 
-      <main className="flex-1 max-w-[1400px] w-full mx-auto px-3.5 sm:px-6 py-4 sm:py-6">
+      <main className="flex-1 max-w-[1400px] w-full mx-auto px-3.5 sm:px-6 pt-8 sm:pt-10 pb-8 sm:pb-10">
         <h1 className="sr-only">
           SparkQR — Studio créatif de codes QR graphiques et dynamiques
         </h1>
@@ -1451,7 +1451,7 @@ export default function App() {
             <section
               data-testid="welcome-intro-card"
               aria-label="Bienvenue sur SparkQR"
-              className="rounded-2xl border border-[#E2E6F0] dark:border-[#242C3D] bg-white dark:bg-[#131926] px-4 py-3.5 sm:px-6 sm:py-4 flex flex-wrap items-center justify-between gap-2"
+              className="lux-surface lux-rise-in rounded-2xl border border-[#E2E6F0] dark:border-[#242C3D] bg-white dark:bg-[#131926] px-4 py-3.5 sm:px-6 sm:py-4 flex flex-wrap items-center justify-between gap-2"
             >
               <p className="font-display text-base sm:text-xl font-bold tracking-tight text-[#111214] dark:text-[#F8FAFC] leading-snug">
                 Transformez vos idées en codes QR.

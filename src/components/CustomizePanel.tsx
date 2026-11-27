@@ -410,7 +410,7 @@ export const CustomizePanel: React.FC<CustomizePanelProps> = ({
     <section
       aria-labelledby="customize-heading"
       data-testid="customize-stacked-bars"
-      className="bg-white dark:bg-[#131926] border border-[#E2E6F0] dark:border-[#242C3D] rounded-2xl overflow-hidden shadow-[0_2px_10px_rgba(15,23,42,0.03)] dark:shadow-none transition-colors relative"
+      className="lux-surface bg-white dark:bg-[#131926] border border-[#E2E6F0] dark:border-[#242C3D] rounded-2xl overflow-hidden shadow-[0_2px_10px_rgba(15,23,42,0.03)] dark:shadow-none transition-colors relative"
     >
       {/* Header + History Controls */}
       <div className="px-5 sm:px-6 pt-5 pb-4 border-b border-[#EFEFF5] dark:border-[#242C3D] bg-[#FAFBFE] dark:bg-[#161D2B] flex flex-wrap items-center justify-between gap-3">
@@ -578,6 +578,7 @@ export const CustomizePanel: React.FC<CustomizePanelProps> = ({
                 const isMaster = theme.collection === 'master';
                 const isLegendary = theme.collection === 'legendary';
                 const isPremium = theme.collection === 'premium';
+                const isBlackFriday = theme.id.includes('black-friday');
                 const hasGradient = theme.patch.gradientType && theme.patch.gradientType !== 'solid';
                 const eyeFill = theme.patch.eyeColor || accentSwatch || fgSwatch;
                 const gradId = `swatch-grad-${theme.id}`;
@@ -599,9 +600,13 @@ export const CustomizePanel: React.FC<CustomizePanelProps> = ({
                           : {}),
                       })
                     }
-                    className={`flex items-center gap-3 p-3 rounded-xl border transition-all duration-150 hover:-translate-y-0.5 text-left cursor-pointer ${
-                      isSelected
-                        ? 'border-[#2563EB] dark:border-[#60A5FA] bg-[#F4F8FF] dark:bg-[#1E293B] shadow-[0_4px_14px_rgba(37,99,235,0.12)]'
+                    className={`group lux-preset-card flex items-center gap-3 p-3 rounded-xl border text-left cursor-pointer ${
+                      isSelected && isBlackFriday
+                        ? 'lux-preset-blackfriday border-[#FACC15] ring-2 ring-[#FACC15]/35 bg-gradient-to-br from-[#16120B] via-[#0B0A09] to-[#1F170A] text-white shadow-[0_10px_28px_rgba(234,179,8,0.28)]'
+                        : isSelected
+                        ? 'border-[#2563EB] dark:border-[#60A5FA] bg-[#F4F8FF] dark:bg-[#1E293B] shadow-[0_6px_18px_rgba(37,99,235,0.16)]'
+                        : isBlackFriday
+                        ? 'lux-preset-blackfriday border-[#EAB308]/70 dark:border-[#FACC15]/60 bg-gradient-to-br from-[#12100C] via-[#0B0A09] to-[#1A140B] text-white hover:border-[#FACC15]'
                         : isLegendary
                         ? 'border-[#A855F7]/50 dark:border-[#C084FC]/45 bg-[#FCF8FF] dark:bg-[#191126] hover:border-[#9333EA] dark:hover:border-[#E879F9]'
                         : isMaster
@@ -614,7 +619,7 @@ export const CustomizePanel: React.FC<CustomizePanelProps> = ({
                     <svg
                       viewBox="0 0 36 36"
                       aria-hidden="true"
-                      className="w-10 h-10 rounded-lg shrink-0 border border-black/15 dark:border-white/15"
+                      className="w-10 h-10 rounded-lg shrink-0 border border-black/15 dark:border-white/15 transition-transform duration-200 group-hover:scale-105"
                     >
                       {hasGradient && (
                         <defs>
@@ -662,15 +667,23 @@ export const CustomizePanel: React.FC<CustomizePanelProps> = ({
                         <circle cx="29" cy="29" r="1.4" />
                       </g>
                     </svg>
-                    <div className="min-w-0">
+                    <div className="min-w-0 relative z-10">
                       <div className="flex items-center gap-1.5 min-w-0">
-                        <span className="font-display text-xs font-bold text-[#111214] dark:text-[#F1F5F9] truncate">
+                        <span
+                          className={`font-display text-xs font-bold truncate ${
+                            isBlackFriday
+                              ? 'text-[#FEF3C7]'
+                              : 'text-[#111214] dark:text-[#F1F5F9]'
+                          }`}
+                        >
                           {theme.name}
                         </span>
                         {theme.editionBadge ? (
                           <span
                             className={`text-[10px] font-semibold uppercase tracking-wider shrink-0 ${
-                              isLegendary
+                              isBlackFriday
+                                ? 'text-[#FACC15]'
+                                : isLegendary
                                 ? 'text-[#9333EA] dark:text-[#E879F9]'
                                 : 'text-[#B45309] dark:text-[#FBBF24]'
                             }`}
@@ -683,7 +696,13 @@ export const CustomizePanel: React.FC<CustomizePanelProps> = ({
                           </span>
                         ) : null}
                       </div>
-                      <span className="block text-[11px] text-[#6E7078] dark:text-[#94A3B8] line-clamp-2 leading-snug mt-0.5">
+                      <span
+                        className={`block text-[11px] line-clamp-2 leading-snug mt-0.5 ${
+                          isBlackFriday
+                            ? 'text-[#D6D3C9]'
+                            : 'text-[#6E7078] dark:text-[#94A3B8]'
+                        }`}
+                      >
                         {theme.tagline}
                       </span>
                     </div>

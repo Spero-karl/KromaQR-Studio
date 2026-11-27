@@ -174,7 +174,7 @@ export const PreviewStage: React.FC<PreviewStageProps> = ({
 
   return (
     <aside className="lg:sticky lg:top-20">
-      <div className="bg-white dark:bg-[#131926] border border-[#E2E6F0] dark:border-[#242C3D] rounded-2xl overflow-hidden shadow-[0_2px_10px_rgba(15,23,42,0.03)] dark:shadow-none">
+      <div className="lux-surface bg-white dark:bg-[#131926] border border-[#E2E6F0] dark:border-[#242C3D] rounded-2xl overflow-hidden shadow-[0_2px_10px_rgba(15,23,42,0.03)] dark:shadow-none">
         <div className="p-5 sm:p-6">
           {/* Header: Step 4 + Minimalist Status */}
           <div className="flex flex-wrap items-center justify-between gap-2 pb-4 border-b border-[#EFEFF5] dark:border-[#22283A]">
@@ -240,12 +240,21 @@ export const PreviewStage: React.FC<PreviewStageProps> = ({
               : 'studio-grid-mat border-[#E4E1D7] dark:border-[#252D40]'
           }`}
         >
+          <div
+            aria-hidden="true"
+            className="lux-pedestal-aura pointer-events-none absolute w-72 h-72 rounded-full blur-3xl opacity-55"
+            style={{
+              background: isGenerated
+                ? `radial-gradient(circle, ${laserColor}26 0%, transparent 70%)`
+                : 'radial-gradient(circle, rgba(59,130,246,0.16) 0%, transparent 70%)',
+            }}
+          />
           {!isGenerated ? (
             <div
               data-testid="qr-confidential-placeholder"
-              className="w-full max-w-[320px] rounded-2xl bg-white/95 dark:bg-[#161B29] border border-[#E6E4DC] dark:border-[#283145] p-6 sm:p-7 text-center space-y-4 shadow-[0_12px_32px_rgba(17,18,20,0.06)] dark:shadow-none"
+              className="lux-rise-in relative z-10 w-full max-w-[320px] rounded-2xl bg-white/95 dark:bg-[#161B29] border border-[#E6E4DC] dark:border-[#283145] p-6 sm:p-7 text-center space-y-4 shadow-[0_12px_32px_rgba(17,18,20,0.06)] dark:shadow-none"
             >
-              <div className="w-12 h-12 rounded-2xl bg-[#F4F7FF] dark:bg-[#1E293B] text-[#1D4ED8] dark:text-[#60A5FA] flex items-center justify-center mx-auto">
+              <div className="lux-float-icon w-12 h-12 rounded-2xl bg-[#F4F7FF] dark:bg-[#1E293B] text-[#1D4ED8] dark:text-[#60A5FA] flex items-center justify-center mx-auto">
                 <ShieldCheck className="w-6 h-6" aria-hidden="true" />
               </div>
               <div className="space-y-1.5">
@@ -261,7 +270,7 @@ export const PreviewStage: React.FC<PreviewStageProps> = ({
                   type="button"
                   disabled={!canGenerate || isGenerating}
                   onClick={onGenerate}
-                  className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 text-xs sm:text-sm font-semibold text-white bg-[#2563EB] hover:bg-[#1D4ED8] dark:bg-[#3B82F6] dark:hover:bg-[#2563EB] rounded-xl transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                  className="lux-cta w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 text-xs sm:text-sm font-semibold text-white bg-[#2563EB] hover:bg-[#1D4ED8] dark:bg-[#3B82F6] dark:hover:bg-[#2563EB] rounded-xl transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   <QrCode className="w-4 h-4" aria-hidden="true" />
                   <span>
@@ -484,7 +493,7 @@ export const PreviewStage: React.FC<PreviewStageProps> = ({
             type="button"
             disabled={!isGenerated}
             onClick={handlePng}
-            className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-semibold text-white bg-[#2563EB] hover:bg-[#1D4ED8] dark:bg-[#3B82F6] dark:hover:bg-[#2563EB] active:scale-[0.985] rounded-xl transition-colors whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+            className="lux-cta w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-semibold text-white bg-[#2563EB] hover:bg-[#1D4ED8] dark:bg-[#3B82F6] dark:hover:bg-[#2563EB] active:scale-[0.985] rounded-xl transition-colors whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
           >
             <Download className="w-4 h-4" aria-hidden="true" />
             <span>Télécharger PNG HD</span>

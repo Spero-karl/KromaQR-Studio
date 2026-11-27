@@ -62,12 +62,12 @@ test('normalizeConfigWithDefaults preserves saved configs and fills missing fiel
   assert.deepEqual(normalized.extraTexts, []);
 });
 
-test('24 redesigned presets (4 Studio, 11 Ultra Premium, 5 Master, 4 Légendaire) & backdrops are well-formed', () => {
+test('26 redesigned presets (4 Studio, 11 Ultra Premium, 7 Master, 4 Légendaire) & backdrops are well-formed', () => {
   assert.equal(STUDIO_THEME_PRESETS.length, 4);
   assert.equal(PREMIUM_THEME_PRESETS.length, 11);
-  assert.equal(MASTER_THEME_PRESETS.length, 5);
+  assert.equal(MASTER_THEME_PRESETS.length, 7);
   assert.equal(LEGENDARY_THEME_PRESETS.length, 4);
-  assert.equal(THEME_PRESETS.length, 24);
+  assert.equal(THEME_PRESETS.length, 26);
 
   const goldLayout = getCardLayout('vip-gold');
   assert.equal(goldLayout.width, 400);

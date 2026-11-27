@@ -314,12 +314,20 @@ test('source image never acts as center QR logo and all 20 redesigned presets + 
     );
   }
 
-  // All 24 presets (4 Studio + 11 Ultra Premium + 5 Master + 4 Légendaire) must have >= 4.5 WCAG contrast and zero GTA/Entreprise prefixes
-  assert.equal(THEME_PRESETS.length, 24);
+  // All 26 presets (4 Studio + 11 Ultra Premium + 7 Master + 4 Légendaire) must have >= 4.5 WCAG contrast and zero GTA/Entreprise prefixes
+  assert.equal(THEME_PRESETS.length, 26);
   for (const preset of THEME_PRESETS) {
     assert.equal(/\bgta\b/i.test(preset.name), false, `Forbidden GTA in name: ${preset.name}`);
     assert.equal(/\bentreprise\b|\bbanque\b|\bcorporate\b/i.test(preset.name), false, `Forbidden Entreprise/Banque in name: ${preset.name}`);
     assert.equal(preset.editionBadge === 'GTA Edition', false, `Forbidden GTA Edition badge on ${preset.id}`);
+  }
+
+  for (const bfId of ['master-black-friday-gold', 'master-black-friday-crimson']) {
+    const bf = THEME_PRESETS.find((t) => t.id === bfId);
+    assert.ok(bf, `Missing Black Friday Master preset ${bfId}`);
+    assert.equal(bf.collection, 'master');
+    assert.equal(bf.editionBadge, 'Black Friday');
+    assert.equal(bf.patch.metallicSheen, true);
   }
 
   const vicePreset = THEME_PRESETS.find((t) => t.id === 'vice-city-neon');

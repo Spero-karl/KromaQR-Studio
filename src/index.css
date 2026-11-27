@@ -276,6 +276,168 @@ input[type="range"] {
   will-change: transform;
 }
 
+/* Luxury Studio Animations */
+@keyframes lux-sheen-sweep {
+  0% {
+    transform: translateX(-140%) skewX(-22deg);
+    opacity: 0;
+  }
+  20% {
+    opacity: 0.9;
+  }
+  80% {
+    opacity: 0.9;
+  }
+  100% {
+    transform: translateX(240%) skewX(-22deg);
+    opacity: 0;
+  }
+}
+
+@keyframes lux-float-soft {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-3px);
+  }
+}
+
+@keyframes lux-aura-breathe {
+  0%, 100% {
+    opacity: 0.55;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.92;
+    transform: scale(1.045);
+  }
+}
+
+@keyframes lux-gold-pulse {
+  0%, 100% {
+    box-shadow: 0 0 0 1px rgba(234, 179, 8, 0.25), 0 8px 22px -12px rgba(234, 179, 8, 0.35);
+  }
+  50% {
+    box-shadow: 0 0 0 1px rgba(250, 204, 21, 0.52), 0 12px 28px -10px rgba(250, 204, 21, 0.5);
+  }
+}
+
+@keyframes lux-rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.992);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.lux-rise-in {
+  animation: lux-rise-in 0.42s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.lux-surface {
+  transition: transform 240ms cubic-bezier(0.16, 1, 0.3, 1), box-shadow 260ms ease, border-color 220ms ease;
+}
+
+.lux-surface:hover {
+  box-shadow: 0 16px 38px -18px rgba(15, 23, 42, 0.14);
+}
+
+.dark .lux-surface:hover {
+  box-shadow: 0 18px 42px -18px rgba(0, 0, 0, 0.55);
+}
+
+.lux-cta {
+  position: relative;
+  overflow: hidden;
+  transition: transform 180ms cubic-bezier(0.16, 1, 0.3, 1), box-shadow 220ms ease, background-color 180ms ease;
+}
+
+.lux-cta::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  width: 48%;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.32) 50%,
+    transparent 100%
+  );
+  transform: translateX(-160%) skewX(-22deg);
+  pointer-events: none;
+}
+
+.lux-cta:not(:disabled):hover {
+  transform: translateY(-1px);
+  box-shadow: 0 12px 26px -10px rgba(37, 99, 235, 0.48);
+}
+
+.lux-cta:not(:disabled):hover::after {
+  animation: lux-sheen-sweep 0.85s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.lux-cta:not(:disabled):active {
+  transform: translateY(0) scale(0.985);
+}
+
+.lux-preset-card {
+  position: relative;
+  overflow: hidden;
+  transition: transform 220ms cubic-bezier(0.16, 1, 0.3, 1), box-shadow 240ms ease, border-color 200ms ease, background-color 200ms ease;
+}
+
+.lux-preset-card::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 42%;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.22) 50%,
+    transparent 100%
+  );
+  transform: translateX(-180%) skewX(-22deg);
+  pointer-events: none;
+}
+
+.dark .lux-preset-card::after {
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(255, 255, 255, 0.1) 50%,
+    transparent 100%
+  );
+}
+
+.lux-preset-card:hover {
+  transform: translateY(-2px);
+}
+
+.lux-preset-card:hover::after {
+  animation: lux-sheen-sweep 0.9s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.lux-preset-blackfriday {
+  animation: lux-gold-pulse 3.4s ease-in-out infinite;
+}
+
+.lux-pedestal-aura {
+  animation: lux-aura-breathe 5.5s ease-in-out infinite;
+  will-change: transform, opacity;
+}
+
+.lux-float-icon {
+  animation: lux-float-soft 3.6s ease-in-out infinite;
+  will-change: transform;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0.01ms !important;

@@ -655,7 +655,7 @@ export const SourcePanel: React.FC<SourcePanelProps> = ({
   return (
     <section
       aria-labelledby="source-heading"
-      className="bg-white dark:bg-[#131926] border border-[#E2E6F0] dark:border-[#242C3D] rounded-2xl p-5 sm:p-6 shadow-[0_2px_10px_rgba(15,23,42,0.03)] transition-colors overflow-hidden"
+      className="lux-surface bg-white dark:bg-[#131926] border border-[#E2E6F0] dark:border-[#242C3D] rounded-2xl p-5 sm:p-6 shadow-[0_2px_10px_rgba(15,23,42,0.03)] transition-colors overflow-hidden"
     >
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-3 pb-4 border-b border-[#EFEFF5] dark:border-[#242C3D]">
@@ -2340,7 +2340,7 @@ export const SourcePanel: React.FC<SourcePanelProps> = ({
             data-testid="generate-qr-btn"
             onClick={onGenerate}
             disabled={uploading !== null || isGenerating}
-            className="inline-flex items-center justify-center gap-2 px-5 py-2.5 text-sm font-semibold text-white bg-[#2563EB] hover:bg-[#1D4ED8] active:scale-[0.98] rounded-xl transition-all duration-150 whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-60"
+            className="lux-cta inline-flex items-center justify-center gap-2 px-5 py-2.5 text-sm font-semibold text-white bg-[#2563EB] hover:bg-[#1D4ED8] active:scale-[0.98] rounded-xl transition-all duration-150 whitespace-nowrap shrink-0 cursor-pointer disabled:opacity-60"
           >
             <QrCode className="w-4 h-4" aria-hidden="true" />
             <span>
